@@ -405,9 +405,14 @@
               paste the full PEM content below.
             </li>
             <li>
-              Find your <strong>Webhook Secret</strong> under <strong>Webhooks</strong> in the
-              dashboard. Set your webhook URL to
-              <code>https://your-domain.com/api/teller/webhook</code>.
+              Under <strong>Webhooks</strong> in the dashboard, set your webhook URL to
+              <code>https://[YOUR_DOMAIN]/api/teller/webhook</code>. Enable all three event types (<strong
+                >enrollment.disconnected</strong
+              >,
+              <strong>transactions.processed</strong>, and
+              <strong>account.number_verification.processed</strong>). Then copy the
+              <strong>Signing Secret</strong> — Radiant uses it to verify that incoming webhooks are genuinely
+              from Teller.
             </li>
           </ol>
         </div>
@@ -462,15 +467,16 @@
         </div>
 
         <div class="form-group">
-          <label for="teller-webhook-secret">Webhook Secret</label>
+          <label for="teller-webhook-secret">Webhook Signing Secret</label>
           <input
             id="teller-webhook-secret"
-            type="password"
-            placeholder="Paste your Teller webhook secret"
+            type="text"
+            placeholder="Paste your Teller signing secret"
             bind:value={tellerWebhookSecret}
           />
           <span class="hint"
-            >Found under Webhooks on your Teller Dashboard. Verifies incoming webhook payloads.</span
+            >Found under Webhooks > Signing secrets on your Teller Dashboard. Used to verify that
+            incoming webhooks are from Teller.</span
           >
         </div>
       {:else if currentStep === 5}
