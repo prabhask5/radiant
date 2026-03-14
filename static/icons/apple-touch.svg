@@ -1,4 +1,66 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="64" fill="#6c5ce7"/>
-  <text x="256" y="280" text-anchor="middle" font-family="system-ui, sans-serif" font-size="64" font-weight="700" fill="white">R</text>
+  <defs>
+    <linearGradient id="gemGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+    <linearGradient id="tableGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background with larger corner radius for iOS -->
+  <rect width="512" height="512" rx="96" fill="#8b5cf6"/>
+
+  <!-- Shadow under gem -->
+  <ellipse cx="256" cy="370" rx="100" ry="20" fill="url(#shadow)"/>
+
+  <!-- Gem -->
+  <polygon points="256,96 356,156 396,256 356,356 256,396 156,356 116,256 156,156" fill="url(#gemGrad)" stroke="#7c3aed" stroke-width="2"/>
+
+  <!-- Crown facets -->
+  <polygon points="256,96 156,156 196,216 256,176" fill="#a78bfa" opacity="0.7"/>
+  <polygon points="256,96 356,156 316,216 256,176" fill="#9366f0" opacity="0.7"/>
+  <polygon points="356,156 396,256 336,236 316,216" fill="#8b5cf6" opacity="0.6"/>
+  <polygon points="396,256 356,356 336,276 336,236" fill="#7c3aed" opacity="0.6"/>
+  <polygon points="356,356 256,396 276,316 336,276" fill="#9f5cf6" opacity="0.5"/>
+  <polygon points="256,396 156,356 176,316 276,316" fill="#c474d0" opacity="0.5"/>
+  <polygon points="156,356 116,256 176,276 176,316" fill="#d466b8" opacity="0.5"/>
+  <polygon points="116,256 156,156 196,216 176,276" fill="#b47cf6" opacity="0.6"/>
+
+  <!-- Table facet -->
+  <polygon points="256,176 316,216 336,236 336,276 276,316 176,316 176,276 196,216" fill="url(#tableGrad)" opacity="0.8"/>
+
+  <!-- Inner table -->
+  <polygon points="256,200 300,226 316,256 300,286 256,300 212,286 196,256 212,226" fill="#ddd6fe" opacity="0.5"/>
+
+  <!-- Facet edge highlights -->
+  <line x1="256" y1="96" x2="256" y2="176" stroke="white" stroke-width="1.5" opacity="0.4"/>
+  <line x1="256" y1="176" x2="316" y2="216" stroke="white" stroke-width="1" opacity="0.3"/>
+  <line x1="256" y1="176" x2="196" y2="216" stroke="white" stroke-width="1" opacity="0.5"/>
+  <line x1="356" y1="156" x2="316" y2="216" stroke="white" stroke-width="1" opacity="0.3"/>
+  <line x1="156" y1="156" x2="196" y2="216" stroke="white" stroke-width="1" opacity="0.5"/>
+  <line x1="396" y1="256" x2="336" y2="236" stroke="white" stroke-width="1" opacity="0.25"/>
+  <line x1="116" y1="256" x2="176" y2="276" stroke="white" stroke-width="1" opacity="0.35"/>
+  <line x1="336" y1="236" x2="336" y2="276" stroke="white" stroke-width="1" opacity="0.2"/>
+  <line x1="176" y1="276" x2="176" y2="316" stroke="white" stroke-width="1" opacity="0.3"/>
+  <line x1="256" y1="396" x2="276" y2="316" stroke="white" stroke-width="1" opacity="0.2"/>
+  <line x1="256" y1="396" x2="176" y2="316" stroke="white" stroke-width="1" opacity="0.15"/>
+
+  <!-- Sparkle highlights -->
+  <circle cx="210" cy="180" r="6" fill="white" opacity="0.6"/>
+  <circle cx="210" cy="180" r="12" fill="white" opacity="0.15"/>
+  <circle cx="300" cy="210" r="3" fill="white" opacity="0.4"/>
+  <circle cx="240" cy="240" r="4" fill="white" opacity="0.35"/>
+
+  <!-- Radiance rays -->
+  <line x1="200" y1="130" x2="185" y2="110" stroke="white" stroke-width="2" opacity="0.3" stroke-linecap="round"/>
+  <line x1="310" y1="130" x2="325" y2="110" stroke="white" stroke-width="2" opacity="0.25" stroke-linecap="round"/>
+  <line x1="160" y1="200" x2="140" y2="190" stroke="white" stroke-width="1.5" opacity="0.2" stroke-linecap="round"/>
 </svg>

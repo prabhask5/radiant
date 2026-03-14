@@ -1,50 +1,76 @@
-# Frameworks & Technology Reference
+# Radiant Finance -- Tech Stack & Framework Documentation
 
-This document covers every technology in Radiant's stack — how it works, why it was chosen, and how it's used in this codebase.
+Radiant Finance is an offline-first personal finance tracker built with SvelteKit 2, Svelte 5, and stellar-drive, featuring bank aggregation via Teller.io, Supabase-powered sync, and a crystal-themed PWA interface.
 
 ---
 
-## SvelteKit 2
+## Table of Contents
 
-SvelteKit is the full-stack framework powering Radiant. It provides file-based routing, server-side rendering, API endpoints, and the adapter system for deployment.
+1. [SvelteKit 2 (Full-Stack Framework)](#1-sveltekit-2-full-stack-framework)
+2. [Svelte 5 (UI Framework)](#2-svelte-5-ui-framework)
+3. [stellar-drive (Offline-First Sync Engine)](#3-stellar-drive-offline-first-sync-engine)
+4. [IndexedDB / Dexie (Client-Side Storage)](#4-indexeddb--dexie-client-side-storage)
+5. [Supabase (Backend-as-a-Service)](#5-supabase-backend-as-a-service)
+6. [Teller.io (Bank Aggregation)](#6-tellerio-bank-aggregation)
+7. [Vite (Build Tool)](#7-vite-build-tool)
+8. [TypeScript (Type System)](#8-typescript-type-system)
+9. [PWA / Service Worker (Offline Support)](#9-pwa--service-worker-offline-support)
+10. [CSS Design System (Styling)](#10-css-design-system-styling)
+11. [ESLint (Linting)](#11-eslint-linting)
+12. [Prettier (Formatting)](#12-prettier-formatting)
+13. [Knip (Dead Code Detection)](#13-knip-dead-code-detection)
+14. [Husky (Git Hooks)](#14-husky-git-hooks)
+15. [Development Dependencies](#15-development-dependencies)
+16. [NPM Scripts](#16-npm-scripts)
+17. [Runtime Dependencies](#17-runtime-dependencies)
 
-### Routing
+---
 
-SvelteKit uses file-system routing under `src/routes/`. Each directory maps to a URL path:
+## 1. SvelteKit 2 (Full-Stack Framework)
+
+### What is SvelteKit?
+
+SvelteKit is a full-stack web framework built on top of Svelte. It provides file-based routing, server-side rendering, API endpoints, and a deployment adapter system. SvelteKit handles both the frontend and backend of an application in a single project, using the filesystem to define routes and endpoints.
+
+### How Radiant uses SvelteKit
+
+Radiant uses SvelteKit as its application shell. File-system routing defines all pages (dashboard, transactions, budgets, accounts, login), route groups organize authenticated routes, and `+server.ts` endpoints handle Teller.io API calls and webhook processing. Universal load functions in `+layout.ts` initialize the stellar-drive engine and provide auth state to the entire app.
+
+#### Routing Structure
 
 ```
 src/routes/
-├── +page.svelte          → /
-├── +layout.svelte        → Wraps all child routes
-├── +layout.ts            → Root load function
-├── (app)/                → Route group (no URL segment)
-│   ├── +page.svelte      → / (dashboard, inside app layout)
-│   ├── transactions/
-│   │   └── +page.svelte  → /transactions
-│   ├── budgets/
-│   │   └── +page.svelte  → /budgets
-│   └── accounts/
-│       └── +page.svelte  → /accounts
-├── login/
-│   └── +page.svelte      → /login
-├── api/
-│   ├── config/
-│   │   └── +server.ts    → GET /api/config
-│   └── teller/
-│       ├── sync/
-│       │   └── +server.ts → POST /api/teller/sync
-│       └── webhook/
-│           └── +server.ts → POST /api/teller/webhook
+  +page.svelte            --> /
+  +layout.svelte          --> Wraps all child routes
+  +layout.ts              --> Root load function
+  (app)/                  --> Route group (no URL segment)
+    +page.svelte          --> / (dashboard, inside app layout)
+    transactions/
+      +page.svelte        --> /transactions
+    budgets/
+      +page.svelte        --> /budgets
+    accounts/
+      +page.svelte        --> /accounts
+  login/
+    +page.svelte          --> /login
+  api/
+    config/
+      +server.ts          --> GET /api/config
+    teller/
+      sync/
+        +server.ts        --> POST /api/teller/sync
+      webhook/
+        +server.ts        --> POST /api/teller/webhook
 ```
 
-Route groups `(app)` organize authenticated routes without adding a URL segment. The parenthesized name is stripped from the final URL.
+Route groups like `(app)` organize authenticated routes without adding a URL segment -- the parenthesized name is stripped from the final URL.
 
-### Load Functions
+#### Load Functions
 
 Load functions (`+page.ts`, `+layout.ts`) run before rendering and provide data to components:
 
 ```ts
-// +layout.ts — runs on every navigation
+// +layout.ts -- runs on every navigation
 export const load: LayoutLoad = async ({ depends }) => {
   const engine = await initEngine(config);
   depends('app:auth');
@@ -52,34 +78,48 @@ export const load: LayoutLoad = async ({ depends }) => {
 };
 ```
 
-- **Universal load** (`+page.ts`): Runs on both server and client
-- **Server load** (`+page.server.ts`): Runs only on the server, can access secrets
-- `depends()` enables fine-grained invalidation via `invalidate('app:auth')`
+| Load Type | File | Runs On | Use Case |
+|-----------|------|---------|----------|
+| Universal | `+page.ts` | Server and client | Data that does not need secrets |
+| Server-only | `+page.server.ts` | Server only | Access to secrets, database |
+| Layout | `+layout.ts` | Server and client | Shared data for child routes |
 
-### SSR & Adapters
+### Configuration
 
-Radiant uses `adapter-auto` which auto-detects Vercel and configures serverless functions. SvelteKit pre-renders static routes and server-renders dynamic ones.
+**File:** `svelte.config.js`
 
-### Server Endpoints
+```js
+import adapter from '@sveltejs/adapter-auto';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
-`+server.ts` files export HTTP method handlers (`GET`, `POST`, etc.) for API routes:
-
-```ts
-// api/teller/sync/+server.ts
-export const POST: RequestHandler = async ({ request, locals }) => {
-  // mTLS-authenticated Teller API calls
-  const data = await fetchTellerTransactions(enrollmentToken);
-  return json({ transactions: data });
+const config = {
+  preprocess: vitePreprocess(),
+  kit: {
+    adapter: adapter()
+  }
 };
+
+export default config;
 ```
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `preprocess` | `vitePreprocess()` | Handles `<script lang="ts">` and `<style>` blocks via Vite pipeline |
+| `adapter` | `adapter-auto` | Auto-detects deployment target (Vercel, Netlify, Node, etc.) |
 
 ---
 
-## Svelte 5 Runes
+## 2. Svelte 5 (UI Framework)
 
-Svelte 5 replaces the Svelte 3/4 reactivity model with explicit **runes** — compiler-recognized function calls that declare reactive state.
+### What is Svelte 5?
 
-### `$state` — Reactive State
+Svelte is a compiler-based UI framework that converts components into efficient imperative JavaScript at build time, producing no runtime framework overhead. Svelte 5 introduces runes -- explicit compiler-recognized function calls that declare reactive state, replacing the implicit reactivity model of Svelte 3/4.
+
+### How Radiant uses Svelte 5
+
+Every component in Radiant uses Svelte 5 runes for state management. Transaction lists, budget progress bars, account summaries, and form inputs all rely on `$state`, `$derived`, `$effect`, and `$props` for reactivity.
+
+#### `$state` -- Reactive State
 
 Declares mutable reactive state. Any assignment triggers re-renders in components that read it:
 
@@ -94,7 +134,7 @@ Declares mutable reactive state. Any assignment triggers re-renders in component
 
 Deep reactivity: `$state` creates proxies for objects and arrays, so `user.name = 'Bob'` triggers updates automatically.
 
-### `$derived` — Computed Values
+#### `$derived` -- Computed Values
 
 Declares a value derived from other reactive state. Re-computes automatically when dependencies change:
 
@@ -117,7 +157,7 @@ For complex derivations, use `$derived.by()`:
 </script>
 ```
 
-### `$effect` — Side Effects
+#### `$effect` -- Side Effects
 
 Runs side effects when reactive dependencies change. Automatically tracks which `$state` / `$derived` values are read:
 
@@ -126,14 +166,13 @@ Runs side effects when reactive dependencies change. Automatically tracks which 
   let searchQuery = $state('');
 
   $effect(() => {
-    // Re-runs whenever searchQuery changes
     const results = searchTransactions(searchQuery);
     updateResults(results);
   });
 </script>
 ```
 
-Cleanup: return a function from `$effect` for teardown (subscriptions, timers, etc.):
+Cleanup: return a function from `$effect` for teardown (subscriptions, timers):
 
 ```svelte
 <script>
@@ -144,19 +183,9 @@ Cleanup: return a function from `$effect` for teardown (subscriptions, timers, e
 </script>
 ```
 
-`$effect.pre()` runs before DOM updates (useful for scroll position preservation).
+#### `$props` -- Component Props
 
-### `$props` — Component Props
-
-Declares component inputs. Replaces `export let`:
-
-```svelte
-<script>
-  let { transaction, onDelete, children } = $props();
-</script>
-```
-
-With TypeScript:
+Declares component inputs. Replaces `export let` from Svelte 3/4:
 
 ```svelte
 <script lang="ts">
@@ -169,15 +198,15 @@ With TypeScript:
 </script>
 ```
 
-### Snippets
+#### Snippets -- Content Composition
 
-Snippets replace slots for content composition. They are typed, can receive parameters, and are passed as props:
+Snippets replace slots for passing renderable content between components. They are typed, can receive parameters, and are passed as props:
 
 ```svelte
 <!-- Parent -->
 <TransactionList {transactions}>
   {#snippet row(transaction)}
-    <div class="row">{transaction.description} — ${transaction.amount}</div>
+    <div class="row">{transaction.description} -- ${transaction.amount}</div>
   {/snippet}
 </TransactionList>
 
@@ -194,15 +223,20 @@ Snippets replace slots for content composition. They are typed, can receive para
 
 ---
 
-## stellar-drive Overview
+## 3. stellar-drive (Offline-First Sync Engine)
 
-`stellar-drive` (`@prabhask5/stellar-engine`) is the offline-first sync engine that powers all data operations in Radiant. It provides IndexedDB storage, Supabase sync, authentication, and PWA infrastructure.
+### What is stellar-drive?
 
-### Engine Initialization
+stellar-drive (`@prabhask5/stellar-engine`) is an offline-first sync engine that manages local IndexedDB storage, Supabase cloud sync, authentication, and PWA infrastructure. It provides a single `initEngine()` call that sets up the entire data layer, and exposes typed CRUD functions and reactive Svelte stores.
 
-The engine is initialized once in the root `+layout.ts`:
+### How Radiant uses stellar-drive
+
+Radiant initializes stellar-drive once in the root `+layout.ts`. All data operations -- creating transactions, updating budgets, deleting accounts -- go through stellar-drive's CRUD functions. Data is written to IndexedDB first (instant, offline-capable), then queued for background sync to Supabase.
+
+#### Engine Initialization
 
 ```ts
+// src/routes/+layout.ts
 import { initEngine } from '@prabhask5/stellar-engine';
 import { schema } from '$lib/schema';
 import { demoConfig } from '$lib/demo/config';
@@ -212,25 +246,12 @@ export const load: LayoutLoad = async () => {
     name: 'radiant',
     schema,
     demo: demoConfig,
-    // Supabase config resolved at runtime
   });
   return { authMode: engine.authMode };
 };
 ```
 
-### Sync Lifecycle
-
-1. **Write** — User performs a CRUD operation
-2. **Optimistic update** — Data written immediately to IndexedDB
-3. **Queue** — Change record added to the sync queue
-4. **Process** — Background sync processes the queue in order
-5. **Push** — Changes sent to Supabase via upsert/delete
-6. **Confirm** — Queue entry removed on success, retried on failure
-7. **Real-time** — Other devices receive the change via WebSocket subscription
-
-### CRUD Operations
-
-stellar-drive exposes typed CRUD functions:
+#### CRUD Operations
 
 ```ts
 import { create, update, remove, findAll, findOne } from '@prabhask5/stellar-engine';
@@ -245,19 +266,78 @@ const transaction = await findOne('transactions', id);
 // Update
 await update('transactions', id, { category_id: newCategoryId });
 
-// Delete (soft delete — sets `deleted: true`)
+// Delete (soft delete -- sets deleted: true)
 await remove('transactions', id);
 ```
 
-All operations are optimistic — they return immediately after writing to IndexedDB, and sync in the background.
+All operations are optimistic -- they return immediately after writing to IndexedDB, and sync in the background.
 
----
+#### Sync Lifecycle
 
-## Schema System
+1. **Write** -- User performs a CRUD operation
+2. **Optimistic update** -- Data written immediately to IndexedDB
+3. **Queue** -- Change record added to the sync queue
+4. **Process** -- Background sync processes the queue in order
+5. **Push** -- Changes sent to Supabase via upsert/delete
+6. **Confirm** -- Queue entry removed on success, retried on failure
+7. **Real-time** -- Other devices receive the change via WebSocket subscription
 
-`src/lib/schema.ts` is the **single source of truth** for the entire database. It drives three systems simultaneously:
+#### Reactive Stores
 
-### Schema Definition
+stellar-drive provides reactive store factories for Svelte 5 integration:
+
+```svelte
+<script lang="ts">
+  import { createCollectionStore } from '@prabhask5/stellar-engine';
+
+  const transactions = createCollectionStore('transactions', {
+    where: { account_id: accountId },
+    orderBy: { date: 'desc' },
+    limit: 50,
+  });
+</script>
+
+{#each $transactions as transaction}
+  <div>{transaction.description}</div>
+{/each}
+```
+
+The `createDetailStore` function provides a reactive store for a single record:
+
+```svelte
+<script lang="ts">
+  import { createDetailStore } from '@prabhask5/stellar-engine';
+  const account = createDetailStore('accounts', accountId);
+</script>
+
+{#if $account}
+  <h1>{$account.name}</h1>
+  <p>Balance: ${$account.balance}</p>
+{/if}
+```
+
+Stores integrate with Svelte 5 runes for derived computations:
+
+```svelte
+<script lang="ts">
+  let selectedCategory = $state('all');
+  let transactions = createCollectionStore('transactions');
+
+  let filtered = $derived(
+    selectedCategory === 'all'
+      ? $transactions
+      : $transactions.filter(t => t.category_id === selectedCategory)
+  );
+
+  let totalSpent = $derived(filtered.reduce((sum, t) => sum + Math.abs(t.amount), 0));
+</script>
+```
+
+### Configuration
+
+**File:** `src/lib/schema.ts`
+
+The schema file is the single source of truth for the entire database. It drives TypeScript type generation, Supabase SQL DDL, and IndexedDB (Dexie) versioning simultaneously.
 
 ```ts
 import { defineSchema } from '@prabhask5/stellar-engine';
@@ -288,41 +368,11 @@ export const schema = defineSchema({
     },
     indexes: ['account_id', 'category_id', 'date'],
   },
-  // ... 9 more tables
+  // ... additional tables
 });
 ```
 
-### Auto-Generation Pipeline
-
-1. **TypeScript types** — generated at `src/lib/types.generated.ts` with system columns:
-   ```ts
-   // Auto-generated — do not edit
-   export interface Transaction {
-     id: string;
-     description: string;
-     amount: number;
-     date: string;
-     account_id: string;
-     category_id: string | null;
-     // ... more fields
-     created_at: string;
-     updated_at: string;
-     deleted: boolean;
-     _version: number;
-     device_id: string;
-   }
-   ```
-
-2. **Supabase SQL** — full idempotent DDL pushed on every dev save / build:
-   - `CREATE TABLE IF NOT EXISTS`
-   - `ALTER TABLE ADD COLUMN IF NOT EXISTS`
-   - `CREATE INDEX IF NOT EXISTS`
-   - RLS policies (`ENABLE ROW LEVEL SECURITY`, `CREATE POLICY`)
-   - `updated_at` trigger functions
-
-3. **IndexedDB (Dexie)** — version auto-detected via schema hash. When the hash changes, Dexie auto-upgrades the local database.
-
-### Field Types
+#### Field Type Mapping
 
 | Schema Type | TypeScript | PostgreSQL | Notes |
 |-------------|-----------|------------|-------|
@@ -336,103 +386,34 @@ export const schema = defineSchema({
 | `'string?'` | `string \| null` | `text` (nullable) | Append `?` for nullable |
 | `['a', 'b']` | `'a' \| 'b'` | enum type | String union / enum |
 
-### Type Narrowing
+#### Auto-Generation Pipeline
 
-Generated types use wide types. Narrow them in `src/lib/types.ts`:
-
-```ts
-import type { Transaction as GenTransaction } from './types.generated';
-
-export type AccountType = 'checking' | 'savings' | 'credit' | 'investment';
-export interface Transaction extends Omit<GenTransaction, 'type'> {
-  type: AccountType;
-}
-```
+1. **TypeScript types** -- generated at `src/lib/types.generated.ts` with system columns (`id`, `created_at`, `updated_at`, `deleted`, `_version`, `device_id`)
+2. **Supabase SQL** -- full idempotent DDL pushed on every dev save / build (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ADD COLUMN IF NOT EXISTS`, RLS policies, triggers)
+3. **IndexedDB (Dexie)** -- version auto-detected via schema hash; hash changes trigger Dexie auto-upgrade
 
 ---
 
-## Store Patterns
+## 4. IndexedDB / Dexie (Client-Side Storage)
 
-stellar-drive provides reactive store factories for Svelte 5 integration.
+### What is IndexedDB?
 
-### `createCollectionStore`
+IndexedDB is a browser-native, asynchronous key-value database for storing structured data on the client. Dexie.js is a lightweight wrapper that provides a Promise-based API over the raw IndexedDB API, with support for compound indexes, versioning, and transactions.
 
-Creates a reactive store for a table that auto-syncs with IndexedDB:
+### How Radiant uses IndexedDB
 
-```svelte
-<script lang="ts">
-  import { createCollectionStore } from '@prabhask5/stellar-engine';
+Radiant stores all application data locally in IndexedDB via Dexie, managed entirely by stellar-drive. All reads come from IndexedDB (never from the network), and all writes go to IndexedDB first before queuing for sync. This makes the app fully functional offline.
 
-  const transactions = createCollectionStore('transactions', {
-    where: { account_id: accountId },
-    orderBy: { date: 'desc' },
-    limit: 50,
-  });
-</script>
+- **Auto-versioning** -- schema hash changes trigger Dexie version upgrades
+- **Compound indexes** -- defined in `schema.ts` for efficient queries
+- **Demo mode isolation** -- creates a separate database (`radiant_demo`) so the real database is never touched
 
-{#each $transactions as transaction}
-  <div>{transaction.description}</div>
-{/each}
-```
-
-The store automatically re-queries when the underlying IndexedDB data changes (via sync or local writes).
-
-### `createDetailStore`
-
-Creates a reactive store for a single record:
-
-```svelte
-<script lang="ts">
-  import { createDetailStore } from '@prabhask5/stellar-engine';
-
-  const account = createDetailStore('accounts', accountId);
-</script>
-
-{#if $account}
-  <h1>{$account.name}</h1>
-  <p>Balance: ${$account.balance}</p>
-{/if}
-```
-
-### Reactive Patterns
-
-Stores integrate with Svelte 5 runes:
-
-```svelte
-<script lang="ts">
-  let selectedCategory = $state('all');
-  let transactions = createCollectionStore('transactions');
-
-  let filtered = $derived(
-    selectedCategory === 'all'
-      ? $transactions
-      : $transactions.filter(t => t.category_id === selectedCategory)
-  );
-
-  let totalSpent = $derived(filtered.reduce((sum, t) => sum + Math.abs(t.amount), 0));
-</script>
-```
-
----
-
-## IndexedDB / Dexie
-
-Radiant uses [Dexie.js](https://dexie.org) as the IndexedDB wrapper, managed entirely by stellar-drive.
-
-### How Offline Storage Works
-
-- **All reads** come from IndexedDB — never from the network
-- **All writes** go to IndexedDB first, then queue for sync
-- **Dexie** provides a Promise-based API over the raw IndexedDB API
-- **Auto-versioning** — schema hash changes trigger Dexie version upgrades
-- **Compound indexes** — defined in `schema.ts` for efficient queries
-
-### Query Performance
+#### Query Performance
 
 Dexie queries are optimized via defined indexes:
 
 ```ts
-// Uses the 'date' index — fast range query
+// Uses the 'date' index -- fast range query
 const recent = await db.table('transactions')
   .where('date')
   .aboveOrEqual('2026-01-01')
@@ -445,40 +426,38 @@ const groceries = await db.table('transactions')
   .toArray();
 ```
 
-### Demo Mode Isolation
-
-Demo mode creates a separate database (`radiant_demo`) so the real database is never touched. The demo database is populated fresh on each page load by the `seedData()` callback.
-
 ---
 
-## Supabase Integration
+## 5. Supabase (Backend-as-a-Service)
 
-Supabase provides three services for Radiant: authentication, PostgreSQL database, and real-time subscriptions.
+### What is Supabase?
 
-### Authentication
+Supabase is an open-source backend platform built on PostgreSQL. It provides authentication, a RESTful API over the database, real-time WebSocket subscriptions, and row-level security (RLS) policies -- all without writing custom backend code.
 
-Radiant uses Supabase Auth with email provider, layered with stellar-drive's PIN gate:
+### How Radiant uses Supabase
 
-1. **Supabase session** — email-based authentication creates a JWT session
-2. **PIN gate** — single-user PIN lock screen before accessing the app
-3. **Device verification** — trusted device management with device IDs
-4. **Offline auth** — PIN verification works offline using locally stored hash
+Supabase provides three services for Radiant: authentication (email-based with PIN gate), PostgreSQL storage (sync target for stellar-drive), and real-time subscriptions (multi-device sync via WebSocket channels).
 
-### Real-Time Subscriptions
+#### Authentication Flow
 
-stellar-drive subscribes to Supabase Realtime for multi-device sync:
+1. **Supabase session** -- email-based authentication creates a JWT session
+2. **PIN gate** -- single-user PIN lock screen before accessing the app
+3. **Device verification** -- trusted device management with device IDs
+4. **Offline auth** -- PIN verification works offline using locally stored hash
+
+#### Real-Time Subscriptions
 
 ```
 Supabase Realtime (WebSocket)
-  → postgres_changes channel
-  → INSERT / UPDATE / DELETE events
-  → stellar-drive processes remote changes
-  → IndexedDB updated
-  → Reactive stores re-emit
-  → UI updates
+  -> postgres_changes channel
+  -> INSERT / UPDATE / DELETE events
+  -> stellar-drive processes remote changes
+  -> IndexedDB updated
+  -> Reactive stores re-emit
+  -> UI updates
 ```
 
-### Row Level Security (RLS)
+#### Row Level Security (RLS)
 
 Every table has RLS enabled with policies ensuring users only access their own data:
 
@@ -494,18 +473,22 @@ CREATE POLICY "Users can access own data"
 
 ---
 
-## Teller.io Integration
+## 6. Teller.io (Bank Aggregation)
 
-Teller.io provides bank data aggregation through a REST API with mTLS authentication.
+### What is Teller.io?
 
-### mTLS Authentication
+Teller.io is a bank data aggregation service that provides a REST API for accessing account balances, transaction history, and account metadata from financial institutions. It uses mutual TLS (mTLS) authentication, requiring a client certificate on every API request.
 
-Teller requires mutual TLS — every API request includes a client certificate:
+### How Radiant uses Teller.io
+
+Radiant uses Teller.io to connect users' bank accounts, fetch transaction data, and receive webhook notifications for new transactions. The client-side Teller Connect widget handles bank enrollment, and server-side `+server.ts` endpoints handle mTLS-authenticated API calls.
+
+#### mTLS Authentication
 
 ```ts
 const agent = new https.Agent({
-  cert: tellerCertificate,  // Client certificate
-  key: tellerPrivateKey,    // Client private key
+  cert: tellerCertificate,
+  key: tellerPrivateKey,
 });
 
 const response = await fetch('https://api.teller.io/accounts', {
@@ -514,55 +497,182 @@ const response = await fetch('https://api.teller.io/accounts', {
 });
 ```
 
-### Teller Connect
+#### Teller Connect Flow
 
-The client-side Teller Connect widget handles the bank enrollment flow:
-
-1. User clicks "Connect Bank" → Teller Connect opens
+1. User clicks "Connect Bank" -- Teller Connect opens
 2. User selects institution and authenticates
 3. Teller returns an enrollment token
 4. Token stored in `teller_enrollments` table
 5. Server-side API uses token for data fetching
 
-### Webhook Processing
-
-Teller sends webhooks for transaction updates:
+#### Webhook Processing
 
 1. `POST /api/teller/webhook` receives the payload
 2. HMAC signature verified against `TELLER_WEBHOOK_SECRET`
 3. New/updated transactions fetched via Teller API
-4. Data upserted to Supabase → syncs to all devices
-
-### Access Tokens
-
-Each enrollment has an access token for API calls. Tokens are stored server-side and used for:
-- Fetching account balances
-- Pulling transaction history
-- Monitoring account status
+4. Data upserted to Supabase -- syncs to all devices
 
 ---
 
-## PWA Architecture
+## 7. Vite (Build Tool)
 
-The service worker is generated by the `stellarPWA` Vite plugin from `@prabhask5/stellar-engine`.
+### What is Vite?
 
-### Caching Strategies
+Vite is a build tool that provides instant dev server startup via native ES modules, hot module replacement (HMR), and a Rollup-based production build pipeline. SvelteKit uses Vite as its underlying build system.
+
+### How Radiant uses Vite
+
+Radiant's Vite configuration integrates two plugins (SvelteKit and stellarPWA), defines vendor chunk splitting for caching optimization, and targets modern browsers for smaller output.
+
+### Configuration
+
+**File:** `vite.config.ts`
+
+```ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { stellarPWA } from 'stellar-drive/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [
+    sveltekit(),
+    stellarPWA({ prefix: 'radiant', name: 'Radiant Finance', schema: true })
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('@supabase')) return 'vendor-supabase';
+            if (id.includes('dexie')) return 'vendor-dexie';
+          }
+        }
+      }
+    },
+    chunkSizeWarningLimit: 500,
+    minify: 'esbuild',
+    target: 'es2020'
+  }
+});
+```
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `plugins[0]` | `sveltekit()` | SvelteKit integration with Vite |
+| `plugins[1]` | `stellarPWA(...)` | Service worker generation, schema watching, asset manifest |
+| `manualChunks` | custom function | Isolates `@supabase` and `dexie` into vendor chunks for long-term caching |
+| `chunkSizeWarningLimit` | `500` | Only warn for chunks above 500 KB |
+| `minify` | `'esbuild'` | Faster minification than terser with comparable output |
+| `target` | `'es2020'` | Modern browsers only, no legacy polyfills |
+
+---
+
+## 8. TypeScript (Type System)
+
+### What is TypeScript?
+
+TypeScript is a typed superset of JavaScript that compiles to plain JavaScript. It provides static type checking, interfaces, generics, and IDE tooling support, catching errors at compile time rather than runtime.
+
+### How Radiant uses TypeScript
+
+Radiant uses TypeScript in strict mode across the entire codebase. The schema system auto-generates typed interfaces for every database table, and app-specific types in `src/lib/types.ts` compose generated types with domain logic.
+
+#### Generated Types
+
+`src/lib/types.generated.ts` provides one interface per schema table with system columns automatically included:
+
+```ts
+// Auto-generated -- do not edit
+export interface Transaction {
+  id: string;
+  description: string;
+  amount: number;
+  date: string;
+  account_id: string;
+  category_id: string | null;
+  // ... more fields
+  created_at: string;
+  updated_at: string;
+  deleted: boolean;
+  _version: number;
+  device_id: string;
+}
+```
+
+#### Composite Types
+
+App-specific types compose generated types with domain logic:
+
+```ts
+// src/lib/types.ts
+export interface TransactionWithCategory extends Transaction {
+  category?: Category;
+}
+
+export interface BudgetWithProgress extends Budget {
+  spent: number;
+  remaining: number;
+  percentUsed: number;
+}
+```
+
+### Configuration
+
+**File:** `tsconfig.json`
+
+```json
+{
+  "extends": "./.svelte-kit/tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "strict": true,
+    "moduleResolution": "bundler"
+  }
+}
+```
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `strict` | `true` | Enables all strict type-checking options |
+| `moduleResolution` | `"bundler"` | Matches Vite's module resolution strategy |
+| `checkJs` | `true` | Type-checks JavaScript files alongside TypeScript |
+| `skipLibCheck` | `true` | Skips type-checking declaration files for faster builds |
+
+---
+
+## 9. PWA / Service Worker (Offline Support)
+
+### What is a PWA?
+
+A Progressive Web App (PWA) is a web application that uses service workers, a web app manifest, and caching strategies to provide an app-like experience -- including offline support, installability, and push notifications. The service worker intercepts network requests and serves cached responses when the network is unavailable.
+
+### How Radiant uses PWA
+
+The service worker is generated by the `stellarPWA` Vite plugin from stellar-drive. It precaches build assets, applies strategy-based caching for different resource types, and enables full offline functionality.
+
+#### Caching Strategies
 
 | Resource Type | Strategy | Rationale |
 |--------------|----------|-----------|
-| Content-hashed assets (`/_app/immutable/`) | Cache-first | Immutable — hash guarantees freshness |
+| Content-hashed assets (`/_app/immutable/`) | Cache-first | Immutable -- hash guarantees freshness |
 | Shell resources (HTML, manifest, icons) | Stale-while-revalidate | Versioned, updated in background |
 | Navigation requests | Network-first, offline fallback | Always try for fresh content |
 | API requests | Network-only | Dynamic data, no caching |
 
-### Service Worker Lifecycle
+#### Service Worker Lifecycle
 
-1. **Install** — precache all assets from the build manifest
-2. **Activate** — clean up old cache versions
-3. **Fetch** — intercept requests and apply caching strategy
-4. **Update** — new service worker detected → `skipWaiting` + `clients.claim`
+1. **Install** -- precache all assets from the build manifest
+2. **Activate** -- clean up old cache versions
+3. **Fetch** -- intercept requests and apply caching strategy
+4. **Update** -- new service worker detected, `skipWaiting` + `clients.claim`
 
-### Manifest
+#### Web App Manifest
 
 ```json
 {
@@ -577,44 +687,17 @@ The service worker is generated by the `stellarPWA` Vite plugin from `@prabhask5
 
 ---
 
-## Type System
+## 10. CSS Design System (Styling)
 
-### Generated Types
+### What is a CSS Design System?
 
-`types.generated.ts` provides one interface per schema table with system columns automatically included:
+A CSS design system is a collection of design tokens (colors, spacing, typography, shadows) defined as CSS custom properties. Components reference these tokens instead of hardcoded values, ensuring visual consistency and enabling theme changes from a single location.
 
-- `id: string` — UUID primary key
-- `created_at: string` — ISO timestamp
-- `updated_at: string` — ISO timestamp
-- `deleted: boolean` — soft delete flag
-- `_version: number` — conflict resolution version
-- `device_id: string` — originating device
+### How Radiant uses CSS
 
-### Composite Types
+Radiant uses CSS custom properties for a gem/crystal design theme. All colors, spacing, typography, and elevation values are defined as tokens in `:root` and consumed by scoped component styles.
 
-App-specific types in `src/lib/types.ts` compose generated types with domain logic:
-
-```ts
-export interface TransactionWithCategory extends Transaction {
-  category?: Category;
-}
-
-export interface BudgetWithProgress extends Budget {
-  spent: number;
-  remaining: number;
-  percentUsed: number;
-}
-```
-
----
-
-## CSS Design System
-
-Radiant uses CSS custom properties for a **gem/crystal** design theme.
-
-### Theme Tokens
-
-CSS custom properties define the design system, enabling consistent theming:
+#### Theme Tokens
 
 ```css
 :root {
@@ -640,9 +723,9 @@ CSS custom properties define the design system, enabling consistent theming:
 }
 ```
 
-### Component Styling
+#### Component Styling
 
-Components use scoped styles with CSS custom properties for themability:
+Components use scoped styles with CSS custom properties:
 
 ```svelte
 <style>
@@ -657,56 +740,222 @@ Components use scoped styles with CSS custom properties for themability:
 
 ---
 
-## Build & Development
+## 11. ESLint (Linting)
 
-### Vite Configuration
+### What is ESLint?
 
-Radiant uses Vite (via SvelteKit) with the `stellarPWA` plugin:
+ESLint is a static analysis tool that identifies problematic patterns in JavaScript and TypeScript code. It enforces code quality rules, catches common errors, and ensures consistent coding conventions across a project.
 
-```ts
-// vite.config.ts
-import { sveltekit } from '@sveltejs/kit/vite';
-import { stellarPWA } from '@prabhask5/stellar-engine/vite';
+### How Radiant uses ESLint
 
-export default defineConfig({
-  plugins: [
-    sveltekit(),
-    stellarPWA({
-      schema: true,     // Enable schema watching + auto-generation
-      serviceWorker: true, // Generate service worker
-    }),
+Radiant uses ESLint 9 with the flat config format, combining the recommended JavaScript ruleset, TypeScript-ESLint rules, and Svelte-specific rules. Notable configuration choices include disabling `prefer-const` in Svelte files (since `$props()` destructuring uses `let`) and warning on unused variables with underscore-prefix exceptions.
+
+### Configuration
+
+**File:** `eslint.config.js`
+
+```js
+import js from '@eslint/js';
+import ts from 'typescript-eslint';
+import svelte from 'eslint-plugin-svelte';
+import globals from 'globals';
+
+export default [
+  js.configs.recommended,
+  ...ts.configs.recommended,
+  ...svelte.configs['flat/recommended'],
+  {
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node }
+    }
+  },
+  {
+    files: ['**/*.svelte'],
+    languageOptions: { parserOptions: { parser: ts.parser } },
+    rules: { 'prefer-const': 'off' }
+  },
+  {
+    files: ['**/*.ts', '**/*.js'],
+    rules: { 'prefer-const': 'error' }
+  },
+  {
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['warn', {
+        argsIgnorePattern: '^_', varsIgnorePattern: '^_'
+      }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'no-console': 'off',
+      'no-var': 'error',
+      'svelte/no-at-html-tags': 'warn',
+      'svelte/valid-compile': ['error', { ignoreWarnings: true }],
+      'svelte/require-each-key': 'warn',
+      'svelte/no-navigation-without-resolve': 'off',
+      'svelte/prefer-svelte-reactivity': 'off',
+      'svelte/no-unused-svelte-ignore': 'warn'
+    }
+  },
+  {
+    ignores: ['.svelte-kit/**', 'build/**', 'dist/**', 'node_modules/**', 'static/**', '*.config.js', '*.config.ts']
+  }
+];
+```
+
+| Rule | Setting | Rationale |
+|------|---------|-----------|
+| `prefer-const` | `off` in `.svelte`, `error` in `.ts/.js` | Svelte 5 `$props()` destructuring requires `let` |
+| `@typescript-eslint/no-unused-vars` | `warn` with `^_` ignore | Allow underscore-prefixed intentionally unused variables |
+| `@typescript-eslint/no-explicit-any` | `warn` | Discourage `any` without blocking builds |
+| `svelte/no-navigation-without-resolve` | `off` | Too strict for app navigation patterns |
+
+---
+
+## 12. Prettier (Formatting)
+
+### What is Prettier?
+
+Prettier is an opinionated code formatter that enforces a consistent style by parsing code and re-printing it according to its own rules. It supports JavaScript, TypeScript, CSS, HTML, and Svelte via plugins.
+
+### How Radiant uses Prettier
+
+Radiant uses Prettier with the Svelte plugin for formatting all source files. The `cleanup` npm script runs Prettier alongside ESLint fix to normalize the codebase.
+
+### Configuration
+
+**File:** `.prettierrc`
+
+```json
+{
+  "useTabs": false,
+  "tabWidth": 2,
+  "singleQuote": true,
+  "trailingComma": "none",
+  "printWidth": 100,
+  "plugins": ["prettier-plugin-svelte"],
+  "overrides": [
+    {
+      "files": "*.svelte",
+      "options": { "parser": "svelte" }
+    }
+  ]
+}
+```
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `useTabs` | `false` | Indent with spaces |
+| `tabWidth` | `2` | Two-space indentation |
+| `singleQuote` | `true` | Use single quotes for strings |
+| `trailingComma` | `"none"` | No trailing commas |
+| `printWidth` | `100` | Line wrap at 100 characters |
+
+---
+
+## 13. Knip (Dead Code Detection)
+
+### What is Knip?
+
+Knip is a tool that finds unused files, dependencies, and exports in JavaScript/TypeScript projects. It analyzes the dependency graph from configured entry points and reports anything that is not reachable.
+
+### How Radiant uses Knip
+
+Radiant runs Knip via the `dead-code` npm script as part of the `validate` pipeline. It is configured with SvelteKit-aware entry points to correctly trace imports through route files and library modules.
+
+### Configuration
+
+**File:** `knip.json`
+
+```json
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "src/routes/**/*.{svelte,ts,js}",
+    "src/lib/**/*.{svelte,ts,js}"
   ],
-});
+  "project": [
+    "src/**/*.{svelte,ts,js}"
+  ],
+  "sveltekit": {
+    "config": "svelte.config.js"
+  },
+  "ignoreDependencies": [
+    "dexie"
+  ]
+}
 ```
 
-### Chunk Splitting
+---
 
-SvelteKit auto-splits code by route. Additional optimization:
+## 14. Husky (Git Hooks)
 
-- Route-level code splitting — each page loads only its dependencies
-- Shared chunks — common libraries extracted to shared bundles
-- Dynamic imports — heavy components loaded on demand
-- Content-hashed filenames — enable aggressive caching
+### What is Husky?
 
-### Development Workflow
+Husky is a tool for managing Git hooks in JavaScript projects. It installs hook scripts (pre-commit, pre-push, etc.) that run automatically during Git operations, enforcing code quality checks before code enters the repository.
 
-```bash
-npm run dev          # Start dev server with HMR
-                     # → Schema changes auto-generate types (500ms debounce)
-                     # → Schema auto-pushes to Supabase (if DATABASE_URL set)
-                     # → Service worker rebuilds
+### How Radiant uses Husky
 
-npm run cleanup      # Format (Prettier) + lint fix (ESLint)
-npm run validate     # Type check + lint + dead code detection
-npm run build        # Production build (includes schema sync)
+Radiant uses Husky to run pre-commit checks, ensuring that code passes linting and formatting standards before being committed. The `prepare` npm script installs Husky's Git hooks automatically after `npm install`.
+
+### Configuration
+
+Husky is initialized via the `prepare` script in `package.json`:
+
+```json
+{
+  "scripts": {
+    "prepare": "husky"
+  }
+}
 ```
 
-### Dev Tools
+---
 
-| Tool | Purpose | Config |
-|------|---------|--------|
-| **ESLint** | Linting | `eslint.config.js` (flat config, TypeScript + Svelte) |
-| **Prettier** | Formatting | `.prettierrc` with Svelte plugin |
-| **Knip** | Dead code detection | `knip.json` |
-| **svelte-check** | Type checking | Uses `tsconfig.json` |
-| **TypeScript** | Strict mode | `tsconfig.json` with `strict: true` |
+## 15. Development Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@eslint/js` | ^9.39.2 | ESLint core JavaScript rules |
+| `@sveltejs/adapter-auto` | ^4.0.0 | Auto-detecting deployment adapter for SvelteKit |
+| `@sveltejs/kit` | ^2.21.0 | SvelteKit full-stack framework |
+| `@sveltejs/vite-plugin-svelte` | ^5.0.0 | Svelte compiler integration for Vite |
+| `eslint` | ^9.39.2 | Static analysis and linting |
+| `eslint-plugin-svelte` | ^3.14.0 | ESLint rules for Svelte components |
+| `globals` | ^17.2.0 | Global variable definitions for ESLint |
+| `husky` | ^9.1.7 | Git hooks management |
+| `knip` | ^5.82.1 | Dead code and unused dependency detection |
+| `prettier` | ^3.8.1 | Code formatting |
+| `prettier-plugin-svelte` | ^3.4.1 | Prettier support for Svelte files |
+| `svelte` | ^5.0.0 | Svelte 5 compiler and runtime |
+| `svelte-check` | ^4.3.5 | TypeScript and Svelte diagnostics |
+| `typescript` | ^5.0.0 | TypeScript compiler |
+| `typescript-eslint` | ^8.54.0 | TypeScript rules for ESLint |
+| `vite` | ^6.0.0 | Build tool and dev server |
+
+---
+
+## 16. NPM Scripts
+
+| Script | Command | Purpose |
+|--------|---------|---------|
+| `dev` | `vite dev` | Start dev server with HMR, schema watching, and auto-generation |
+| `build` | `vite build` | Production build (includes schema sync) |
+| `preview` | `vite preview` | Preview production build locally |
+| `check` | `svelte-check --tsconfig ./tsconfig.json` | Run TypeScript and Svelte diagnostics |
+| `check:watch` | `svelte-check --tsconfig ./tsconfig.json --watch` | Run type checking in watch mode |
+| `lint` | `eslint src` | Lint source files |
+| `lint:fix` | `eslint src --fix` | Lint and auto-fix source files |
+| `format` | `prettier --write "src/**/*.{js,ts,svelte,css,html}"` | Format all source files |
+| `format:check` | `prettier --check "src/**/*.{js,ts,svelte,css,html}"` | Check formatting without writing |
+| `dead-code` | `knip` | Detect unused files, exports, and dependencies |
+| `dead-code:fix` | `knip --fix` | Auto-remove detected dead code |
+| `cleanup` | `npm run lint:fix && npm run format` | Fix linting and formatting in one pass |
+| `validate` | `npm run check && npm run lint && npm run dead-code` | Full validation: types, lint, dead code |
+| `prepare` | `husky` | Install Git hooks after npm install |
+
+---
+
+## 17. Runtime Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `stellar-drive` | ^1.1.22 | Local-first sync engine (IndexedDB, Supabase sync, auth, PWA) |
+| `postgres` | ^3.4.0 | PostgreSQL client for schema migrations |

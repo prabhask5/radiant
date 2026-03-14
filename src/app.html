@@ -97,17 +97,81 @@
     <!-- ================================================================= -->
     <!--               LANDSCAPE ORIENTATION BLOCKER                       -->
     <!-- ================================================================= -->
-    <!-- TODO: Add landscape blocker UI. The #landscape-blocker
-         div is shown via the @media query below when a phone is in landscape. -->
     <div id="landscape-blocker">
-      <!-- TODO: Add your landscape blocker content here -->
+      <svg
+        width="56"
+        height="56"
+        viewBox="0 0 56 56"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style="margin-bottom: 20px"
+      >
+        <!-- Phone body (landscape) -->
+        <rect
+          x="4"
+          y="14"
+          width="34"
+          height="28"
+          rx="4"
+          stroke="rgba(139,92,246,0.4)"
+          stroke-width="2"
+          fill="none"
+          stroke-dasharray="4 3"
+        />
+        <!-- Phone body (portrait) -->
+        <rect
+          x="26"
+          y="4"
+          width="24"
+          height="40"
+          rx="4"
+          stroke="#a78bfa"
+          stroke-width="2"
+          fill="none"
+        />
+        <!-- Curved arrow from landscape to portrait -->
+        <path
+          d="M22 34 C22 46, 30 50, 38 46"
+          stroke="#8b5cf6"
+          stroke-width="2"
+          fill="none"
+          stroke-linecap="round"
+        />
+        <polyline
+          points="35,49 38,46 34,44"
+          stroke="#8b5cf6"
+          stroke-width="2"
+          fill="none"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #ffffff">
+        Please Rotate Your Device
+      </h2>
+      <p style="margin: 0; font-size: 14px; color: #8888a0">Radiant works best in portrait mode</p>
     </div>
 
     <!-- ================================================================= -->
     <!--              LANDSCAPE BLOCKER STYLES                             -->
     <!-- ================================================================= -->
     <style>
-      /* TODO: Add #landscape-blocker styling (hidden by default, shown by query below) */
+      #landscape-blocker {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 99999;
+        background-color: #060612;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 24px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      }
 
       /* ── Visibility Trigger ─────────────────────────────────────────── */
       /*
