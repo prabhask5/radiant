@@ -576,8 +576,8 @@
     min-height: 100vh;
     padding: 2rem 1rem;
     background:
-      radial-gradient(ellipse at 25% 15%, rgba(60, 20, 120, 0.5) 0%, transparent 50%),
-      radial-gradient(ellipse at 75% 85%, rgba(80, 30, 100, 0.3) 0%, transparent 50%),
+      radial-gradient(ellipse at 25% 15%, rgba(120, 80, 20, 0.5) 0%, transparent 50%),
+      radial-gradient(ellipse at 75% 85%, rgba(100, 60, 15, 0.3) 0%, transparent 50%),
       linear-gradient(180deg, #0a0806 0%, #0e0c08 30%, #141210 60%, #0c0a08 100%);
     color: var(--color-text, #f5efe0);
     overflow: hidden;
@@ -764,7 +764,7 @@
     font-weight: 700;
     border: 2px solid rgba(212, 160, 57, 0.25);
     color: var(--color-text-muted, #8a7e68);
-    background: rgba(10, 10, 22, 0.8);
+    background: rgba(14, 12, 8, 0.8);
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     flex-shrink: 0;
     font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
@@ -937,7 +937,7 @@
     padding: 0.875rem 1rem;
     font-size: 0.9375rem;
     color: var(--color-text, #f5efe0);
-    background: rgba(10, 10, 18, 0.6);
+    background: rgba(14, 12, 8, 0.6);
     border: 1px solid rgba(212, 160, 57, 0.2);
     border-radius: 10px;
     transition: all 0.3s;
@@ -957,7 +957,7 @@
   }
 
   .form-group input::placeholder {
-    color: rgba(120, 116, 160, 0.5);
+    color: rgba(138, 126, 104, 0.5);
   }
 
   .form-group select {
@@ -965,7 +965,7 @@
     padding: 0.875rem 1rem;
     font-size: 0.9375rem;
     color: var(--color-text, #f5efe0);
-    background: rgba(10, 10, 18, 0.6);
+    background: rgba(14, 12, 8, 0.6);
     border: 1px solid rgba(212, 160, 57, 0.2);
     border-radius: 10px;
     transition: all 0.3s;
