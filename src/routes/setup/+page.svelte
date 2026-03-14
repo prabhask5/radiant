@@ -58,8 +58,11 @@
   /** Teller Application ID (client-side — used by Teller Connect SDK) */
   let tellerAppId = $state('');
 
-  /** Teller environment: sandbox | development | production */
-  let tellerEnvironment = $state<'sandbox' | 'development' | 'production'>('sandbox');
+  /**
+   * Teller environment — hardcoded to 'development' which is free,
+   * uses real bank data, and allows up to 100 enrollments (bank logins).
+   */
+  const tellerEnvironment = 'development';
 
   /** Teller mTLS certificate PEM content (server-side env var) */
   let tellerCert = $state('');
@@ -224,6 +227,8 @@
 
     // Build extra env vars from Teller config (only include non-empty values)
     const extraEnvVars: Record<string, string> = {};
+    if (tellerAppId) extraEnvVars['PUBLIC_TELLER_APP_ID'] = tellerAppId;
+    extraEnvVars['PUBLIC_TELLER_ENVIRONMENT'] = tellerEnvironment;
     if (tellerCert) extraEnvVars['TELLER_CERT'] = tellerCert;
     if (tellerKey) extraEnvVars['TELLER_KEY'] = tellerKey;
     if (tellerWebhookSecret) extraEnvVars['TELLER_WEBHOOK_SECRET'] = tellerWebhookSecret;
@@ -407,6 +412,14 @@
           </ol>
         </div>
 
+        <div class="info-note" style="margin-bottom: 1.25rem;">
+          <strong>About the Development environment:</strong> Radiant uses Teller's Development environment,
+          which is free and connects to real banks. It supports up to 100 enrollments — an enrollment
+          is a single bank login (e.g. your Chase login), which can include multiple accounts (checking,
+          savings, credit card) under the same login. 100 enrollments is more than enough for personal
+          use.
+        </div>
+
         <div class="form-group">
           <label for="teller-app-id">Application ID</label>
           <input
@@ -422,16 +435,6 @@
               rel="noopener noreferrer">Teller Dashboard</a
             >.</span
           >
-        </div>
-
-        <div class="form-group">
-          <label for="teller-environment">Environment</label>
-          <select id="teller-environment" bind:value={tellerEnvironment}>
-            <option value="sandbox">Sandbox (test data)</option>
-            <option value="development">Development (real data, limited institutions)</option>
-            <option value="production">Production (real data, all institutions)</option>
-          </select>
-          <span class="hint">Start with Sandbox to test with simulated bank data.</span>
         </div>
 
         <div class="form-group">
@@ -1055,25 +1058,6 @@
     font-family: 'SF Mono', ui-monospace, monospace;
   }
 
-  .form-group select {
-    width: 100%;
-    padding: 0.875rem 1rem;
-    font-size: 0.9375rem;
-    color: var(--color-text, #f5efe0);
-    background: rgba(14, 12, 8, 0.6);
-    border: 1px solid rgba(212, 160, 57, 0.2);
-    border-radius: 10px;
-    transition: all 0.3s;
-    font-family: inherit;
-    box-sizing: border-box;
-  }
-
-  .form-group select:focus {
-    outline: none;
-    border-color: rgba(212, 160, 57, 0.5);
-    box-shadow: 0 0 20px rgba(212, 160, 57, 0.15);
-  }
-
   .hint {
     font-size: 0.75rem;
     color: var(--color-text-muted, #8a7e68);
@@ -1265,7 +1249,6 @@
     }
 
     .form-group input,
-    .form-group select,
     .form-group textarea {
       padding: 0.75rem 0.875rem;
       font-size: 16px; /* Prevents iOS zoom */
