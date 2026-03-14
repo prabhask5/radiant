@@ -15,7 +15,7 @@
    * 1. Create a Supabase project (instructions only).
    * 2. Initialize the database (automatic — informational step).
    * 3. Enter and validate Supabase credentials (URL + publishable key).
-   * 4. Configure Teller.io for bank data (optional — client + server credentials).
+   * 4. Configure Teller.io for bank data (client + server credentials).
    * 5. Persist configuration via Vercel API (set env vars + redeploy).
    *
    * After a successful deploy the page polls for a new service-worker
@@ -119,6 +119,11 @@
 
   /** Whether the Continue button on step 3 should be enabled */
   const canContinueStep3 = $derived(validateSuccess && !credentialsChanged);
+
+  /** Whether the Continue button on step 4 should be enabled (all Teller fields required) */
+  const canContinueStep4 = $derived(
+    !!tellerAppId && !!tellerCert && !!tellerKey && !!tellerWebhookSecret
+  );
 
   // =============================================================================
   //  Effects
@@ -365,11 +370,11 @@
           <div class="message message-success">Connection successful! Credentials are valid.</div>
         {/if}
       {:else if currentStep === 4}
-        <h2>Step 4: Connect Teller.io (Optional)</h2>
+        <h2>Step 4: Connect Teller.io</h2>
         <p>
           <a href="https://teller.io" target="_blank" rel="noopener noreferrer">Teller.io</a> connects
-          Radiant to your bank accounts for automatic transaction syncing. You can skip this step and
-          add it later.
+          Radiant to your bank accounts for automatic transaction syncing. You'll need a Teller account
+          with an application and mTLS certificate.
         </p>
 
         <div class="info-note" style="margin-bottom: 1.25rem;">
@@ -438,8 +443,7 @@
             rows="4"
           ></textarea>
           <span class="hint"
-            >Paste the full PEM content of your mTLS certificate. Required for Development and
-            Production environments.</span
+            >Paste the full PEM content of your mTLS certificate from the Teller dashboard.</span
           >
         </div>
 
@@ -571,17 +575,18 @@
           >Continue</button
         >
       {:else if currentStep === 4}
-        <button class="btn btn-primary" onclick={() => currentStep++}>
-          {tellerAppId || tellerCert || tellerKey || tellerWebhookSecret ? 'Continue' : 'Skip'}
-        </button>
+        <button class="btn btn-primary" onclick={() => currentStep++} disabled={!canContinueStep4}
+          >Continue</button
+        >
       {/if}
     </div>
 
     <!-- Security notice (first-time setup only) -->
     {#if isFirstSetup}
       <div class="security-notice">
-        <strong>Security:</strong> Your Supabase credentials are stored as environment variables on Vercel
-        and are never sent to any third-party service. The Vercel token is used once and is not persisted.
+        <strong>Security:</strong> Your Supabase and Teller credentials are stored as environment variables
+        on Vercel and are never sent to any third-party service. The Vercel token is used once and is
+        not persisted.
       </div>
     {/if}
   </div>
