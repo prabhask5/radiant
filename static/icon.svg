@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="gemGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+    <linearGradient id="tableGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <radialGradient id="outerGlow" cx="0.5" cy="0.45" r="0.5">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.15"/>
+      <stop offset="60%" stop-color="#8b5cf6" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pinkGlow" cx="0.6" cy="0.6" r="0.4">
+      <stop offset="0%" stop-color="#f472b6" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#f472b6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Dark background (matches Stellar pattern) -->
+  <rect width="512" height="512" rx="64" fill="#0a0a16"/>
+
+  <!-- Ambient glow behind gem -->
+  <rect width="512" height="512" rx="64" fill="url(#outerGlow)"/>
+  <rect width="512" height="512" rx="64" fill="url(#pinkGlow)"/>
+
+  <!-- Gem: Top-down brilliant-cut diamond -->
+  <!-- Girdle (outer octagon outline) -->
+  <polygon points="256,72 370,140 414,256 370,372 256,436 142,372 98,256 142,140" fill="url(#gemGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+
+  <!-- Crown facets - upper left -->
+  <polygon points="256,72 142,140 186,208 256,164" fill="#a78bfa" opacity="0.75"/>
+  <!-- Crown facets - upper right -->
+  <polygon points="256,72 370,140 326,208 256,164" fill="#9366f0" opacity="0.75"/>
+  <!-- Crown facets - right upper -->
+  <polygon points="370,140 414,256 348,234 326,208" fill="#8b5cf6" opacity="0.65"/>
+  <!-- Crown facets - right lower -->
+  <polygon points="414,256 370,372 348,278 348,234" fill="#7c3aed" opacity="0.65"/>
+  <!-- Crown facets - lower right -->
+  <polygon points="370,372 256,436 280,328 348,278" fill="#9f5cf6" opacity="0.55"/>
+  <!-- Crown facets - lower left -->
+  <polygon points="256,436 142,372 168,328 280,328" fill="#c474d0" opacity="0.55"/>
+  <!-- Crown facets - left lower -->
+  <polygon points="142,372 98,256 168,278 168,328" fill="#d466b8" opacity="0.55"/>
+  <!-- Crown facets - left upper -->
+  <polygon points="98,256 142,140 186,208 168,278" fill="#b47cf6" opacity="0.65"/>
+
+  <!-- Table facet (center octagon) -->
+  <polygon points="256,164 326,208 348,234 348,278 280,328 168,328 168,278 186,208" fill="url(#tableGrad)" opacity="0.8"/>
+
+  <!-- Inner table (smaller, brighter center) -->
+  <polygon points="256,192 306,220 324,256 306,292 256,308 206,292 188,256 206,220" fill="#ddd6fe" opacity="0.5"/>
+
+  <!-- Facet edge highlights -->
+  <line x1="256" y1="72" x2="256" y2="164" stroke="white" stroke-width="2" opacity="0.45"/>
+  <line x1="256" y1="164" x2="326" y2="208" stroke="white" stroke-width="1.5" opacity="0.35"/>
+  <line x1="256" y1="164" x2="186" y2="208" stroke="white" stroke-width="1.5" opacity="0.5"/>
+  <line x1="370" y1="140" x2="326" y2="208" stroke="white" stroke-width="1.5" opacity="0.3"/>
+  <line x1="142" y1="140" x2="186" y2="208" stroke="white" stroke-width="1.5" opacity="0.5"/>
+  <line x1="414" y1="256" x2="348" y2="234" stroke="white" stroke-width="1.5" opacity="0.3"/>
+  <line x1="98" y1="256" x2="168" y2="278" stroke="white" stroke-width="1.5" opacity="0.4"/>
+  <line x1="348" y1="234" x2="348" y2="278" stroke="white" stroke-width="1" opacity="0.25"/>
+  <line x1="168" y1="278" x2="168" y2="328" stroke="white" stroke-width="1" opacity="0.3"/>
+  <line x1="256" y1="436" x2="280" y2="328" stroke="white" stroke-width="1" opacity="0.2"/>
+  <line x1="256" y1="436" x2="168" y2="328" stroke="white" stroke-width="1" opacity="0.15"/>
+
+  <!-- Light sparkle highlights -->
+  <circle cx="200" cy="166" r="7" fill="white" opacity="0.65"/>
+  <circle cx="200" cy="166" r="14" fill="white" opacity="0.15"/>
+  <circle cx="310" cy="200" r="4" fill="white" opacity="0.45"/>
+  <circle cx="236" cy="236" r="5" fill="white" opacity="0.4"/>
+
+  <!-- Radiance rays -->
+  <line x1="190" y1="108" x2="172" y2="84" stroke="white" stroke-width="2.5" opacity="0.35" stroke-linecap="round"/>
+  <line x1="322" y1="108" x2="340" y2="84" stroke="white" stroke-width="2.5" opacity="0.3" stroke-linecap="round"/>
+  <line x1="140" y1="194" x2="116" y2="182" stroke="white" stroke-width="2" opacity="0.25" stroke-linecap="round"/>
+</svg>

@@ -1436,7 +1436,7 @@
   /* ================================================================= */
 
   .card-title {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--login-text);
@@ -1446,7 +1446,7 @@
   }
 
   .card-subtitle {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--login-text-muted);
     margin: 0 0 28px;
@@ -1488,7 +1488,7 @@
   }
 
   .form-label {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--login-text-muted);
@@ -1503,7 +1503,7 @@
     border: 1px solid rgba(120, 90, 200, 0.12);
     border-radius: var(--login-radius-sm);
     color: var(--login-text);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     outline: none;
     transition:
@@ -1540,7 +1540,7 @@
 
   .pin-label {
     display: block;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--login-text-muted);
@@ -1560,7 +1560,7 @@
     width: 44px;
     height: 52px;
     text-align: center;
-    font-family: 'DM Mono', 'SF Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 1.25rem;
     font-weight: 500;
     color: var(--login-text);
@@ -1604,7 +1604,7 @@
     color: #fff;
     border: none;
     border-radius: var(--login-radius-sm);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     font-weight: 600;
     cursor: pointer;
@@ -1646,7 +1646,7 @@
     color: var(--login-gem-secondary);
     border: 1px solid rgba(167, 139, 250, 0.2);
     border-radius: var(--login-radius-sm);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
@@ -1672,7 +1672,7 @@
     background: none;
     border: none;
     color: var(--login-text-muted);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     cursor: pointer;
     padding: 0;
@@ -1698,7 +1698,7 @@
     align-items: center;
     justify-content: center;
     margin: 0 auto 20px;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 1.5rem;
     font-weight: 700;
     color: #fff;
@@ -1710,7 +1710,7 @@
   /* ================================================================= */
 
   .error-msg {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--login-error);
     text-align: center;
@@ -1722,7 +1722,7 @@
   }
 
   .countdown-msg {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--login-text-muted);
     text-align: center;
@@ -1735,7 +1735,7 @@
     justify-content: center;
     gap: 8px;
     margin-top: 16px;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--login-text-muted);
   }
@@ -1796,7 +1796,7 @@
   }
 
   .resolving-text {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--login-text-muted);
     text-align: center;
@@ -1873,7 +1873,7 @@
   }
 
   .modal-title {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--login-text);
@@ -1882,7 +1882,7 @@
   }
 
   .modal-text {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--login-text-muted);
     margin: 0 0 8px;
@@ -1895,7 +1895,7 @@
   }
 
   .modal-hint {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--login-text-dim);
     margin: 0 0 24px;
@@ -1908,7 +1908,7 @@
     justify-content: center;
     gap: 8px;
     margin-bottom: 20px;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--login-text-muted);
   }

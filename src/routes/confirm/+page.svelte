@@ -155,20 +155,20 @@
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    background: var(--color-bg, #0a0a16);
-    color: var(--color-text, #f0eeff);
+    background: transparent;
+    color: var(--color-text);
   }
 
   .confirm-container {
     text-align: center;
     max-width: 380px;
-    animation: fadeUp 0.6s ease forwards;
+    animation: confirmFadeUp 0.7s var(--ease-out) forwards;
   }
 
-  @keyframes fadeUp {
+  @keyframes confirmFadeUp {
     from {
       opacity: 0;
-      transform: translateY(16px);
+      transform: translateY(20px);
     }
     to {
       opacity: 1;
@@ -183,11 +183,24 @@
   }
 
   .gem-icon.success {
-    color: var(--color-success, #10b981);
+    color: var(--color-success);
+    filter: drop-shadow(0 0 16px var(--color-success-glow));
+    animation: confirmSuccessPulse 2s ease-in-out infinite;
   }
 
   .gem-icon.error {
-    color: var(--color-ruby, #ef4444);
+    color: var(--color-ruby);
+    filter: drop-shadow(0 0 16px var(--color-ruby-glow));
+  }
+
+  @keyframes confirmSuccessPulse {
+    0%,
+    100% {
+      filter: drop-shadow(0 0 12px var(--color-success-glow));
+    }
+    50% {
+      filter: drop-shadow(0 0 24px var(--color-success-glow));
+    }
   }
 
   .gem-spinner {
@@ -195,12 +208,13 @@
     height: 48px;
     margin: 0 auto 1.5rem;
     position: relative;
+    filter: drop-shadow(0 0 12px var(--color-primary-glow));
   }
 
   .facet {
     position: absolute;
     inset: 0;
-    border: 2px solid var(--color-primary, #8b5cf6);
+    border: 2px solid var(--color-primary);
     clip-path: polygon(50% 0%, 0% 40%, 50% 100%, 100% 40%);
     animation: spinFacet 1.5s ease-in-out infinite;
   }
@@ -209,12 +223,14 @@
     animation-delay: 0.2s;
     opacity: 0.6;
     transform: scale(0.85);
+    border-color: var(--color-accent);
   }
 
   .facet:nth-child(3) {
     animation-delay: 0.4s;
     opacity: 0.3;
     transform: scale(0.7);
+    border-color: var(--color-cyan);
   }
 
   @keyframes spinFacet {
@@ -232,19 +248,35 @@
   h2 {
     font-size: 1.5rem;
     font-weight: 700;
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-tight);
     margin: 0 0 0.5rem;
     background: linear-gradient(
-      135deg,
-      var(--color-primary, #8b5cf6),
-      var(--color-accent, #f472b6)
+      120deg,
+      var(--color-primary-light) 0%,
+      var(--color-accent) 50%,
+      var(--color-primary-light) 100%
     );
+    background-size: 200% 100%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    animation: confirmShimmer 4s ease-in-out infinite;
+  }
+
+  @keyframes confirmShimmer {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 200% 50%;
+    }
   }
 
   p {
-    color: var(--color-text-secondary, #c4c0e0);
+    color: var(--color-text-secondary);
+    font-family: var(--font-body);
     line-height: 1.5;
     margin: 0 0 1.5rem;
   }
@@ -252,18 +284,44 @@
   .btn {
     padding: 0.625rem 1.5rem;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 0.875rem;
     font-weight: 600;
+    font-family: var(--font-body);
     cursor: pointer;
+    transition:
+      box-shadow var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+  }
+
+  .btn:active {
+    transform: scale(0.97);
   }
 
   .btn-primary {
-    background: var(--color-primary, #8b5cf6);
+    background: var(--gradient-primary);
     color: #fff;
+    box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
   }
 
   .btn-primary:hover {
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+    box-shadow:
+      0 4px 24px rgba(139, 92, 246, 0.5),
+      0 0 40px rgba(139, 92, 246, 0.2);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .confirm-container {
+      animation: none;
+    }
+
+    .gem-icon.success {
+      animation: none;
+    }
+
+    h2 {
+      animation: none;
+      -webkit-text-fill-color: var(--color-primary-light);
+    }
   }
 </style>

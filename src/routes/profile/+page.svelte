@@ -1177,7 +1177,7 @@
   }
 
   .header-title {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--prof-text);
@@ -1208,7 +1208,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 1.5rem;
     font-weight: 700;
     color: #fff;
@@ -1218,7 +1218,7 @@
   }
 
   .avatar-name {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--prof-text);
@@ -1226,7 +1226,7 @@
   }
 
   .avatar-email {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--prof-text-muted);
     margin: 0;
@@ -1266,7 +1266,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     font-weight: 600;
     color: var(--prof-text);
@@ -1305,7 +1305,7 @@
   }
 
   .field-label {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.6875rem;
     font-weight: 500;
     color: var(--prof-text-muted);
@@ -1320,7 +1320,7 @@
     border: 1px solid rgba(120, 90, 200, 0.12);
     border-radius: var(--prof-radius-sm);
     color: var(--prof-text);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     outline: none;
     transition:
@@ -1355,7 +1355,7 @@
   }
 
   .current-label {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.6875rem;
     font-weight: 600;
     color: var(--prof-text-dim);
@@ -1364,7 +1364,7 @@
   }
 
   .current-value {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--prof-gem-light);
   }
@@ -1379,7 +1379,7 @@
 
   .pin-group-label {
     display: block;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.6875rem;
     font-weight: 500;
     color: var(--prof-text-muted);
@@ -1398,7 +1398,7 @@
     width: 40px;
     height: 46px;
     text-align: center;
-    font-family: 'DM Mono', 'SF Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 1.125rem;
     font-weight: 500;
     color: var(--prof-text);
@@ -1438,7 +1438,7 @@
     color: #fff;
     border: none;
     border-radius: var(--prof-radius-sm);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     font-weight: 600;
     cursor: pointer;
@@ -1472,7 +1472,7 @@
     color: var(--prof-error);
     border: 1px solid rgba(251, 113, 133, 0.12);
     border-radius: var(--prof-radius-sm);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
@@ -1502,7 +1502,7 @@
     color: var(--prof-error);
     border: 1px solid rgba(251, 113, 133, 0.15);
     border-radius: var(--prof-radius);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     font-weight: 500;
     cursor: pointer;
@@ -1534,7 +1534,7 @@
     color: #fbbf24;
     border: 1px solid rgba(251, 191, 36, 0.12);
     border-radius: var(--prof-radius-sm);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
@@ -1561,7 +1561,7 @@
   }
 
   .toggle-label {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--prof-text);
   }
@@ -1611,13 +1611,13 @@
     justify-content: center;
     gap: 8px;
     padding: 16px;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--prof-text-muted);
   }
 
   .devices-empty {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--prof-text-dim);
     text-align: center;
@@ -1651,7 +1651,7 @@
   }
 
   .device-name {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--prof-text);
@@ -1672,7 +1672,7 @@
   }
 
   .device-meta {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.6875rem;
     color: var(--prof-text-dim);
   }
@@ -1706,7 +1706,7 @@
   /* ================================================================= */
 
   .msg {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     text-align: center;
     margin: 8px 0;
@@ -1758,7 +1758,7 @@
     background: rgba(18, 18, 38, 0.95);
     border: 1px solid rgba(120, 90, 200, 0.2);
     color: var(--prof-text);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     padding: 10px 20px;
     border-radius: 10px;
@@ -1843,7 +1843,7 @@
   }
 
   .modal-title {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--prof-text);
@@ -1851,7 +1851,7 @@
   }
 
   .modal-text {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     color: var(--prof-text-muted);
     margin: 0 0 6px;
@@ -1864,7 +1864,7 @@
   }
 
   .modal-hint {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.75rem;
     color: var(--prof-text-dim);
     margin: 0 0 20px;
@@ -1882,7 +1882,7 @@
     color: var(--prof-gem-light);
     border: 1px solid rgba(167, 139, 250, 0.2);
     border-radius: var(--prof-radius-sm);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
@@ -1904,7 +1904,7 @@
     color: var(--prof-text-dim);
     border: none;
     border-radius: var(--prof-radius-sm);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: 0.8125rem;
     cursor: pointer;
     transition: color 0.2s ease;

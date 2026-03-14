@@ -152,20 +152,20 @@
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    background: var(--color-bg, #0a0a16);
-    color: var(--color-text, #f0eeff);
+    background: transparent;
+    color: var(--color-text);
   }
 
   .error-container {
     text-align: center;
     max-width: 420px;
-    animation: fadeIn 0.8s ease forwards;
+    animation: errorFadeIn 0.8s var(--ease-out) forwards;
   }
 
-  @keyframes fadeIn {
+  @keyframes errorFadeIn {
     from {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateY(24px);
     }
     to {
       opacity: 1;
@@ -177,46 +177,64 @@
     width: 80px;
     height: 80px;
     margin: 0 auto 1.5rem;
-    color: var(--color-primary, #8b5cf6);
-    animation: gentlePulse 3s ease-in-out infinite;
+    color: var(--color-primary);
+    animation: gemFloat 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 20px var(--color-primary-glow));
   }
 
-  @keyframes gentlePulse {
+  @keyframes gemFloat {
     0%,
     100% {
       opacity: 0.7;
-      transform: scale(1);
+      transform: translateY(0) scale(1);
     }
     50% {
       opacity: 1;
-      transform: scale(1.05);
+      transform: translateY(-6px) scale(1.05);
     }
   }
 
   .error-title {
     font-size: 1.75rem;
     font-weight: 700;
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-tight);
     margin: 0 0 0.5rem;
     background: linear-gradient(
-      135deg,
-      var(--color-primary, #8b5cf6),
-      var(--color-accent, #f472b6)
+      120deg,
+      var(--color-primary-light) 0%,
+      var(--color-accent) 50%,
+      var(--color-primary-light) 100%
     );
+    background-size: 200% 100%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    animation: errorShimmer 4s ease-in-out infinite;
+  }
+
+  @keyframes errorShimmer {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 200% 50%;
+    }
   }
 
   .error-code {
     font-size: 3rem;
     font-weight: 800;
+    font-family: var(--font-display);
     margin: 0 0 0.5rem;
-    color: var(--color-text-muted, #7874a0);
+    color: var(--color-text-muted);
     opacity: 0.4;
   }
 
   .error-message {
-    color: var(--color-text-secondary, #c4c0e0);
+    color: var(--color-text-secondary);
+    font-family: var(--font-body);
     line-height: 1.6;
     margin: 0 0 2rem;
     font-size: 0.95rem;
@@ -232,31 +250,56 @@
   .btn {
     padding: 0.625rem 1.5rem;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 0.875rem;
     font-weight: 600;
+    font-family: var(--font-body);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition:
+      background var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+  }
+
+  .btn:active {
+    transform: scale(0.97);
   }
 
   .btn-primary {
-    background: var(--color-primary, #8b5cf6);
+    background: var(--gradient-primary);
     color: #fff;
+    box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
   }
 
   .btn-primary:hover {
-    background: var(--color-primary-hover, #7c3aed);
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+    box-shadow:
+      0 4px 24px rgba(139, 92, 246, 0.5),
+      0 0 40px rgba(139, 92, 246, 0.2);
   }
 
   .btn-ghost {
     background: transparent;
-    color: var(--color-text-secondary, #c4c0e0);
-    border: 1px solid var(--color-border, rgba(139, 92, 246, 0.2));
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
   }
 
   .btn-ghost:hover {
-    background: rgba(139, 92, 246, 0.1);
-    border-color: var(--color-border-strong, rgba(139, 92, 246, 0.4));
+    background: rgba(139, 92, 246, 0.08);
+    border-color: rgba(139, 92, 246, 0.35);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .error-container {
+      animation: none;
+    }
+
+    .gem-icon {
+      animation: none;
+    }
+
+    .error-title {
+      animation: none;
+      -webkit-text-fill-color: var(--color-primary-light);
+    }
   }
 </style>

@@ -418,12 +418,6 @@
 
 <svelte:head>
   <title>Accounts - Radiant Finance</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Raleway:wght@300;400;500;600&display=swap"
-    rel="stylesheet"
-  />
 </svelte:head>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -915,9 +909,6 @@
 
     --border-subtle: rgba(136, 150, 176, 0.1);
     --border-interactive: rgba(136, 150, 176, 0.2);
-
-    --font-display: 'Cinzel', Georgia, serif;
-    --font-body: 'Raleway', system-ui, sans-serif;
 
     position: relative;
     min-height: 100dvh;

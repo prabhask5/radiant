@@ -330,12 +330,6 @@
 
 <svelte:head>
   <title>Budgets - Radiant Finance</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Raleway:wght@300;400;500;600&display=swap"
-    rel="stylesheet"
-  />
 </svelte:head>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -811,6 +805,7 @@
   /* ── Design Tokens ──────────────────────────────────────────────────────── */
   .budgets-page {
     --emerald: #34d399;
+    --emerald-light: #6ee7b7;
     --emerald-dim: #065f46;
     --emerald-glow: rgba(52, 211, 153, 0.35);
     --gold: #fbbf24;
@@ -831,9 +826,6 @@
 
     --border-subtle: rgba(136, 150, 176, 0.1);
     --border-interactive: rgba(136, 150, 176, 0.2);
-
-    --font-display: 'Cinzel', Georgia, serif;
-    --font-body: 'Raleway', system-ui, sans-serif;
 
     position: relative;
     min-height: 100dvh;
@@ -896,7 +888,12 @@
     font-size: 1.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
-    background: linear-gradient(135deg, var(--emerald) 0%, #a7f3d0 50%, var(--gold) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--emerald) 0%,
+      var(--emerald-light) 50%,
+      var(--gold) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

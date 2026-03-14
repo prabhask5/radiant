@@ -562,63 +562,98 @@
 </div>
 
 <style>
+  /* ═══════════════════════════════════════════════════════════════
+     SETUP PAGE — Crystal Forge Theme
+     Cinematic dark gem aesthetic for the configuration wizard
+     ═══════════════════════════════════════════════════════════════ */
+
   .setup-page {
     display: flex;
     justify-content: center;
     padding: 2rem 1rem;
     min-height: 100vh;
-    background: var(--color-bg, #fafafa);
+    background: transparent;
+    animation: setupFadeIn 0.8s var(--ease-out) both;
   }
 
   .setup-container {
     max-width: 640px;
     width: 100%;
+    animation: setupSlideUp 0.9s var(--ease-out) 0.1s both;
   }
 
+  /* Title — prismatic gradient shimmer */
   h1 {
     margin: 0 0 0.25rem;
     font-size: 1.75rem;
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+    background: linear-gradient(
+      120deg,
+      var(--color-primary-light) 0%,
+      var(--color-accent) 25%,
+      var(--color-cyan) 50%,
+      var(--color-primary-light) 75%,
+      var(--color-accent) 100%
+    );
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: prismaticShimmer 8s linear infinite;
   }
 
   .subtitle {
     margin: 0 0 1.5rem;
-    color: var(--color-text-muted, #666);
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
   }
 
-  /* Step indicator */
+  /* ═══ Step Indicator — Gem nodes connected by crystal veins ═══ */
   .step-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0;
     margin-bottom: 2rem;
+    animation: setupFadeIn 0.6s var(--ease-out) 0.3s both;
   }
 
   .step-dot {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    border: 2px solid var(--color-border, #ccc);
+    border: 2px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--color-text-muted, #666);
-    background: var(--color-bg, #fff);
+    font-family: var(--font-body);
+    color: var(--color-text-muted);
+    background: var(--color-bg-secondary);
     flex-shrink: 0;
+    transition:
+      border-color var(--duration-normal) var(--ease-out),
+      background var(--duration-normal) var(--ease-out),
+      color var(--duration-normal) var(--ease-out),
+      box-shadow var(--duration-normal) var(--ease-out);
   }
 
   .step-dot.active {
-    border-color: var(--color-primary, #3b82f6);
-    color: var(--color-primary, #3b82f6);
-    background: var(--color-primary-light, #eff6ff);
+    border-color: var(--color-primary);
+    color: var(--color-primary-light);
+    background: var(--color-primary-subtle);
+    box-shadow: 0 0 16px var(--color-primary-glow);
+    animation: gemPulse 2.5s ease-in-out infinite;
   }
 
   .step-dot.completed {
-    border-color: var(--color-success, #22c55e);
-    background: var(--color-success, #22c55e);
+    border-color: var(--color-success);
+    background: var(--color-success);
     color: #fff;
+    box-shadow: 0 0 12px var(--color-success-glow);
   }
 
   .checkmark {
@@ -628,47 +663,99 @@
   .step-line {
     width: 40px;
     height: 2px;
-    background: var(--color-border, #ccc);
+    background: var(--color-border);
     flex-shrink: 0;
+    transition: background var(--duration-normal) var(--ease-out);
   }
 
   .step-line.completed {
-    background: var(--color-success, #22c55e);
+    background: var(--color-success);
+    box-shadow: 0 0 6px var(--color-success-glow);
   }
 
-  /* Step card */
+  /* ═══ Step Card — Glassmorphic crystal panel ═══ */
   .step-card {
     padding: 1.5rem;
-    border: 1px solid var(--color-border, #e2e2e2);
-    border-radius: 8px;
-    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-md);
+    position: relative;
+    overflow: hidden;
+    animation: setupSlideUp 0.7s var(--ease-out) 0.4s both;
+  }
+
+  /* Crystal highlight along top edge */
+  .step-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--color-primary-light) 30%,
+      var(--color-accent) 50%,
+      var(--color-primary-light) 70%,
+      transparent 100%
+    );
+    opacity: 0.6;
   }
 
   .step-card h2 {
     margin: 0 0 0.75rem;
     font-size: 1.25rem;
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
   }
 
   .step-card p {
     margin: 0 0 1rem;
     line-height: 1.5;
+    color: var(--color-text-secondary);
+    font-family: var(--font-body);
   }
 
   .step-card ol {
     margin: 0 0 1rem;
     padding-left: 1.25rem;
     line-height: 1.7;
+    color: var(--color-text-secondary);
+    font-family: var(--font-body);
+  }
+
+  .step-card a {
+    color: var(--color-primary-light);
+    text-decoration: none;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  .step-card a:hover {
+    color: var(--color-primary-hover);
+    text-decoration: underline;
   }
 
   .info-note {
     padding: 0.75rem 1rem;
-    background: var(--color-info-bg, #f0f9ff);
-    border-radius: 6px;
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: var(--radius-sm);
     font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    font-family: var(--font-body);
   }
 
-  /* Form */
+  .info-note strong {
+    color: var(--color-primary-light);
+  }
+
+  /* ═══ Form — Crystal-edged inputs ═══ */
   .form-group {
     margin-bottom: 1rem;
   }
@@ -678,68 +765,139 @@
     margin-bottom: 0.25rem;
     font-weight: 600;
     font-size: 0.875rem;
+    color: var(--color-text);
+    font-family: var(--font-body);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
   }
 
   .form-group input {
     width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--color-border, #ccc);
-    border-radius: 4px;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
     font-size: 0.875rem;
+    font-family: var(--font-body);
     box-sizing: border-box;
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
+  }
+
+  .form-group input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow:
+      0 0 0 3px rgba(139, 92, 246, 0.15),
+      0 0 20px rgba(139, 92, 246, 0.1);
   }
 
   .form-group select {
     width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--color-border, #ccc);
-    border-radius: 4px;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
     font-size: 0.875rem;
+    font-family: var(--font-body);
     box-sizing: border-box;
-    background: var(--color-bg, #fff);
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
+  }
+
+  .form-group select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
   }
 
   .hint {
     display: block;
     margin-top: 0.25rem;
     font-size: 0.75rem;
-    color: var(--color-text-muted, #888);
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
   }
 
-  /* Buttons */
+  /* ═══ Buttons — Gem-faceted with glow effects ═══ */
   .btn {
     padding: 0.5rem 1.25rem;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-size: 0.875rem;
+    font-family: var(--font-body);
+    font-weight: 600;
     cursor: pointer;
+    transition:
+      background var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
   }
 
   .btn:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
+    filter: grayscale(0.3);
+  }
+
+  .btn:not(:disabled):active {
+    transform: scale(0.97);
   }
 
   .btn-primary {
-    background: var(--color-primary, #3b82f6);
+    background: var(--gradient-primary);
     color: #fff;
+    box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
+  }
+
+  .btn-primary:not(:disabled):hover {
+    box-shadow:
+      0 4px 24px rgba(139, 92, 246, 0.5),
+      0 0 40px rgba(139, 92, 246, 0.2);
   }
 
   .btn-secondary {
-    background: var(--color-secondary, #6b7280);
-    color: #fff;
+    background: var(--color-bg-tertiary);
+    color: var(--color-primary-light);
+    border: 1px solid var(--color-border);
+  }
+
+  .btn-secondary:not(:disabled):hover {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 16px rgba(139, 92, 246, 0.2);
   }
 
   .btn-back {
     background: transparent;
-    color: var(--color-text-muted, #666);
-    border: 1px solid var(--color-border, #ccc);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+
+  .btn-back:hover {
+    color: var(--color-text-secondary);
+    border-color: rgba(139, 92, 246, 0.35);
+    background: rgba(139, 92, 246, 0.05);
   }
 
   .btn-skip {
     background: transparent;
-    color: var(--color-text-muted, #666);
-    border: 1px solid var(--color-border, #ccc);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+
+  .btn-skip:hover {
+    color: var(--color-text-secondary);
+    border-color: rgba(139, 92, 246, 0.35);
+    background: rgba(139, 92, 246, 0.05);
   }
 
   .teller-actions {
@@ -748,25 +906,30 @@
     align-items: center;
   }
 
-  /* Messages */
+  /* ═══ Messages — Gem-tinted status indicators ═══ */
   .message {
     padding: 0.75rem 1rem;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     margin-top: 0.75rem;
     font-size: 0.875rem;
+    font-family: var(--font-body);
+    border: 1px solid;
+    animation: setupFadeIn 0.3s var(--ease-out) both;
   }
 
   .message-error {
-    background: var(--color-error-bg, #fef2f2);
-    color: var(--color-error, #dc2626);
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.25);
+    color: var(--color-error);
   }
 
   .message-success {
-    background: var(--color-success-bg, #f0fdf4);
-    color: var(--color-success, #16a34a);
+    background: var(--color-success-subtle);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--color-success-light);
   }
 
-  /* Deploy stages */
+  /* ═══ Deploy Stages — Crystallizing progress ═══ */
   .deploy-stages {
     display: flex;
     flex-direction: column;
@@ -779,16 +942,22 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.875rem;
-    color: var(--color-text-muted, #999);
+    font-family: var(--font-body);
+    color: var(--color-text-muted);
+    transition: color var(--duration-normal) var(--ease-out);
   }
 
   .deploy-stage.active {
-    color: var(--color-primary, #3b82f6);
+    color: var(--color-primary-light);
     font-weight: 600;
   }
 
+  .deploy-stage.active .stage-icon {
+    animation: gemPulse 1.5s ease-in-out infinite;
+  }
+
   .deploy-stage.done {
-    color: var(--color-success, #22c55e);
+    color: var(--color-success-light);
   }
 
   .stage-icon {
@@ -796,7 +965,7 @@
     text-align: center;
   }
 
-  /* Step navigation */
+  /* ═══ Step Navigation ═══ */
   .step-nav {
     display: flex;
     justify-content: space-between;
@@ -804,18 +973,65 @@
     margin-bottom: 1.5rem;
   }
 
-  /* Security notice */
+  /* ═══ Security Notice — Subtle obsidian panel ═══ */
   .security-notice {
     padding: 0.75rem 1rem;
-    background: var(--color-info-bg, #f9fafb);
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: 6px;
+    background: rgba(139, 92, 246, 0.05);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
     font-size: 0.8rem;
-    color: var(--color-text-muted, #666);
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
     line-height: 1.5;
   }
 
-  /* Responsive */
+  .security-notice strong {
+    color: var(--color-text-secondary);
+  }
+
+  /* ═══ Animations ═══ */
+  @keyframes setupFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes setupSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes prismaticShimmer {
+    0% {
+      background-position: 0% 50%;
+    }
+    100% {
+      background-position: 300% 50%;
+    }
+  }
+
+  @keyframes gemPulse {
+    0%,
+    100% {
+      box-shadow: 0 0 12px var(--color-primary-glow);
+    }
+    50% {
+      box-shadow:
+        0 0 24px var(--color-primary-glow),
+        0 0 48px rgba(139, 92, 246, 0.15);
+    }
+  }
+
+  /* ═══ Responsive ═══ */
   @media (max-width: 480px) {
     .setup-page {
       padding: 1rem 0.5rem;
@@ -827,6 +1043,26 @@
 
     .step-line {
       width: 24px;
+    }
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .setup-page,
+    .setup-container,
+    .step-indicator,
+    .step-card,
+    .message {
+      animation: none;
+    }
+
+    .step-dot.active {
+      animation: none;
+    }
+
+    h1 {
+      animation: none;
+      -webkit-text-fill-color: var(--color-primary-light);
     }
   }
 </style>

@@ -6,7 +6,7 @@
     <!-- ================================================================= -->
     <meta charset="utf-8" />
     <title>Radiant Finance</title>
-    <link rel="icon" href="%sveltekit.assets%/icons/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="%sveltekit.assets%/icon.svg" type="image/svg+xml" />
 
     <!--
       Viewport configuration:
@@ -49,7 +49,7 @@
       property="og:description"
       content="Self-hosted personal finance tracker with bank integration, budgeting, and investment tracking"
     />
-    <meta property="og:image" content="%sveltekit.assets%/icons/app.svg" />
+    <meta property="og:image" content="%sveltekit.assets%/icon.svg" />
 
     <!-- ================================================================= -->
     <!--                         TWITTER CARD                              -->
@@ -85,10 +85,20 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Radiant" />
-    <link rel="apple-touch-icon" href="%sveltekit.assets%/icons/apple-touch.svg" />
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/icon.svg" />
 
     <!-- Prevent iOS from auto-detecting and styling phone numbers as links -->
     <meta name="format-detection" content="telephone=no" />
+
+    <!-- ================================================================= -->
+    <!--                      GOOGLE FONTS                               -->
+    <!-- ================================================================= -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Raleway:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
 
     <!-- SvelteKit injects component-level <head> content here -->
     %sveltekit.head%
