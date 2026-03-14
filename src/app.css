@@ -238,6 +238,33 @@
   --tracking-normal: 0;
   --tracking-wide: 0.05em;
   --tracking-wider: 0.1em;
+
+  /* ═══════════════════════════════════════════════════════════════════════════════
+     GLASS & FROSTED SURFACES
+     ═══════════════════════════════════════════════════════════════════════════════
+
+     Semi-transparent backgrounds with backdrop blur for nav bars, toasts,
+     and overlays that float above the crystal lattice background. */
+
+  --color-glass: rgba(6, 6, 18, 0.75);
+  --color-glass-border: rgba(139, 92, 246, 0.12);
+  --color-glass-hover: rgba(6, 6, 18, 0.85);
+
+  /* Error State — Rose quartz for destructive actions and error messaging */
+  --color-error: #f472b6;
+  --color-error-glow: rgba(244, 114, 182, 0.4);
+
+  /* ═══════════════════════════════════════════════════════════════════════════════
+     LAYOUT DIMENSIONS — App Shell Spacing
+     ═══════════════════════════════════════════════════════════════════════════════
+
+     Fixed dimensions for the app shell chrome (navigation bars, tab bars)
+     and safe-area insets for iOS PWA notch/home-bar handling. */
+
+  --nav-height: 64px;
+  --tab-height: 72px;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════════

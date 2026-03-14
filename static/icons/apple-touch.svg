@@ -9,17 +9,7 @@
       <stop offset="0%" stop-color="#c4b5fd"/>
       <stop offset="100%" stop-color="#a78bfa"/>
     </linearGradient>
-    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%" stop-color="#000000" stop-opacity="0.3"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
-    </radialGradient>
   </defs>
-
-  <!-- Background with larger corner radius for iOS -->
-  <rect width="512" height="512" rx="96" fill="#8b5cf6"/>
-
-  <!-- Shadow under gem -->
-  <ellipse cx="256" cy="370" rx="100" ry="20" fill="url(#shadow)"/>
 
   <!-- Gem -->
   <polygon points="256,96 356,156 396,256 356,356 256,396 156,356 116,256 156,156" fill="url(#gemGrad)" stroke="#7c3aed" stroke-width="2"/>
