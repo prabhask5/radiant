@@ -226,9 +226,11 @@
      Apple SF Pro preferred, with system-ui fallback chain for cross-platform.
      Three roles: `display` (headings), `body` (paragraphs), `mono` (code/amounts). */
 
-  --font-sans: 'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'DM Serif Display', Georgia, 'Times New Roman', serif;
-  --font-body: 'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-sans:
+    'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-display:
+    'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
 
   /* Letter spacing tokens — tight for headings, wide for labels/caps */

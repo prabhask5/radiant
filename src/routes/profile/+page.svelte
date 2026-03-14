@@ -1222,7 +1222,7 @@
   .header-title {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1263,7 +1263,7 @@
     justify-content: center;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1342,7 +1342,7 @@
   .avatar-name {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1361,7 +1361,7 @@
   .avatar-email {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1440,7 +1440,7 @@
     gap: 8px;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1487,7 +1487,7 @@
   .field-label {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1510,7 +1510,7 @@
     color: var(--prof-text);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1553,7 +1553,7 @@
   .current-label {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1570,7 +1570,7 @@
   .current-value {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1593,7 +1593,7 @@
     display: block;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1660,7 +1660,7 @@
     border-radius: var(--prof-radius-sm);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1703,7 +1703,7 @@
     border-radius: var(--prof-radius-sm);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1741,7 +1741,7 @@
     border-radius: var(--prof-radius);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1781,7 +1781,7 @@
     border-radius: var(--prof-radius-sm);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1816,7 +1816,7 @@
   .toggle-label {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1878,7 +1878,7 @@
     padding: 16px;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1892,7 +1892,7 @@
   .devices-empty {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1934,7 +1934,7 @@
   .device-name {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1963,7 +1963,7 @@
   .device-meta {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -2005,7 +2005,7 @@
   .msg {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -2065,7 +2065,7 @@
     color: var(--prof-text);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -2158,7 +2158,7 @@
   .modal-title {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -2174,7 +2174,7 @@
   .modal-text {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -2195,7 +2195,7 @@
   .modal-hint {
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -2221,7 +2221,7 @@
     border-radius: var(--prof-radius-sm);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -2251,7 +2251,7 @@
     border-radius: var(--prof-radius-sm);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',

@@ -834,7 +834,7 @@
     background: var(--surface-base);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -981,7 +981,7 @@
     color: var(--emerald);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1732,7 +1732,7 @@
     padding: 0.65rem 0.85rem;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1794,7 +1794,7 @@
     border: none;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1894,7 +1894,7 @@
     color: var(--emerald);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1926,7 +1926,7 @@
     color: var(--text-secondary);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -1961,7 +1961,7 @@
     color: var(--ruby);
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',

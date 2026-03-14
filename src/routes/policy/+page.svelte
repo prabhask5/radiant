@@ -143,7 +143,7 @@
     font-size: 0.85rem;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -193,7 +193,7 @@
     font-weight: 600;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -208,7 +208,7 @@
     line-height: 1.7;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
@@ -228,7 +228,7 @@
     line-height: 1.7;
     font-family: var(
       --font-body,
-      'Raleway',
+      'SF Pro Text',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',

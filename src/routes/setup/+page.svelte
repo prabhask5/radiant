@@ -724,7 +724,7 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
     animation: shimmer 3s linear infinite;
-    font-family: var(--font-display, 'DM Serif Display', Georgia, serif);
+    font-family: var(--font-display, 'SF Pro Display', Georgia, serif);
   }
 
   @keyframes shimmer {
@@ -740,7 +740,7 @@
     font-size: 0.9375rem;
     color: var(--color-text-muted, #8a7e68);
     margin: 0;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════
@@ -767,7 +767,7 @@
     background: rgba(14, 12, 8, 0.8);
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     flex-shrink: 0;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .step-dot.active {
@@ -842,7 +842,7 @@
     font-weight: 700;
     color: var(--color-text, #f5efe0);
     margin: 0 0 1rem;
-    font-family: var(--font-display, 'DM Serif Display', Georgia, serif);
+    font-family: var(--font-display, 'SF Pro Display', Georgia, serif);
   }
 
   .step-card p {
@@ -850,7 +850,7 @@
     color: var(--color-text-muted, #8a7e68);
     margin: 0 0 1rem;
     line-height: 1.6;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .step-card p strong {
@@ -867,7 +867,7 @@
     font-size: 0.875rem;
     color: var(--color-text-muted, #8a7e68);
     line-height: 1.6;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .step-card ol li::marker {
@@ -904,7 +904,7 @@
     font-size: 0.8125rem;
     color: var(--color-text-muted, #8a7e68);
     line-height: 1.5;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .info-note strong {
@@ -929,7 +929,7 @@
     font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .form-group input {
@@ -983,7 +983,7 @@
     font-size: 0.75rem;
     color: var(--color-text-muted, #8a7e68);
     opacity: 0.7;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════
@@ -1002,7 +1002,7 @@
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     border: none;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .btn-primary {
@@ -1069,12 +1069,13 @@
      ═══════════════════════════════════════════════════════════════════════════════════ */
 
   .message {
+    margin-top: 0.75rem;
     padding: 0.875rem 1rem;
     border-radius: 10px;
     font-size: 0.875rem;
     font-weight: 500;
     line-height: 1.5;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .message-error {
@@ -1113,7 +1114,7 @@
     color: var(--color-text-muted, #8a7e68);
     opacity: 0.5;
     transition: all 0.3s;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .deploy-stage.active {
@@ -1157,7 +1158,7 @@
     font-size: 0.8125rem;
     color: #fbbf24;
     line-height: 1.5;
-    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+    font-family: var(--font-body, 'SF Pro Text', system-ui, sans-serif);
   }
 
   .security-notice strong {
