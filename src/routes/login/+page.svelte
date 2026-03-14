@@ -1319,7 +1319,66 @@
     box-shadow:
       0 4px 32px rgba(0, 0, 0, 0.4),
       0 0 0 1px rgba(167, 139, 250, 0.06) inset;
-    overflow: hidden;
+    overflow: visible;
+  }
+
+  .auth-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--login-gem-secondary, #c4b5fd) 30%,
+      rgba(255, 255, 255, 0.3) 50%,
+      var(--login-gem-secondary, #c4b5fd) 70%,
+      transparent
+    );
+    z-index: 2;
+    border-radius: 1px;
+  }
+
+  .auth-card::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      var(--border-angle, 0deg),
+      var(--login-gem-primary, #a78bfa),
+      var(--login-gem-rose, #f0abfc),
+      var(--login-gem-teal, #5eead4),
+      var(--login-gem-primary, #a78bfa)
+    );
+    background-size: 300% 300%;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.4;
+    animation: cardBorderGlow 6s ease-in-out infinite;
+  }
+
+  @keyframes cardBorderGlow {
+    0%,
+    100% {
+      background-position: 0% 50%;
+      opacity: 0.25;
+    }
+    50% {
+      background-position: 100% 50%;
+      opacity: 0.5;
+    }
   }
 
   .card-gem-accent {
@@ -1436,7 +1495,15 @@
   /* ================================================================= */
 
   .card-title {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--login-text);
@@ -1446,7 +1513,15 @@
   }
 
   .card-subtitle {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.875rem;
     color: var(--login-text-muted);
     margin: 0 0 28px;
@@ -1460,6 +1535,19 @@
     justify-content: center;
     margin: 0 auto 20px;
     color: var(--login-gem-primary);
+    animation: brandIconPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes brandIconPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 8px rgba(124, 58, 237, 0.3));
+    }
+    50% {
+      transform: scale(1.06);
+      filter: drop-shadow(0 0 16px rgba(124, 58, 237, 0.5));
+    }
   }
 
   .offline-icon {
@@ -1488,7 +1576,15 @@
   }
 
   .form-label {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--login-text-muted);
@@ -1503,7 +1599,15 @@
     border: 1px solid rgba(120, 90, 200, 0.12);
     border-radius: var(--login-radius-sm);
     color: var(--login-text);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.9375rem;
     outline: none;
     transition:
@@ -1540,7 +1644,15 @@
 
   .pin-label {
     display: block;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--login-text-muted);
@@ -1572,15 +1684,17 @@
     transition:
       border-color 0.2s ease,
       box-shadow 0.2s ease,
-      background 0.2s ease;
+      background 0.2s ease,
+      transform 0.2s ease;
   }
 
   .pin-digit:focus {
     border-color: var(--login-gem-primary);
     box-shadow:
-      0 0 0 3px rgba(167, 139, 250, 0.12),
-      0 0 16px rgba(167, 139, 250, 0.06);
-    background: rgba(15, 12, 35, 0.9);
+      0 0 0 3px rgba(124, 58, 237, 0.2),
+      0 0 20px rgba(124, 58, 237, 0.1);
+    transform: scale(1.08);
+    background: rgba(124, 58, 237, 0.06);
   }
 
   .pin-digit:disabled {
@@ -1604,24 +1718,32 @@
     color: #fff;
     border: none;
     border-radius: var(--login-radius-sm);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.9375rem;
     font-weight: 600;
     cursor: pointer;
-    transition:
-      opacity 0.2s ease,
-      transform 0.15s ease,
-      box-shadow 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     letter-spacing: 0.01em;
   }
 
   .btn-primary:hover:not(:disabled) {
     opacity: 0.92;
-    box-shadow: 0 4px 20px rgba(124, 58, 237, 0.3);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow:
+      0 8px 24px rgba(124, 58, 237, 0.3),
+      0 0 40px rgba(124, 58, 237, 0.15);
   }
 
   .btn-primary:active:not(:disabled) {
-    transform: scale(0.98);
+    transform: translateY(0) scale(0.98);
   }
 
   .btn-primary:disabled {
@@ -1646,7 +1768,15 @@
     color: var(--login-gem-secondary);
     border: 1px solid rgba(167, 139, 250, 0.2);
     border-radius: var(--login-radius-sm);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
@@ -1672,7 +1802,15 @@
     background: none;
     border: none;
     color: var(--login-text-muted);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     cursor: pointer;
     padding: 0;
@@ -1690,6 +1828,7 @@
   /* ================================================================= */
 
   .welcome-avatar {
+    position: relative;
     width: 64px;
     height: 64px;
     border-radius: 50%;
@@ -1698,11 +1837,52 @@
     align-items: center;
     justify-content: center;
     margin: 0 auto 20px;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 1.5rem;
     font-weight: 700;
     color: #fff;
     box-shadow: 0 0 24px rgba(124, 58, 237, 0.25);
+  }
+
+  .welcome-avatar::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1.5px solid transparent;
+    border-top-color: var(--login-gem-primary, #a78bfa);
+    border-right-color: var(--login-gem-primary, #a78bfa);
+    animation: avatarRingSpin 8s linear infinite;
+    opacity: 0.5;
+  }
+
+  .welcome-avatar::after {
+    content: '';
+    position: absolute;
+    inset: -14px;
+    border-radius: 50%;
+    border: 1px dashed transparent;
+    border-bottom-color: var(--login-gem-teal, #5eead4);
+    border-left-color: var(--login-gem-teal, #5eead4);
+    animation: avatarRingSpin 12s linear infinite reverse;
+    opacity: 0.3;
+  }
+
+  @keyframes avatarRingSpin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   /* ================================================================= */
@@ -1710,7 +1890,15 @@
   /* ================================================================= */
 
   .error-msg {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--login-error);
     text-align: center;
@@ -1722,7 +1910,15 @@
   }
 
   .countdown-msg {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--login-text-muted);
     text-align: center;
@@ -1735,7 +1931,15 @@
     justify-content: center;
     gap: 8px;
     margin-top: 16px;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.875rem;
     color: var(--login-text-muted);
   }
@@ -1796,7 +2000,15 @@
   }
 
   .resolving-text {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.875rem;
     color: var(--login-text-muted);
     text-align: center;
@@ -1873,7 +2085,15 @@
   }
 
   .modal-title {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--login-text);
@@ -1882,7 +2102,15 @@
   }
 
   .modal-text {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.875rem;
     color: var(--login-text-muted);
     margin: 0 0 8px;
@@ -1895,7 +2123,15 @@
   }
 
   .modal-hint {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--login-text-dim);
     margin: 0 0 24px;
@@ -1908,7 +2144,15 @@
     justify-content: center;
     gap: 8px;
     margin-bottom: 20px;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--login-text-muted);
   }
@@ -1918,8 +2162,16 @@
   /* ================================================================= */
 
   @media (max-width: 480px) {
+    .center-stage {
+      padding: 1.5rem;
+    }
+
     .auth-card {
-      padding: 28px 20px 24px;
+      padding: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.375rem;
     }
 
     .pin-digit {
@@ -1937,8 +2189,134 @@
       height: 200px;
     }
 
-    .shard-3 {
+    .crystal-shard.shard-3 {
       display: none;
+    }
+  }
+
+  /* ── iPhone 16 Pro / 15 Pro / 14 Pro (390px–429px) ── */
+
+  @media (min-width: 390px) and (max-width: 429px) {
+    .center-stage {
+      padding: 1.25rem;
+      gap: 1.75rem;
+    }
+    .auth-card {
+      padding: 2rem;
+      border-radius: 22px;
+    }
+    .card-title {
+      font-size: 1.5rem;
+    }
+    .form-input {
+      padding: 1rem 1.125rem;
+      border-radius: 14px;
+    }
+    .btn-primary {
+      padding: 1.125rem;
+      font-size: 1.0625rem;
+      border-radius: 14px;
+    }
+    .welcome-avatar {
+      width: 72px;
+      height: 72px;
+      font-size: 1.75rem;
+    }
+    .pin-digit {
+      width: 40px;
+      height: 48px;
+      font-size: 1.25rem;
+    }
+    .pin-row {
+      gap: 0.375rem;
+    }
+  }
+
+  /* ── iPhone 16 Pro Max / 15 Pro Max (430px–480px) ── */
+
+  @media (min-width: 430px) and (max-width: 480px) {
+    .center-stage {
+      padding: 1.5rem;
+      gap: 2rem;
+    }
+    .auth-card {
+      padding: 2.25rem;
+    }
+    .card-title {
+      font-size: 1.5rem;
+    }
+    .welcome-avatar {
+      width: 80px;
+      height: 80px;
+      font-size: 2rem;
+    }
+    .pin-digit {
+      width: 44px;
+      height: 52px;
+      font-size: 1.375rem;
+    }
+    .pin-row {
+      gap: 0.4375rem;
+    }
+  }
+
+  /* ── Small phones / iPhone SE (≤389px) ── */
+
+  @media (max-width: 389px) {
+    .center-stage {
+      padding: 1rem;
+      gap: 1.25rem;
+    }
+    .auth-card {
+      padding: 1.25rem;
+    }
+    .card-title {
+      font-size: 1.25rem;
+    }
+    .card-subtitle {
+      font-size: 0.8125rem;
+    }
+    .name-row {
+      grid-template-columns: 1fr;
+    }
+    .btn-primary {
+      padding: 0.875rem;
+      font-size: 0.9375rem;
+    }
+    .welcome-avatar {
+      width: 60px;
+      height: 60px;
+      font-size: 1.5rem;
+    }
+    .pin-digit {
+      width: 36px;
+      height: 44px;
+      font-size: 1.125rem;
+    }
+    .pin-row {
+      gap: 0.25rem;
+    }
+    .crystal-shard.shard-2,
+    .crystal-shard.shard-3 {
+      display: none;
+    }
+  }
+
+  /* ================================================================= */
+  /*                     REDUCED MOTION                                */
+  /* ================================================================= */
+
+  @media (prefers-reduced-motion: reduce) {
+    .auth-card::after {
+      animation: none;
+      opacity: 0.3;
+    }
+    .welcome-avatar::before,
+    .welcome-avatar::after {
+      animation: none;
+    }
+    .card-icon {
+      animation: none;
     }
   }
 </style>

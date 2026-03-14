@@ -141,7 +141,15 @@
   .updated {
     color: var(--color-text-muted);
     font-size: 0.85rem;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     margin: 0 0 2rem;
   }
 
@@ -183,14 +191,30 @@
   h3 {
     font-size: 1rem;
     font-weight: 600;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     margin: 1rem 0 0.5rem;
     color: var(--color-primary-light);
   }
 
   p {
     line-height: 1.7;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     color: var(--color-text-secondary);
     margin: 0 0 0.75rem;
   }
@@ -202,7 +226,15 @@
 
   li {
     line-height: 1.7;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     color: var(--color-text-secondary);
     margin-bottom: 0.25rem;
   }

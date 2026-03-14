@@ -611,7 +611,7 @@
     transition:
       opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
       transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
-    transition-delay: calc(var(--delay, 0) * 90ms);
+    transition-delay: calc(var(--delay) * 90ms);
   }
 
   .dashboard.mounted .anim-item {
@@ -706,10 +706,15 @@
   }
 
   .hero-name {
-    background: var(--gem-gradient-crystal);
+    background: var(
+      --gem-gradient-crystal,
+      linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #60a5fa 100%)
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    background-size: 200% auto;
+    animation: gemNameShimmer 6s linear infinite;
   }
 
   .hero-subtitle {
@@ -771,12 +776,16 @@
     overflow: hidden;
     transition:
       border-color 0.3s ease,
-      box-shadow 0.3s ease;
+      box-shadow 0.3s ease,
+      transform 0.3s ease;
   }
 
   .overview-card:hover {
     border-color: var(--gem-border-hover);
-    box-shadow: 0 4px 24px rgba(167, 139, 250, 0.08);
+    transform: translateY(-4px);
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(139, 92, 246, 0.1);
   }
 
   @media (min-width: 768px) {
@@ -790,7 +799,10 @@
   .card-shimmer {
     position: absolute;
     inset: 0;
-    background: var(--gem-gradient-shimmer);
+    background: var(
+      --gem-gradient-shimmer,
+      linear-gradient(90deg, transparent 0%, rgba(167, 139, 250, 0.15) 50%, transparent 100%)
+    );
     background-size: 300% 100%;
     opacity: 0;
     transition: opacity 0.3s ease;
@@ -901,7 +913,10 @@
   }
 
   .card-networth .card-value {
-    background: var(--gem-gradient-gold);
+    background: var(
+      --gem-gradient-gold,
+      linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -926,6 +941,7 @@
      SECTION PANELS — shared panel style
      ────────────────────────────────────────────────────────────────────────── */
   .section-panel {
+    position: relative;
     background: var(--gem-obsidian);
     border: 1px solid var(--gem-border);
     border-radius: var(--radius);
@@ -979,12 +995,15 @@
   }
 
   .txn-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 12px 0;
     border-bottom: 1px solid rgba(167, 139, 250, 0.06);
-    transition: background 0.2s;
+    transition:
+      background 0.2s ease,
+      transform 0.2s ease;
   }
 
   .txn-row:last-child {
@@ -997,6 +1016,7 @@
     padding-left: 12px;
     padding-right: 12px;
     border-radius: var(--radius-sm);
+    transform: translateX(2px);
   }
 
   .txn-icon {
@@ -1115,10 +1135,12 @@
   }
 
   .budget-bar-fill {
+    position: relative;
+    overflow: hidden;
     height: 100%;
     width: var(--fill);
     border-radius: 3px;
-    background: var(--bar-color, var(--gem-amethyst));
+    background: var(--bar-color);
     transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -1408,6 +1430,142 @@
   }
 
   /* ──────────────────────────────────────────────────────────────────────────
+     HERO NAME SHIMMER
+     ────────────────────────────────────────────────────────────────────────── */
+  @keyframes gemNameShimmer {
+    0% {
+      background-position: 0% center;
+    }
+    100% {
+      background-position: 200% center;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     OVERVIEW CARD — PRISMATIC TOP LINE
+     ────────────────────────────────────────────────────────────────────────── */
+  .overview-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 15%;
+    right: 15%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(139, 92, 246, 0.4),
+      rgba(255, 255, 255, 0.25),
+      rgba(139, 92, 246, 0.4),
+      transparent
+    );
+    z-index: 1;
+    border-radius: 1px;
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     OVERVIEW CARD — GRADIENT BORDER REVEAL ON HOVER
+     ────────────────────────────────────────────────────────────────────────── */
+  .overview-card::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(139, 92, 246, 0.3) 0%,
+      transparent 30%,
+      transparent 70%,
+      rgba(16, 185, 129, 0.2) 100%
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .overview-card:hover::after {
+    opacity: 1;
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     SECTION PANEL — TOP ACCENT LINE
+     ────────────────────────────────────────────────────────────────────────── */
+  .section-panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--gem-border-strong, rgba(139, 92, 246, 0.25)),
+      transparent
+    );
+    border-radius: 1px;
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     CARD-SPECIFIC HOVER GLOWS
+     ────────────────────────────────────────────────────────────────────────── */
+  .card-networth:hover {
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(139, 92, 246, 0.12);
+  }
+
+  .card-balance:hover {
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(96, 165, 250, 0.12);
+  }
+
+  .card-spending:hover {
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(248, 113, 113, 0.12);
+  }
+
+  .card-income:hover {
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(52, 211, 153, 0.12);
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     BUDGET BAR FILL SHIMMER
+     ────────────────────────────────────────────────────────────────────────── */
+  .budget-bar-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    background-size: 200% 100%;
+    animation: barShimmer 3s ease-in-out infinite;
+    border-radius: inherit;
+  }
+
+  @keyframes barShimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
      REDUCED MOTION
      ────────────────────────────────────────────────────────────────────────── */
   @media (prefers-reduced-motion: reduce) {
@@ -1423,6 +1581,14 @@
 
     .card-shimmer {
       display: none;
+    }
+
+    .hero-name {
+      animation: none;
+    }
+
+    .budget-bar-fill::after {
+      animation: none;
     }
   }
 </style>

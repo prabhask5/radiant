@@ -107,8 +107,8 @@
     padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
     gap: clamp(0.75rem, 2vh, 1.5rem);
     overflow: hidden;
-    background: var(--demo-bg, #0a0a1a);
-    color: var(--demo-text, #e8e6f0);
+    background: var(--demo-bg);
+    color: var(--demo-text);
     font-family: inherit;
     transition:
       opacity 0.7s ease,
@@ -134,7 +134,7 @@
     line-height: 1;
     margin: 0;
     text-align: center;
-    color: var(--demo-title, inherit);
+    color: var(--demo-title);
     opacity: 0;
     animation: titleIn 1s 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
@@ -154,7 +154,7 @@
 
   .sub {
     font-size: clamp(0.85rem, 2vw, 1.1rem);
-    color: var(--demo-muted, #a09bb5);
+    color: var(--demo-muted);
     max-width: 420px;
     margin: -0.25rem auto 0;
     text-align: center;
@@ -219,7 +219,7 @@
   }
 
   .tog:focus-visible .track {
-    outline: 2px solid var(--demo-accent, #6c5ce7);
+    outline: 2px solid var(--demo-accent);
     outline-offset: 6px;
   }
 
@@ -235,8 +235,8 @@
     width: 200px;
     height: 68px;
     border-radius: 34px;
-    background: var(--demo-track-bg, rgba(255, 255, 255, 0.08));
-    border: 2px solid var(--demo-track-border, rgba(255, 255, 255, 0.1));
+    background: var(--demo-track-bg);
+    border: 2px solid var(--demo-track-border);
     transition:
       background 0.4s,
       border-color 0.4s,
@@ -244,13 +244,13 @@
   }
 
   .tog.on .track {
-    background: var(--demo-track-active-bg, rgba(108, 92, 231, 0.25));
-    border-color: var(--demo-track-active-border, rgba(108, 92, 231, 0.4));
+    background: var(--demo-track-active-bg);
+    border-color: var(--demo-track-active-border);
     box-shadow: 0 0 30px rgba(108, 92, 231, 0.15);
   }
 
   .tog:hover:not(:disabled) .track {
-    border-color: var(--demo-track-hover-border, rgba(255, 255, 255, 0.2));
+    border-color: var(--demo-track-hover-border);
   }
 
   /* ═══ KNOB ═══ */
@@ -262,7 +262,7 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: var(--demo-knob-bg, rgba(255, 255, 255, 0.15));
+    background: var(--demo-knob-bg);
     transition:
       transform 0.5s cubic-bezier(0.68, -0.15, 0.27, 1.15),
       background 0.4s,
@@ -271,7 +271,7 @@
 
   .tog.on .knob {
     transform: translateX(132px);
-    background: var(--demo-knob-active-bg, #6c5ce7);
+    background: var(--demo-knob-active-bg);
     box-shadow: 0 0 20px rgba(108, 92, 231, 0.4);
   }
 
@@ -281,13 +281,13 @@
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.15em;
-    color: var(--demo-muted, rgba(160, 155, 181, 0.4));
+    color: var(--demo-muted);
     user-select: none;
     transition: color 0.4s;
   }
 
   .state-label.on {
-    color: var(--demo-accent, #6c5ce7);
+    color: var(--demo-accent);
   }
 
   /* ═══ INFO CARD ═══ */
@@ -297,10 +297,10 @@
     gap: 1.5rem;
     max-width: 440px;
     width: 100%;
-    background: var(--demo-card-bg, rgba(255, 255, 255, 0.04));
+    background: var(--demo-card-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--demo-card-border, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--demo-card-border);
     border-radius: 12px;
     padding: clamp(0.75rem, 2vh, 1.25rem) clamp(1rem, 3vw, 1.5rem);
     opacity: 0;
@@ -331,11 +331,11 @@
   }
 
   .ok h3 {
-    color: var(--demo-text, rgba(232, 230, 240, 0.7));
+    color: var(--demo-text);
   }
 
   .cap h3 {
-    color: var(--demo-muted, rgba(160, 155, 181, 0.5));
+    color: var(--demo-muted);
   }
 
   .col ul {
@@ -352,7 +352,7 @@
     line-height: 1.5;
     padding-left: 1.2rem;
     position: relative;
-    color: var(--demo-muted, rgba(160, 155, 181, 0.6));
+    color: var(--demo-muted);
   }
 
   .ok li::before {
@@ -368,12 +368,12 @@
     content: '\2014';
     position: absolute;
     left: 0;
-    color: var(--demo-muted, rgba(160, 155, 181, 0.3));
+    color: var(--demo-muted);
   }
 
   .divider {
     width: 1px;
-    background: var(--demo-card-border, rgba(255, 255, 255, 0.06));
+    background: var(--demo-card-border);
     align-self: stretch;
   }
 
@@ -381,7 +381,7 @@
 
   .foot {
     font-size: 0.7rem;
-    color: var(--demo-muted, rgba(160, 155, 181, 0.2));
+    color: var(--demo-muted);
     margin: 0;
     letter-spacing: 0.04em;
     opacity: 0;

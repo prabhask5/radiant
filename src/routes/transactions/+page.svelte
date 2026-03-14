@@ -832,6 +832,30 @@
       transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  .txn-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 15% 25%, rgba(255, 255, 255, 0.35), transparent),
+      radial-gradient(1px 1px at 55% 15%, rgba(167, 139, 250, 0.4), transparent),
+      radial-gradient(1px 1px at 85% 55%, rgba(255, 255, 255, 0.3), transparent),
+      radial-gradient(1px 1px at 35% 75%, rgba(232, 200, 122, 0.35), transparent),
+      radial-gradient(1px 1px at 75% 85%, rgba(255, 255, 255, 0.25), transparent);
+    z-index: -1;
+    pointer-events: none;
+    animation: txnSparkle 8s ease-in-out infinite alternate;
+  }
+
+  @keyframes txnSparkle {
+    0% {
+      opacity: 0.6;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
   .txn-page.mounted {
     opacity: 1;
     transform: translateY(0);
@@ -1340,12 +1364,26 @@
   /* ── Date Group Header ── */
 
   .date-header {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.6rem;
     padding: 0.85rem 0.25rem 0.35rem;
     opacity: 0;
     animation: rowSlideIn 0.35s ease forwards;
+  }
+
+  .date-header::before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--txn-amethyst, #a78bfa);
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.4);
   }
 
   .date-header-text {
@@ -1397,6 +1435,27 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  .txn-row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 2px;
+    background: var(--txn-amethyst, #a78bfa);
+    border-radius: 2px;
+    opacity: 0;
+    transform: scaleY(0.5);
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .txn-row:hover::before {
+    opacity: 1;
+    transform: scaleY(1);
   }
 
   .txn-row:hover {
@@ -1838,6 +1897,10 @@
     }
 
     .saving-indicator {
+      animation: none;
+    }
+
+    .txn-page::before {
       animation: none;
     }
   }

@@ -1131,12 +1131,49 @@
   /* ================================================================= */
 
   .profile-page {
+    position: relative;
     min-height: 100dvh;
     background: var(--prof-void);
     background-image:
       radial-gradient(ellipse 70% 40% at 30% 0%, rgba(124, 58, 237, 0.07) 0%, transparent 60%),
       radial-gradient(ellipse 50% 30% at 80% 100%, rgba(94, 234, 212, 0.04) 0%, transparent 50%);
     padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+    animation: profileEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes profileEnter {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .profile-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.4), transparent),
+      radial-gradient(1px 1px at 60% 20%, rgba(167, 139, 250, 0.5), transparent),
+      radial-gradient(1px 1px at 80% 60%, rgba(255, 255, 255, 0.3), transparent),
+      radial-gradient(1px 1px at 40% 80%, rgba(94, 234, 212, 0.4), transparent),
+      radial-gradient(1px 1px at 10% 70%, rgba(255, 255, 255, 0.35), transparent);
+    z-index: -1;
+    pointer-events: none;
+    animation: profileSparkle 6s ease-in-out infinite alternate;
+  }
+
+  @keyframes profileSparkle {
+    0% {
+      opacity: 0.7;
+    }
+    100% {
+      opacity: 1;
+    }
   }
 
   /* ================================================================= */
@@ -1177,7 +1214,15 @@
   }
 
   .header-title {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--prof-text);
@@ -1201,6 +1246,8 @@
   }
 
   .avatar-circle {
+    position: relative;
+    overflow: visible;
     width: 72px;
     height: 72px;
     border-radius: 50%;
@@ -1208,7 +1255,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 1.5rem;
     font-weight: 700;
     color: #fff;
@@ -1217,16 +1272,78 @@
     margin-bottom: 12px;
   }
 
+  .avatar-circle::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 1.5px solid var(--prof-gem, #a78bfa);
+    opacity: 0.4;
+    animation: avatarRingPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes avatarRingPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.3;
+    }
+    50% {
+      transform: scale(1.08);
+      opacity: 0.6;
+    }
+  }
+
+  .avatar-circle::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+    border: 1px dashed transparent;
+    border-top-color: var(--prof-gem-teal, #5eead4);
+    border-right-color: var(--prof-gem-teal, #5eead4);
+    opacity: 0.25;
+    animation: avatarOrbit 15s linear infinite;
+  }
+
+  @keyframes avatarOrbit {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   .avatar-name {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 1.125rem;
     font-weight: 600;
-    color: var(--prof-text);
+    background: linear-gradient(135deg, var(--prof-text, #e8e4f0), var(--prof-gem-light, #c4b5fd));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     margin: 0 0 4px;
   }
 
   .avatar-email {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--prof-text-muted);
     margin: 0;
@@ -1250,12 +1367,43 @@
   /* ================================================================= */
 
   .settings-card {
+    position: relative;
     background: var(--prof-surface);
     border: 1px solid var(--prof-surface-border);
     border-radius: var(--prof-radius);
     padding: 24px 20px;
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+    transition:
+      transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.3s ease,
+      border-color 0.3s ease;
+  }
+
+  .settings-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 15%;
+    right: 15%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(167, 139, 250, 0.35),
+      rgba(255, 255, 255, 0.2),
+      rgba(167, 139, 250, 0.35),
+      transparent
+    );
+    border-radius: 1px;
+  }
+
+  .settings-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      0 0 30px rgba(124, 58, 237, 0.08);
+    border-color: rgba(120, 90, 200, 0.2);
   }
 
   .settings-card.compact {
@@ -1266,7 +1414,15 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.9375rem;
     font-weight: 600;
     color: var(--prof-text);
@@ -1305,7 +1461,15 @@
   }
 
   .field-label {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.6875rem;
     font-weight: 500;
     color: var(--prof-text-muted);
@@ -1320,7 +1484,15 @@
     border: 1px solid rgba(120, 90, 200, 0.12);
     border-radius: var(--prof-radius-sm);
     color: var(--prof-text);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.875rem;
     outline: none;
     transition:
@@ -1355,7 +1527,15 @@
   }
 
   .current-label {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.6875rem;
     font-weight: 600;
     color: var(--prof-text-dim);
@@ -1364,7 +1544,15 @@
   }
 
   .current-value {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--prof-gem-light);
   }
@@ -1379,7 +1567,15 @@
 
   .pin-group-label {
     display: block;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.6875rem;
     font-weight: 500;
     color: var(--prof-text-muted);
@@ -1438,21 +1634,30 @@
     color: #fff;
     border: none;
     border-radius: var(--prof-radius-sm);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.875rem;
     font-weight: 600;
     cursor: pointer;
-    transition:
-      opacity 0.2s ease,
-      transform 0.15s ease;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .btn-action:hover:not(:disabled) {
-    opacity: 0.92;
+    transform: translateY(-2px) scale(1.02);
+    box-shadow:
+      0 8px 24px rgba(124, 58, 237, 0.25),
+      0 0 30px rgba(124, 58, 237, 0.12);
   }
 
   .btn-action:active:not(:disabled) {
-    transform: scale(0.98);
+    transform: translateY(0) scale(0.98);
   }
 
   .btn-action:disabled {
@@ -1472,7 +1677,15 @@
     color: var(--prof-error);
     border: 1px solid rgba(251, 113, 133, 0.12);
     border-radius: var(--prof-radius-sm);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
@@ -1502,7 +1715,15 @@
     color: var(--prof-error);
     border: 1px solid rgba(251, 113, 133, 0.15);
     border-radius: var(--prof-radius);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.9375rem;
     font-weight: 500;
     cursor: pointer;
@@ -1534,7 +1755,15 @@
     color: #fbbf24;
     border: 1px solid rgba(251, 191, 36, 0.12);
     border-radius: var(--prof-radius-sm);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
@@ -1561,7 +1790,15 @@
   }
 
   .toggle-label {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.875rem;
     color: var(--prof-text);
   }
@@ -1593,12 +1830,16 @@
     height: 18px;
     background: #fff;
     border-radius: 50%;
-    transition: transform 0.25s ease;
+    transition:
+      transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background 0.3s ease,
+      box-shadow 0.3s ease;
     pointer-events: none;
   }
 
   .toggle-switch.on .toggle-thumb {
     transform: translateX(20px);
+    box-shadow: 0 0 12px rgba(124, 58, 237, 0.4);
   }
 
   /* ================================================================= */
@@ -1611,13 +1852,29 @@
     justify-content: center;
     gap: 8px;
     padding: 16px;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--prof-text-muted);
   }
 
   .devices-empty {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--prof-text-dim);
     text-align: center;
@@ -1651,7 +1908,15 @@
   }
 
   .device-name {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--prof-text);
@@ -1672,7 +1937,15 @@
   }
 
   .device-meta {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.6875rem;
     color: var(--prof-text-dim);
   }
@@ -1706,7 +1979,15 @@
   /* ================================================================= */
 
   .msg {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     text-align: center;
     margin: 8px 0;
@@ -1758,7 +2039,15 @@
     background: rgba(18, 18, 38, 0.95);
     border: 1px solid rgba(120, 90, 200, 0.2);
     color: var(--prof-text);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     padding: 10px 20px;
     border-radius: 10px;
@@ -1843,7 +2132,15 @@
   }
 
   .modal-title {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--prof-text);
@@ -1851,7 +2148,15 @@
   }
 
   .modal-text {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     color: var(--prof-text-muted);
     margin: 0 0 6px;
@@ -1864,7 +2169,15 @@
   }
 
   .modal-hint {
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.75rem;
     color: var(--prof-text-dim);
     margin: 0 0 20px;
@@ -1882,7 +2195,15 @@
     color: var(--prof-gem-light);
     border: 1px solid rgba(167, 139, 250, 0.2);
     border-radius: var(--prof-radius-sm);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
@@ -1904,7 +2225,15 @@
     color: var(--prof-text-dim);
     border: none;
     border-radius: var(--prof-radius-sm);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.8125rem;
     cursor: pointer;
     transition: color 0.2s ease;
@@ -1912,5 +2241,149 @@
 
   .btn-modal-dismiss:hover {
     color: var(--prof-text-muted);
+  }
+
+  /* ================================================================= */
+  /*                     RESPONSIVE — MOBILE                           */
+  /* ================================================================= */
+
+  @media (max-width: 640px) {
+    .profile-page {
+      padding-left: 0.25rem;
+      padding-right: 0.25rem;
+    }
+    .field-row {
+      grid-template-columns: 1fr;
+    }
+    .settings-card {
+      padding: 1.25rem;
+    }
+    .avatar-circle {
+      width: 80px;
+      height: 80px;
+      font-size: 2rem;
+    }
+    .field-input {
+      padding: 0.75rem 0.875rem;
+      font-size: 16px;
+    }
+    .btn-action,
+    .btn-danger-subtle,
+    .btn-signout {
+      padding: 0.875rem 1.25rem;
+      font-size: 0.9375rem;
+    }
+    .debug-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ================================================================= */
+  /*                     RESPONSIVE — iPHONE SE (≤375px)               */
+  /* ================================================================= */
+
+  @media (max-width: 375px) {
+    .profile-header .header-title {
+      font-size: 1.125rem;
+    }
+    .settings-card {
+      padding: 1rem;
+    }
+    .avatar-circle {
+      width: 70px;
+      height: 70px;
+      font-size: 1.75rem;
+    }
+    .pin-digit {
+      width: 36px;
+      height: 44px;
+      font-size: 1.125rem;
+    }
+    .pin-row {
+      gap: 0.25rem;
+    }
+  }
+
+  /* ================================================================= */
+  /*                     RESPONSIVE — iPHONE 16 PRO (400–430px)        */
+  /* ================================================================= */
+
+  @media (min-width: 400px) and (max-width: 430px) {
+    .profile-page {
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+    .settings-card {
+      padding: 1.5rem;
+    }
+    .avatar-circle {
+      width: 88px;
+      height: 88px;
+      font-size: 2.25rem;
+    }
+    .pin-digit {
+      width: 44px;
+      height: 52px;
+      font-size: 1.375rem;
+    }
+    .pin-row {
+      gap: 0.4375rem;
+    }
+  }
+
+  /* ================================================================= */
+  /*                     RESPONSIVE — iPHONE PRO MAX (430–640px)       */
+  /* ================================================================= */
+
+  @media (min-width: 430px) and (max-width: 640px) {
+    .profile-page {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+    .settings-card {
+      padding: 1.75rem;
+    }
+    .field-row {
+      grid-template-columns: 1fr 1fr;
+    }
+    .avatar-circle {
+      width: 100px;
+      height: 100px;
+      font-size: 2.5rem;
+    }
+  }
+
+  /* ================================================================= */
+  /*                     RESPONSIVE — iPHONE PIN (390–399px)           */
+  /* ================================================================= */
+
+  @media (min-width: 390px) and (max-width: 399px) {
+    .pin-digit {
+      width: 40px;
+      height: 48px;
+      font-size: 1.25rem;
+    }
+    .pin-row {
+      gap: 0.375rem;
+    }
+  }
+
+  /* ================================================================= */
+  /*                     REDUCED MOTION                                */
+  /* ================================================================= */
+
+  @media (prefers-reduced-motion: reduce) {
+    .profile-page {
+      animation-duration: 0.01ms;
+    }
+    .profile-page::before {
+      animation: none;
+    }
+    .avatar-circle::before {
+      animation: none;
+    }
+    .avatar-circle::after {
+      animation: none;
+    }
   }
 </style>

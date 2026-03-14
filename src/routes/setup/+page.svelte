@@ -562,98 +562,171 @@
 </div>
 
 <style>
-  /* ═══════════════════════════════════════════════════════════════
-     SETUP PAGE — Crystal Forge Theme
-     Cinematic dark gem aesthetic for the configuration wizard
-     ═══════════════════════════════════════════════════════════════ */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     SETUP PAGE — Crystal Forge / Gem Vault Theme
+     Matches Stellar's CSS architecture: hardcoded fallbacks, full self-contained
+     visual identity, cinematic animations, glassmorphism, spring easing.
+     ═══════════════════════════════════════════════════════════════════════════════════ */
 
   .setup-page {
+    position: relative;
     display: flex;
     justify-content: center;
-    padding: 2rem 1rem;
+    align-items: center;
     min-height: 100vh;
-    background: transparent;
-    animation: setupFadeIn 0.8s var(--ease-out) both;
+    padding: 2rem 1rem;
+    background:
+      radial-gradient(ellipse at 25% 15%, rgba(60, 20, 120, 0.5) 0%, transparent 50%),
+      radial-gradient(ellipse at 75% 85%, rgba(80, 30, 100, 0.3) 0%, transparent 50%),
+      linear-gradient(180deg, #050510 0%, #0a0a1a 30%, #0d0d22 60%, #080816 100%);
+    color: var(--color-text, #f0eeff);
+    overflow: hidden;
   }
+
+  /* ═══ Crystal Lattice Background — gem sparkle points + prismatic clouds ═══ */
+
+  .setup-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, rgba(255, 255, 255, 0.6) 50%, transparent 100%),
+      radial-gradient(1px 1px at 28% 42%, rgba(255, 255, 255, 0.5) 50%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 48% 12%, rgba(139, 92, 246, 0.8) 50%, transparent 100%),
+      radial-gradient(1px 1px at 62% 68%, rgba(255, 255, 255, 0.5) 50%, transparent 100%),
+      radial-gradient(1px 1px at 88% 32%, rgba(255, 255, 255, 0.4) 50%, transparent 100%),
+      radial-gradient(1px 1px at 22% 72%, rgba(244, 114, 182, 0.5) 50%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 72% 22%, rgba(255, 255, 255, 0.5) 50%, transparent 100%),
+      radial-gradient(1px 1px at 38% 88%, rgba(139, 92, 246, 0.4) 50%, transparent 100%),
+      radial-gradient(2px 2px at 82% 78%, rgba(34, 211, 238, 0.4) 50%, transparent 100%),
+      radial-gradient(1px 1px at 55% 52%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+    animation: gemTwinkle 4s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Prismatic nebula clouds — amethyst + rose quartz + aquamarine */
+  .setup-page::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(600px 600px at 20% 10%, rgba(139, 92, 246, 0.08) 0%, transparent 70%),
+      radial-gradient(500px 500px at 85% 90%, rgba(244, 114, 182, 0.06) 0%, transparent 70%),
+      radial-gradient(400px 400px at 50% 50%, rgba(34, 211, 238, 0.04) 0%, transparent 70%);
+    animation: nebulaDrift 20s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @keyframes gemTwinkle {
+    0% {
+      opacity: 0.6;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes nebulaDrift {
+    0% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(15px, -8px) scale(1.03);
+    }
+    100% {
+      transform: translate(-8px, 12px) scale(0.97);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     CONTAINER — Content layer above the background
+     ═══════════════════════════════════════════════════════════════════════════════════ */
 
   .setup-container {
-    max-width: 640px;
     width: 100%;
-    animation: setupSlideUp 0.9s var(--ease-out) 0.1s both;
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    position: relative;
+    z-index: 1;
   }
 
-  /* Title — prismatic gradient shimmer */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     HEADER — Title with prismatic shimmer
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   h1 {
-    margin: 0 0 0.25rem;
     font-size: 1.75rem;
-    font-family: var(--font-display);
-    letter-spacing: var(--tracking-tight);
-    color: var(--color-text);
-    background: linear-gradient(
-      120deg,
-      var(--color-primary-light) 0%,
-      var(--color-accent) 25%,
-      var(--color-cyan) 50%,
-      var(--color-primary-light) 75%,
-      var(--color-accent) 100%
-    );
-    background-size: 300% 100%;
+    font-weight: 700;
+    margin: 0;
+    color: var(--color-text, #f0eeff);
+    background: linear-gradient(135deg, #f0eeff, #a78bfa, #f472b6, #f0eeff);
+    background-size: 200% auto;
     -webkit-background-clip: text;
-    background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: prismaticShimmer 8s linear infinite;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+    font-family: var(--font-display, 'Cinzel', Georgia, serif);
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 0% center;
+    }
+    100% {
+      background-position: 200% center;
+    }
   }
 
   .subtitle {
-    margin: 0 0 1.5rem;
-    color: var(--color-text-muted);
-    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    color: var(--color-text-muted, #7874a0);
+    margin: 0;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
-  /* ═══ Step Indicator — Gem nodes connected by crystal veins ═══ */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     STEP INDICATOR — Numbered gem nodes connected by crystal veins
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   .step-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    margin-bottom: 2rem;
-    animation: setupFadeIn 0.6s var(--ease-out) 0.3s both;
   }
 
   .step-dot {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
-    border: 2px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.875rem;
-    font-weight: 600;
-    font-family: var(--font-body);
-    color: var(--color-text-muted);
-    background: var(--color-bg-secondary);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    border: 2px solid rgba(139, 92, 246, 0.25);
+    color: var(--color-text-muted, #7874a0);
+    background: rgba(10, 10, 22, 0.8);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     flex-shrink: 0;
-    transition:
-      border-color var(--duration-normal) var(--ease-out),
-      background var(--duration-normal) var(--ease-out),
-      color var(--duration-normal) var(--ease-out),
-      box-shadow var(--duration-normal) var(--ease-out);
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .step-dot.active {
-    border-color: var(--color-primary);
-    color: var(--color-primary-light);
-    background: var(--color-primary-subtle);
-    box-shadow: 0 0 16px var(--color-primary-glow);
-    animation: gemPulse 2.5s ease-in-out infinite;
+    border-color: var(--color-primary, #8b5cf6);
+    color: var(--color-primary-light, #a78bfa);
+    background: rgba(139, 92, 246, 0.15);
+    box-shadow: 0 0 16px rgba(139, 92, 246, 0.35);
   }
 
   .step-dot.completed {
-    border-color: var(--color-success);
-    background: var(--color-success);
-    color: #fff;
-    box-shadow: 0 0 12px var(--color-success-glow);
+    border-color: #10b981;
+    background: #10b981;
+    color: white;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
   }
 
   .checkmark {
@@ -661,243 +734,273 @@
   }
 
   .step-line {
-    width: 40px;
+    width: 44px;
     height: 2px;
-    background: var(--color-border);
+    background: rgba(139, 92, 246, 0.15);
+    transition: background 0.3s ease;
     flex-shrink: 0;
-    transition: background var(--duration-normal) var(--ease-out);
   }
 
   .step-line.completed {
-    background: var(--color-success);
-    box-shadow: 0 0 6px var(--color-success-glow);
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
   }
 
-  /* ═══ Step Card — Glassmorphic crystal panel ═══ */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     STEP CARD — Glassmorphism panel with top glow accent
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   .step-card {
-    padding: 1.5rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-glass);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    margin-bottom: 1.5rem;
-    box-shadow: var(--shadow-md);
-    position: relative;
+    background: linear-gradient(165deg, rgba(12, 12, 28, 0.92) 0%, rgba(18, 18, 36, 0.88) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem 1.5rem;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(255, 255, 255, 0.03) inset;
     overflow: hidden;
-    animation: setupSlideUp 0.7s var(--ease-out) 0.4s both;
+    position: relative;
   }
 
-  /* Crystal highlight along top edge */
+  /* Top glow line — prismatic accent */
   .step-card::before {
     content: '';
     position: absolute;
     top: 0;
-    left: 0;
-    right: 0;
+    left: 10%;
+    right: 10%;
     height: 1px;
     background: linear-gradient(
       90deg,
-      transparent 0%,
-      var(--color-primary-light) 30%,
-      var(--color-accent) 50%,
-      var(--color-primary-light) 70%,
-      transparent 100%
+      transparent,
+      rgba(139, 92, 246, 0.5),
+      rgba(255, 255, 255, 0.3),
+      rgba(244, 114, 182, 0.4),
+      transparent
     );
-    opacity: 0.6;
   }
 
   .step-card h2 {
-    margin: 0 0 0.75rem;
-    font-size: 1.25rem;
-    font-family: var(--font-display);
-    letter-spacing: var(--tracking-tight);
-    color: var(--color-text);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--color-text, #f0eeff);
+    margin: 0 0 1rem;
+    font-family: var(--font-display, 'Cinzel', Georgia, serif);
   }
 
   .step-card p {
+    font-size: 0.875rem;
+    color: var(--color-text-muted, #7874a0);
     margin: 0 0 1rem;
-    line-height: 1.5;
-    color: var(--color-text-secondary);
-    font-family: var(--font-body);
+    line-height: 1.6;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+  }
+
+  .step-card p strong {
+    color: var(--color-text, #f0eeff);
+    font-weight: 600;
   }
 
   .step-card ol {
     margin: 0 0 1rem;
     padding-left: 1.25rem;
-    line-height: 1.7;
-    color: var(--color-text-secondary);
-    font-family: var(--font-body);
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted, #7874a0);
+    line-height: 1.6;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
+  }
+
+  .step-card ol li::marker {
+    color: rgba(139, 92, 246, 0.6);
+    font-weight: 600;
+  }
+
+  .step-card ol strong {
+    color: var(--color-text, #f0eeff);
+    font-weight: 600;
   }
 
   .step-card a {
-    color: var(--color-primary-light);
+    color: var(--color-primary-light, #a78bfa);
     text-decoration: none;
-    transition: color var(--duration-fast) var(--ease-out);
+    border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+    transition: all 0.2s;
   }
 
   .step-card a:hover {
-    color: var(--color-primary-hover);
-    text-decoration: underline;
+    color: var(--color-primary, #8b5cf6);
+    border-bottom-color: rgba(139, 92, 246, 0.6);
   }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     INFO NOTE — Inline callout
+     ═══════════════════════════════════════════════════════════════════════════════════ */
 
   .info-note {
     padding: 0.75rem 1rem;
     background: rgba(139, 92, 246, 0.08);
-    border: 1px solid rgba(139, 92, 246, 0.15);
-    border-radius: var(--radius-sm);
-    font-size: 0.875rem;
-    color: var(--color-text-secondary);
-    font-family: var(--font-body);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted, #7874a0);
+    line-height: 1.5;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .info-note strong {
-    color: var(--color-primary-light);
+    color: var(--color-text, #f0eeff);
+    font-weight: 600;
   }
 
-  /* ═══ Form — Crystal-edged inputs ═══ */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     FORM — Inputs, labels, selects, hints
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
     margin-bottom: 1rem;
   }
 
   .form-group label {
-    display: block;
-    margin-bottom: 0.25rem;
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: var(--color-text);
-    font-family: var(--font-body);
-    letter-spacing: var(--tracking-wide);
+    font-weight: 700;
+    color: var(--color-text-muted, #7874a0);
+    font-size: 0.6875rem;
     text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .form-group input {
     width: 100%;
-    padding: 0.625rem 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: 0.875rem;
-    font-family: var(--font-body);
+    padding: 0.875rem 1rem;
+    font-size: 0.9375rem;
+    color: var(--color-text, #f0eeff);
+    background: rgba(10, 10, 18, 0.6);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 10px;
+    transition: all 0.3s;
+    font-family: inherit;
     box-sizing: border-box;
-    background: var(--color-bg-secondary);
-    color: var(--color-text);
-    transition:
-      border-color var(--duration-fast) var(--ease-out),
-      box-shadow var(--duration-fast) var(--ease-out);
-  }
-
-  .form-group input::placeholder {
-    color: var(--color-text-muted);
   }
 
   .form-group input:focus {
     outline: none;
-    border-color: var(--color-primary);
-    box-shadow:
-      0 0 0 3px rgba(139, 92, 246, 0.15),
-      0 0 20px rgba(139, 92, 246, 0.1);
+    border-color: rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+  }
+
+  .form-group input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .form-group input::placeholder {
+    color: rgba(120, 116, 160, 0.5);
   }
 
   .form-group select {
     width: 100%;
-    padding: 0.625rem 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: 0.875rem;
-    font-family: var(--font-body);
+    padding: 0.875rem 1rem;
+    font-size: 0.9375rem;
+    color: var(--color-text, #f0eeff);
+    background: rgba(10, 10, 18, 0.6);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 10px;
+    transition: all 0.3s;
+    font-family: inherit;
     box-sizing: border-box;
-    background: var(--color-bg-secondary);
-    color: var(--color-text);
-    transition:
-      border-color var(--duration-fast) var(--ease-out),
-      box-shadow var(--duration-fast) var(--ease-out);
   }
 
   .form-group select:focus {
     outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
   }
 
   .hint {
-    display: block;
-    margin-top: 0.25rem;
     font-size: 0.75rem;
-    color: var(--color-text-muted);
-    font-family: var(--font-body);
+    color: var(--color-text-muted, #7874a0);
+    opacity: 0.7;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
-  /* ═══ Buttons — Gem-faceted with glow effects ═══ */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     BUTTONS — Primary (gradient + lift) & secondary (outline) + back/skip
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   .btn {
-    padding: 0.5rem 1.25rem;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-size: 0.875rem;
-    font-family: var(--font-body);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    font-size: 0.9375rem;
     font-weight: 600;
+    border-radius: 10px;
     cursor: pointer;
-    transition:
-      background var(--duration-fast) var(--ease-out),
-      box-shadow var(--duration-fast) var(--ease-out),
-      transform var(--duration-fast) var(--ease-out);
-  }
-
-  .btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    filter: grayscale(0.3);
-  }
-
-  .btn:not(:disabled):active {
-    transform: scale(0.97);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: none;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .btn-primary {
-    background: var(--gradient-primary);
-    color: #fff;
-    box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
+    background: var(--gradient-primary, linear-gradient(135deg, #8b5cf6, #f472b6));
+    color: white;
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
   }
 
-  .btn-primary:not(:disabled):hover {
-    box-shadow:
-      0 4px 24px rgba(139, 92, 246, 0.5),
-      0 0 40px rgba(139, 92, 246, 0.2);
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(139, 92, 246, 0.4);
   }
 
   .btn-secondary {
-    background: var(--color-bg-tertiary);
-    color: var(--color-primary-light);
-    border: 1px solid var(--color-border);
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--color-primary-light, #a78bfa);
+    border: 1px solid rgba(139, 92, 246, 0.3);
   }
 
-  .btn-secondary:not(:disabled):hover {
-    background: var(--color-bg-elevated);
-    border-color: var(--color-primary);
-    box-shadow: 0 0 16px rgba(139, 92, 246, 0.2);
+  .btn-secondary:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.25);
+    border-color: rgba(139, 92, 246, 0.5);
   }
 
   .btn-back {
     background: transparent;
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border);
+    color: var(--color-text-muted, #7874a0);
+    border: 1px solid rgba(139, 92, 246, 0.15);
   }
 
   .btn-back:hover {
-    color: var(--color-text-secondary);
-    border-color: rgba(139, 92, 246, 0.35);
-    background: rgba(139, 92, 246, 0.05);
+    background: rgba(139, 92, 246, 0.08);
+    border-color: rgba(139, 92, 246, 0.3);
+    color: var(--color-text-secondary, #c4c0e0);
   }
 
   .btn-skip {
     background: transparent;
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border);
+    color: var(--color-text-muted, #7874a0);
+    border: 1px solid rgba(139, 92, 246, 0.15);
   }
 
   .btn-skip:hover {
-    color: var(--color-text-secondary);
-    border-color: rgba(139, 92, 246, 0.35);
-    background: rgba(139, 92, 246, 0.05);
+    background: rgba(139, 92, 246, 0.08);
+    border-color: rgba(139, 92, 246, 0.3);
+    color: var(--color-text-secondary, #c4c0e0);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
   }
 
   .teller-actions {
@@ -906,139 +1009,162 @@
     align-items: center;
   }
 
-  /* ═══ Messages — Gem-tinted status indicators ═══ */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     MESSAGES — Error (ruby) and success (emerald) feedback
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   .message {
-    padding: 0.75rem 1rem;
-    border-radius: var(--radius-sm);
-    margin-top: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-radius: 10px;
     font-size: 0.875rem;
-    font-family: var(--font-body);
-    border: 1px solid;
-    animation: setupFadeIn 0.3s var(--ease-out) both;
+    font-weight: 500;
+    line-height: 1.5;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .message-error {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.25);
-    color: var(--color-error);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
   }
 
   .message-success {
-    background: var(--color-success-subtle);
-    border-color: rgba(16, 185, 129, 0.3);
-    color: var(--color-success-light);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
   }
 
-  /* ═══ Deploy Stages — Crystallizing progress ═══ */
+  .message-success a {
+    color: #34d399;
+    text-decoration: underline;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     DEPLOY STAGES — Crystal formation progress tracker
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   .deploy-stages {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.75rem;
     margin-top: 1rem;
   }
 
   .deploy-stage {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
     font-size: 0.875rem;
-    font-family: var(--font-body);
-    color: var(--color-text-muted);
-    transition: color var(--duration-normal) var(--ease-out);
+    color: var(--color-text-muted, #7874a0);
+    opacity: 0.5;
+    transition: all 0.3s;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .deploy-stage.active {
-    color: var(--color-primary-light);
-    font-weight: 600;
-  }
-
-  .deploy-stage.active .stage-icon {
-    animation: gemPulse 1.5s ease-in-out infinite;
+    opacity: 1;
+    color: var(--color-primary-light, #a78bfa);
   }
 
   .deploy-stage.done {
-    color: var(--color-success-light);
+    opacity: 1;
+    color: #34d399;
   }
 
   .stage-icon {
-    width: 1.25rem;
-    text-align: center;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
-  /* ═══ Step Navigation ═══ */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     STEP NAVIGATION
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   .step-nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
   }
 
-  /* ═══ Security Notice — Subtle obsidian panel ═══ */
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     SECURITY NOTICE — Amber-tinted warning
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
   .security-notice {
-    padding: 0.75rem 1rem;
-    background: rgba(139, 92, 246, 0.05);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-    font-family: var(--font-body);
+    padding: 1rem 1.25rem;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 12px;
+    font-size: 0.8125rem;
+    color: #fbbf24;
     line-height: 1.5;
+    font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .security-notice strong {
-    color: var(--color-text-secondary);
+    color: #fbbf24;
+    font-weight: 700;
   }
 
-  /* ═══ Animations ═══ */
-  @keyframes setupFadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     RESPONSIVE — Mobile & compact layouts
+     ═══════════════════════════════════════════════════════════════════════════════════ */
 
-  @keyframes setupSlideUp {
-    from {
-      opacity: 0;
-      transform: translateY(24px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes prismaticShimmer {
-    0% {
-      background-position: 0% 50%;
-    }
-    100% {
-      background-position: 300% 50%;
-    }
-  }
-
-  @keyframes gemPulse {
-    0%,
-    100% {
-      box-shadow: 0 0 12px var(--color-primary-glow);
-    }
-    50% {
-      box-shadow:
-        0 0 24px var(--color-primary-glow),
-        0 0 48px rgba(139, 92, 246, 0.15);
-    }
-  }
-
-  /* ═══ Responsive ═══ */
-  @media (max-width: 480px) {
+  @media (max-width: 640px) {
     .setup-page {
-      padding: 1rem 0.5rem;
+      padding: 1rem 0.75rem;
+    }
+
+    h1 {
+      font-size: 1.375rem;
+    }
+
+    .subtitle {
+      font-size: 0.8125rem;
     }
 
     .step-card {
-      padding: 1rem;
+      padding: 1rem 1.25rem 1.25rem;
+    }
+
+    .form-group input,
+    .form-group select {
+      padding: 0.75rem 0.875rem;
+      font-size: 16px; /* Prevents iOS zoom */
+    }
+
+    .step-dot {
+      width: 30px;
+      height: 30px;
+    }
+
+    .step-line {
+      width: 32px;
+    }
+  }
+
+  /* iPhone SE */
+  @media (max-width: 375px) {
+    .setup-page {
+      padding: 0.75rem 0.5rem;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+    }
+
+    .step-card {
+      padding: 0.875rem 1rem 1rem;
+    }
+
+    .step-dot {
+      width: 28px;
+      height: 28px;
+      font-size: 0.75rem;
     }
 
     .step-line {
@@ -1046,23 +1172,48 @@
     }
   }
 
-  /* Reduced motion */
-  @media (prefers-reduced-motion: reduce) {
-    .setup-page,
-    .setup-container,
-    .step-indicator,
-    .step-card,
-    .message {
-      animation: none;
+  /* iPhone 16 Pro (~402px) */
+  @media (min-width: 400px) and (max-width: 430px) {
+    .setup-page {
+      padding: 1.25rem 1rem;
+    }
+  }
+
+  /* iPhone Pro Max (430px+) */
+  @media (min-width: 430px) and (max-width: 640px) {
+    .setup-page {
+      padding: 1.5rem 1rem;
     }
 
-    .step-dot.active {
+    .step-card {
+      padding: 1rem 1.5rem 1.5rem;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════
+     REDUCED MOTION
+     ═══════════════════════════════════════════════════════════════════════════════════ */
+
+  @media (prefers-reduced-motion: reduce) {
+    .setup-page::before,
+    .setup-page::after {
       animation: none;
     }
 
     h1 {
       animation: none;
-      -webkit-text-fill-color: var(--color-primary-light);
+      background: none;
+      -webkit-text-fill-color: var(--color-text, #f0eeff);
+    }
+
+    .btn {
+      transition: none;
+    }
+
+    .step-dot,
+    .step-line,
+    .deploy-stage {
+      transition: none;
     }
   }
 </style>

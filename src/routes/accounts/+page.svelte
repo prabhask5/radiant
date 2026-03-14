@@ -915,7 +915,15 @@
     padding: 1.5rem;
     padding-bottom: 6rem;
     background: var(--surface-base);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     color: var(--text-primary);
     overflow-x: hidden;
   }
@@ -996,7 +1004,15 @@
     border: 1px solid rgba(34, 211, 238, 0.3);
     border-radius: 10px;
     color: var(--cyan);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
@@ -1442,7 +1458,15 @@
     border: 1px solid rgba(248, 113, 113, 0.3);
     border-radius: 6px;
     color: var(--ruby);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
@@ -1464,7 +1488,15 @@
     border: 1px solid var(--border-interactive);
     border-radius: 6px;
     color: var(--text-secondary);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.75rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -1482,6 +1514,7 @@
   }
 
   .account-card {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.85rem;
@@ -1489,9 +1522,32 @@
     background: var(--surface-card);
     border: 1px solid var(--border-subtle);
     border-top: none;
-    transition: all 0.25s;
+    transition:
+      background 0.2s ease,
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.3s ease;
     animation: acct-enter 0.35s ease-out both;
     animation-delay: var(--acct-delay);
+  }
+
+  .account-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 2px;
+    background: linear-gradient(180deg, var(--cyan, #22d3ee), var(--acct-amethyst, #a78bfa));
+    border-radius: 2px;
+    opacity: 0.4;
+    transition:
+      opacity 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  .account-card:hover::before {
+    opacity: 0.8;
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.3);
   }
 
   @keyframes acct-enter {
@@ -1506,6 +1562,10 @@
 
   .account-card:hover {
     background: var(--surface-raised);
+    transform: translateY(-2px);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.3),
+      0 0 20px rgba(34, 211, 238, 0.06);
   }
 
   .account-card.hidden-account {

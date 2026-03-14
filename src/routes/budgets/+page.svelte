@@ -832,7 +832,15 @@
     padding: 1.5rem;
     padding-bottom: 6rem;
     background: var(--surface-base);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     color: var(--text-primary);
     overflow-x: hidden;
   }
@@ -971,7 +979,15 @@
     border: 1px solid rgba(52, 211, 153, 0.3);
     border-radius: 10px;
     color: var(--emerald);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
@@ -1112,7 +1128,7 @@
     position: absolute;
     inset: 0;
     border-radius: 20px;
-    background: linear-gradient(135deg, var(--ring-fill-raw, transparent) 0%, transparent 60%);
+    background: linear-gradient(135deg, var(--ring-fill-raw) 0%, transparent 60%);
     opacity: 0.04;
     pointer-events: none;
   }
@@ -1313,6 +1329,35 @@
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.3),
       0 0 20px var(--ruby-glow);
+  }
+
+  .budget-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    border-radius: 1px;
+    background: linear-gradient(90deg, transparent, var(--amethyst, #a78bfa), transparent);
+    opacity: 0.4;
+    transition: opacity 0.3s ease;
+  }
+
+  .budget-card:hover::after {
+    opacity: 0.8;
+  }
+
+  .budget-card.status-emerald::after {
+    background: linear-gradient(90deg, transparent, var(--emerald, #34d399), transparent);
+  }
+
+  .budget-card.status-gold::after {
+    background: linear-gradient(90deg, transparent, var(--gold, #fbbf24), transparent);
+  }
+
+  .budget-card.status-ruby::after {
+    background: linear-gradient(90deg, transparent, var(--ruby, #f87171), transparent);
   }
 
   /* ── Card Shimmer ───────────────────────────────────────────────────────── */
@@ -1685,7 +1730,15 @@
     border: 1px solid var(--border-interactive);
     border-radius: 10px;
     padding: 0.65rem 0.85rem;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.9rem;
     color: var(--text-primary);
     outline: none;
@@ -1739,7 +1792,15 @@
     padding: 0.55rem 1rem;
     background: transparent;
     border: none;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.85rem;
     color: var(--text-muted);
     cursor: pointer;
@@ -1831,7 +1892,15 @@
     border: 1px solid rgba(52, 211, 153, 0.3);
     border-radius: 10px;
     color: var(--emerald);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
@@ -1855,7 +1924,15 @@
     border: 1px solid var(--border-interactive);
     border-radius: 10px;
     color: var(--text-secondary);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -1882,7 +1959,15 @@
     border: 1px solid rgba(248, 113, 113, 0.3);
     border-radius: 10px;
     color: var(--ruby);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
@@ -1960,6 +2045,25 @@
     .add-btn {
       font-size: 0.8rem;
       padding: 0.45rem 0.85rem;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     REDUCED MOTION
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  @media (prefers-reduced-motion: reduce) {
+    .budget-card {
+      animation: none;
+      transition: none;
+    }
+
+    .progress-fill {
+      transition: none;
+    }
+
+    .progress-overflow {
+      animation: none;
     }
   }
 </style>

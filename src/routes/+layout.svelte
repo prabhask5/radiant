@@ -17,6 +17,9 @@
   //  Imports
   // =============================================================================
 
+  /* ── Global Styles ── */
+  import '../app.css';
+
   /* ── Svelte Lifecycle & Transitions ── */
   import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';

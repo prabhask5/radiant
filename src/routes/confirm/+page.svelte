@@ -276,7 +276,15 @@
 
   p {
     color: var(--color-text-secondary);
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     line-height: 1.5;
     margin: 0 0 1.5rem;
   }
@@ -287,7 +295,15 @@
     border-radius: var(--radius-sm);
     font-size: 0.875rem;
     font-weight: 600;
-    font-family: var(--font-body);
+    font-family: var(
+      --font-body,
+      'Raleway',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
     cursor: pointer;
     transition:
       box-shadow var(--duration-fast) var(--ease-out),
