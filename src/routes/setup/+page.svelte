@@ -724,7 +724,7 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
     animation: shimmer 3s linear infinite;
-    font-family: var(--font-display, 'Cinzel', Georgia, serif);
+    font-family: var(--font-display, 'DM Serif Display', Georgia, serif);
   }
 
   @keyframes shimmer {
@@ -842,7 +842,7 @@
     font-weight: 700;
     color: var(--color-text, #f5efe0);
     margin: 0 0 1rem;
-    font-family: var(--font-display, 'Cinzel', Georgia, serif);
+    font-family: var(--font-display, 'DM Serif Display', Georgia, serif);
   }
 
   .step-card p {
