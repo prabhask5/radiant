@@ -569,9 +569,9 @@
           />
           <defs>
             <linearGradient id="emptyGrad" x1="6" y1="4" x2="58" y2="58">
-              <stop offset="0%" stop-color="#c0a0e0" />
+              <stop offset="0%" stop-color="#e8b94a" />
               <stop offset="50%" stop-color="#e8c87a" />
-              <stop offset="100%" stop-color="#c0a0e0" />
+              <stop offset="100%" stop-color="#e8b94a" />
             </linearGradient>
           </defs>
         </svg>
