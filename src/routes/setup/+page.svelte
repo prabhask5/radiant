@@ -7,16 +7,16 @@
 -->
 <script lang="ts">
   /**
-   * @fileoverview Setup wizard page — first-time Supabase configuration.
+   * @fileoverview Setup wizard page — first-time configuration.
    *
    * Guides the user through a five-step process to connect their own
-   * Supabase backend to Radiant Finance:
+   * Supabase backend and Teller.io bank integration to Radiant Finance:
    *
    * 1. Create a Supabase project (instructions only).
    * 2. Initialize the database (automatic — informational step).
    * 3. Enter and validate Supabase credentials (URL + publishable key).
-   * 4. Persist configuration via Vercel API (set env vars + redeploy).
-   * 5. Configure Teller.io for bank data (optional).
+   * 4. Configure Teller.io for bank data (optional — client + server credentials).
+   * 5. Persist configuration via Vercel API (set env vars + redeploy).
    *
    * After a successful deploy the page polls for a new service-worker
    * version — once detected the user is prompted to refresh.
@@ -52,19 +52,22 @@
   let vercelToken = $state('');
 
   // =============================================================================
-  //  Form State — Teller.io credentials (Step 5)
+  //  Form State — Teller.io credentials (Step 4)
   // =============================================================================
 
-  /** Teller Application ID */
+  /** Teller Application ID (client-side — used by Teller Connect SDK) */
   let tellerAppId = $state('');
 
   /** Teller environment: sandbox | development | production */
   let tellerEnvironment = $state<'sandbox' | 'development' | 'production'>('sandbox');
 
-  /** Path to mTLS certificate for Teller API */
-  let tellerCertPath = $state('');
+  /** Teller mTLS certificate PEM content (server-side env var) */
+  let tellerCert = $state('');
 
-  /** Teller webhook secret */
+  /** Teller mTLS private key PEM content (server-side env var) */
+  let tellerKey = $state('');
+
+  /** Teller webhook signing secret (server-side env var) */
   let tellerWebhookSecret = $state('');
 
   // =============================================================================
@@ -116,12 +119,6 @@
 
   /** Whether the Continue button on step 3 should be enabled */
   const canContinueStep3 = $derived(validateSuccess && !credentialsChanged);
-
-  /** Whether the Teller config is being saved */
-  let savingTeller = $state(false);
-
-  /** Error from saving Teller config, if any */
-  let tellerSaveError = $state<string | null>(null);
 
   // =============================================================================
   //  Effects
@@ -220,11 +217,22 @@
     deploying = true;
     deployStage = 'setting-env';
 
+    // Build extra env vars from Teller config (only include non-empty values)
+    const extraEnvVars: Record<string, string> = {};
+    if (tellerCert) extraEnvVars['TELLER_CERT'] = tellerCert;
+    if (tellerKey) extraEnvVars['TELLER_KEY'] = tellerKey;
+    if (tellerWebhookSecret) extraEnvVars['TELLER_WEBHOOK_SECRET'] = tellerWebhookSecret;
+
     try {
       const res = await fetch('/api/setup/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supabaseUrl, supabasePublishableKey, vercelToken })
+        body: JSON.stringify({
+          supabaseUrl,
+          supabasePublishableKey,
+          vercelToken,
+          extraEnvVars: Object.keys(extraEnvVars).length > 0 ? extraEnvVars : undefined
+        })
       });
 
       const data = await res.json();
@@ -244,49 +252,6 @@
     }
 
     deploying = false;
-  }
-
-  // =============================================================================
-  //  Teller Configuration — Step 5
-  // =============================================================================
-
-  /**
-   * Save Teller.io configuration to user_settings via the settings API
-   * endpoint and redirect to the home page.
-   */
-  async function handleSaveTeller() {
-    tellerSaveError = null;
-    savingTeller = true;
-
-    try {
-      const res = await fetch('/api/settings/teller', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          teller_app_id: tellerAppId || null,
-          teller_environment: tellerEnvironment,
-          teller_cert_path: tellerCertPath || null,
-          teller_webhook_secret: tellerWebhookSecret || null
-        })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        window.location.href = '/';
-      } else {
-        tellerSaveError = data.error || 'Failed to save Teller configuration';
-      }
-    } catch (e) {
-      tellerSaveError = e instanceof Error ? e.message : 'Network error';
-    }
-
-    savingTeller = false;
-  }
-
-  /** Skip Teller configuration and redirect to home. */
-  function handleSkipTeller() {
-    window.location.href = '/';
   }
 </script>
 
@@ -400,11 +365,136 @@
           <div class="message message-success">Connection successful! Credentials are valid.</div>
         {/if}
       {:else if currentStep === 4}
-        <h2>Step 4: Deploy to Vercel</h2>
+        <h2>Step 4: Connect Teller.io (Optional)</h2>
         <p>
-          Provide a one-time Vercel API token so Radiant Finance can set the environment variables
-          on your project and trigger a redeployment.
+          <a href="https://teller.io" target="_blank" rel="noopener noreferrer">Teller.io</a> connects
+          Radiant to your bank accounts for automatic transaction syncing. You can skip this step and
+          add it later.
         </p>
+
+        <div class="info-note" style="margin-bottom: 1.25rem;">
+          <strong>How to get your Teller credentials:</strong>
+          <ol style="margin: 0.5rem 0 0; padding-left: 1.25rem;">
+            <li>
+              Sign up at <a
+                href="https://teller.io/signup"
+                target="_blank"
+                rel="noopener noreferrer">teller.io/signup</a
+              > and create an application.
+            </li>
+            <li>
+              Find your <strong>Application ID</strong> on the
+              <a href="https://teller.io/dashboard" target="_blank" rel="noopener noreferrer"
+                >Teller Dashboard</a
+              >
+              (looks like <code>app_xxxxxxxxxx</code>).
+            </li>
+            <li>
+              Download your <strong>mTLS certificate</strong> and <strong>private key</strong> from
+              the dashboard under <strong>Certificates</strong>. Open each file in a text editor and
+              paste the full PEM content below.
+            </li>
+            <li>
+              Find your <strong>Webhook Secret</strong> under <strong>Webhooks</strong> in the
+              dashboard. Set your webhook URL to
+              <code>https://your-domain.com/api/teller/webhook</code>.
+            </li>
+          </ol>
+        </div>
+
+        <div class="form-group">
+          <label for="teller-app-id">Application ID</label>
+          <input
+            id="teller-app-id"
+            type="text"
+            placeholder="app_xxxxxxxxxx"
+            bind:value={tellerAppId}
+          />
+          <span class="hint"
+            >Found on your <a
+              href="https://teller.io/dashboard"
+              target="_blank"
+              rel="noopener noreferrer">Teller Dashboard</a
+            >.</span
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="teller-environment">Environment</label>
+          <select id="teller-environment" bind:value={tellerEnvironment}>
+            <option value="sandbox">Sandbox (test data)</option>
+            <option value="development">Development (real data, limited institutions)</option>
+            <option value="production">Production (real data, all institutions)</option>
+          </select>
+          <span class="hint">Start with Sandbox to test with simulated bank data.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="teller-cert">Client Certificate (PEM)</label>
+          <textarea
+            id="teller-cert"
+            placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+            bind:value={tellerCert}
+            rows="4"
+          ></textarea>
+          <span class="hint"
+            >Paste the full PEM content of your mTLS certificate. Required for Development and
+            Production environments.</span
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="teller-key">Private Key (PEM)</label>
+          <textarea
+            id="teller-key"
+            placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+            bind:value={tellerKey}
+            rows="4"
+          ></textarea>
+          <span class="hint">The private key that matches your client certificate above.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="teller-webhook-secret">Webhook Secret</label>
+          <input
+            id="teller-webhook-secret"
+            type="password"
+            placeholder="Paste your Teller webhook secret"
+            bind:value={tellerWebhookSecret}
+          />
+          <span class="hint"
+            >Found under Webhooks on your Teller Dashboard. Verifies incoming webhook payloads.</span
+          >
+        </div>
+      {:else if currentStep === 5}
+        <h2>Step 5: Deploy to Vercel</h2>
+        <p>
+          Provide a one-time <a
+            href="https://vercel.com/account/tokens"
+            target="_blank"
+            rel="noopener noreferrer">Vercel API token</a
+          >
+          so Radiant can set environment variables on your project and trigger a redeployment.
+        </p>
+
+        <div class="info-note" style="margin-bottom: 1.25rem;">
+          <strong>How to create a Vercel token:</strong>
+          <ol style="margin: 0.5rem 0 0; padding-left: 1.25rem;">
+            <li>
+              Go to <a
+                href="https://vercel.com/account/tokens"
+                target="_blank"
+                rel="noopener noreferrer">vercel.com/account/tokens</a
+              >.
+            </li>
+            <li>
+              Click <strong>Create Token</strong>, give it a name (e.g. "Radiant Setup"), and set an
+              expiration. A short expiration (1 day) is fine — this token is only used once.
+            </li>
+            <li>Copy the token and paste it below.</li>
+          </ol>
+        </div>
+
         <div class="form-group">
           <label for="vercel-token">Vercel API Token</label>
           <input
@@ -413,6 +503,9 @@
             placeholder="Paste your Vercel token"
             bind:value={vercelToken}
           />
+          <span class="hint"
+            >Used once to set env vars and trigger a deploy. Not stored anywhere.</span
+          >
         </div>
 
         <button class="btn btn-primary" onclick={handleDeploy} disabled={deploying || !vercelToken}>
@@ -457,78 +550,9 @@
 
         {#if deployStage === 'ready'}
           <div class="message message-success">
-            Deployment complete! Click <strong>Continue</strong> to configure Teller.io, or go
-            straight to <a href="/">Radiant Finance</a>.
+            Deployment complete! Go to <a href="/">Radiant Finance</a> to get started.
           </div>
         {/if}
-      {:else if currentStep === 5}
-        <h2>Step 5: Configure Teller.io (Optional)</h2>
-        <p>
-          Teller.io provides real-time bank data. You can skip this step and configure it later in <strong
-            >Settings</strong
-          >.
-        </p>
-
-        <div class="form-group">
-          <label for="teller-app-id">Teller Application ID</label>
-          <input
-            id="teller-app-id"
-            type="text"
-            placeholder="app_xxxxxxxxxx"
-            bind:value={tellerAppId}
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="teller-environment">Environment</label>
-          <select id="teller-environment" bind:value={tellerEnvironment}>
-            <option value="sandbox">Sandbox</option>
-            <option value="development">Development</option>
-            <option value="production">Production</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="teller-cert-path">Certificate Path (for mTLS)</label>
-          <input
-            id="teller-cert-path"
-            type="text"
-            placeholder="/path/to/teller/certificate.pem"
-            bind:value={tellerCertPath}
-          />
-          <span class="hint">Required for development and production environments.</span>
-        </div>
-
-        <div class="form-group">
-          <label for="teller-webhook-secret">Webhook Secret</label>
-          <input
-            id="teller-webhook-secret"
-            type="password"
-            placeholder="Paste your Teller webhook secret"
-            bind:value={tellerWebhookSecret}
-          />
-        </div>
-
-        <div class="teller-actions">
-          <button
-            class="btn btn-primary"
-            onclick={handleSaveTeller}
-            disabled={savingTeller || !tellerAppId}
-          >
-            {#if savingTeller}Saving...{:else}Save Teller Configuration{/if}
-          </button>
-
-          <button class="btn btn-skip" onclick={handleSkipTeller}> Skip </button>
-        </div>
-
-        {#if tellerSaveError}
-          <div class="message message-error">{tellerSaveError}</div>
-        {/if}
-
-        <div class="info-note" style="margin-top: 1rem;">
-          <strong>Note:</strong> Teller.io provides real-time bank data. You can skip this step and configure
-          it later in Settings.
-        </div>
       {/if}
     </div>
 
@@ -546,8 +570,10 @@
         <button class="btn btn-primary" onclick={() => currentStep++} disabled={!canContinueStep3}
           >Continue</button
         >
-      {:else if currentStep === 4 && deployStage === 'ready'}
-        <button class="btn btn-primary" onclick={() => currentStep++}>Continue</button>
+      {:else if currentStep === 4}
+        <button class="btn btn-primary" onclick={() => currentStep++}>
+          {tellerAppId || tellerCert || tellerKey || tellerWebhookSecret ? 'Continue' : 'Skip'}
+        </button>
       {/if}
     </div>
 
@@ -912,6 +938,44 @@
     font-weight: 600;
   }
 
+  .info-note ol {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    line-height: 1.5;
+  }
+
+  .info-note a {
+    color: var(--color-primary-light, #e8b94a);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(232, 185, 74, 0.3);
+    transition: all 0.2s;
+  }
+
+  .info-note a:hover {
+    color: var(--color-primary, #d4a039);
+    border-bottom-color: rgba(212, 160, 57, 0.6);
+  }
+
+  .info-note code {
+    font-family: 'SF Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    background: rgba(212, 160, 57, 0.1);
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    color: var(--color-primary-light, #e8b94a);
+  }
+
+  .hint a {
+    color: var(--color-primary-light, #e8b94a);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(232, 185, 74, 0.3);
+  }
+
+  .hint a:hover {
+    color: var(--color-primary, #d4a039);
+  }
+
   /* ═══════════════════════════════════════════════════════════════════════════════════
      FORM — Inputs, labels, selects, hints
      ═══════════════════════════════════════════════════════════════════════════════════ */
@@ -958,6 +1022,32 @@
 
   .form-group input::placeholder {
     color: rgba(138, 126, 104, 0.5);
+  }
+
+  .form-group textarea {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    font-size: 0.8125rem;
+    color: var(--color-text, #f5efe0);
+    background: rgba(14, 12, 8, 0.6);
+    border: 1px solid rgba(212, 160, 57, 0.2);
+    border-radius: 10px;
+    transition: all 0.3s;
+    font-family: 'SF Mono', ui-monospace, monospace;
+    box-sizing: border-box;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  .form-group textarea:focus {
+    outline: none;
+    border-color: rgba(212, 160, 57, 0.5);
+    box-shadow: 0 0 20px rgba(212, 160, 57, 0.15);
+  }
+
+  .form-group textarea::placeholder {
+    color: rgba(138, 126, 104, 0.5);
+    font-family: 'SF Mono', ui-monospace, monospace;
   }
 
   .form-group select {
@@ -1039,29 +1129,11 @@
     color: var(--color-text-secondary, #c8bfa8);
   }
 
-  .btn-skip {
-    background: transparent;
-    color: var(--color-text-muted, #8a7e68);
-    border: 1px solid rgba(212, 160, 57, 0.15);
-  }
-
-  .btn-skip:hover {
-    background: rgba(212, 160, 57, 0.08);
-    border-color: rgba(212, 160, 57, 0.3);
-    color: var(--color-text-secondary, #c8bfa8);
-  }
-
   .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none !important;
     box-shadow: none !important;
-  }
-
-  .teller-actions {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════
@@ -1188,7 +1260,8 @@
     }
 
     .form-group input,
-    .form-group select {
+    .form-group select,
+    .form-group textarea {
       padding: 0.75rem 0.875rem;
       font-size: 16px; /* Prevents iOS zoom */
     }
