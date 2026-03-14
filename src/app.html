@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- ================================================================= -->
+    <!--                     CORE DOCUMENT META                            -->
+    <!-- ================================================================= -->
+    <meta charset="utf-8" />
+    <title>Radiant Finance</title>
+    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+
+    <!--
+      Viewport configuration:
+        - `initial-scale=1`          → no zoom on load
+        - `viewport-fit=cover`       → extend into safe-area insets (notch, home bar)
+        - `width=device-width`       → responsive width
+        - `interactive-widget=overlays-content` → keyboard overlays rather than
+          resizing the viewport (prevents layout shift on mobile)
+    -->
+    <meta
+      name="viewport"
+      content="initial-scale=1, viewport-fit=cover, width=device-width, interactive-widget=overlays-content"
+    />
+
+    <!-- ================================================================= -->
+    <!--                         SEO META TAGS                             -->
+    <!-- ================================================================= -->
+
+    <!-- Theme color matches `--color-void` for seamless safe-area blending -->
+    <meta name="theme-color" content="#060612" />
+    <meta
+      name="description"
+      content="Radiant Finance — Self-hosted personal finance tracker with bank integration, budgeting, and investment tracking"
+    />
+    <meta
+      name="keywords"
+      content="pwa, offline-first, finance, budget, bank, investment, self-hosted, svelte, sveltekit"
+    />
+    <meta name="author" content="Radiant" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- ================================================================= -->
+    <!--                    OPEN GRAPH / SOCIAL MEDIA                      -->
+    <!-- ================================================================= -->
+
+    <!-- Used by Facebook, LinkedIn, Discord, Slack, etc. for link previews -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Radiant Finance" />
+    <meta
+      property="og:description"
+      content="Self-hosted personal finance tracker with bank integration, budgeting, and investment tracking"
+    />
+    <meta property="og:image" content="%sveltekit.assets%/icon-512.png" />
+
+    <!-- ================================================================= -->
+    <!--                         TWITTER CARD                              -->
+    <!-- ================================================================= -->
+
+    <!-- "summary" card type → square image + title + description -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Radiant Finance" />
+    <meta
+      name="twitter:description"
+      content="Self-hosted personal finance tracker with bank integration, budgeting, and investment tracking"
+    />
+
+    <!-- ================================================================= -->
+    <!--                      PWA / MANIFEST CONFIG                        -->
+    <!-- ================================================================= -->
+
+    <!-- Web App Manifest — defines name, icons, theme, display mode -->
+    <link rel="manifest" href="%sveltekit.assets%/manifest.json" />
+
+    <!-- ================================================================= -->
+    <!--                       iOS PWA META TAGS                           -->
+    <!-- ================================================================= -->
+
+    <!--
+      iOS-specific PWA configuration:
+        - `apple-mobile-web-app-capable`            → enables standalone PWA mode
+        - `apple-mobile-web-app-status-bar-style`   → `black-translucent` lets
+          content extend behind the status bar for a true full-screen feel
+        - `apple-mobile-web-app-title`              → name shown on home screen
+        - `apple-touch-icon`                        → icon used when "Add to Home Screen"
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Radiant" />
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/icon-192.png" />
+
+    <!-- Prevent iOS from auto-detecting and styling phone numbers as links -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- SvelteKit injects component-level <head> content here -->
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <!-- ================================================================= -->
+    <!--               LANDSCAPE ORIENTATION BLOCKER                       -->
+    <!-- ================================================================= -->
+    <!-- TODO: Add landscape blocker UI. The #landscape-blocker
+         div is shown via the @media query below when a phone is in landscape. -->
+    <div id="landscape-blocker">
+      <!-- TODO: Add your landscape blocker content here -->
+    </div>
+
+    <!-- ================================================================= -->
+    <!--              LANDSCAPE BLOCKER STYLES                             -->
+    <!-- ================================================================= -->
+    <style>
+      /* TODO: Add #landscape-blocker styling (hidden by default, shown by query below) */
+
+      /* ── Visibility Trigger ─────────────────────────────────────────── */
+      /*
+       * Show the blocker ONLY on phones in landscape:
+       *   - max-height: 500px   → landscape phone viewports
+       *   - orientation          → landscape
+       *   - hover: none          → excludes desktop/laptop (they have hover)
+       *   - pointer: coarse      → excludes stylus / mouse devices
+       */
+      @media (max-height: 500px) and (orientation: landscape) and (hover: none) and (pointer: coarse) {
+        #landscape-blocker {
+          display: flex;
+        }
+      }
+    </style>
+
+    <!-- ================================================================= -->
+    <!--                      SVELTEKIT APP MOUNT                          -->
+    <!-- ================================================================= -->
+    <!-- `display: contents` makes the wrapper invisible to CSS layout     -->
+    <div style="display: contents">%sveltekit.body%</div>
+
+    <!-- ================================================================= -->
+    <!--              iOS GESTURE / ZOOM PREVENTION SCRIPT                 -->
+    <!-- ================================================================= -->
+    <!--
+      Prevents unwanted zoom gestures in the iOS PWA:
+        1. `gesturestart/change/end` → blocks pinch-to-zoom (Safari-specific)
+        2. `touchend` debounce       → blocks double-tap zoom (300 ms window)
+        3. `touchmove` multi-touch   → blocks two-finger zoom/scroll
+
+      All listeners use `{ passive: false }` so `preventDefault()` works.
+      Wrapped in an IIFE to avoid polluting the global scope.
+    -->
+    <script>
+      (function () {
+        // Prevent pinch-to-zoom
+        document.addEventListener(
+          'gesturestart',
+          function (e) {
+            e.preventDefault();
+          },
+          { passive: false }
+        );
+
+        document.addEventListener(
+          'gesturechange',
+          function (e) {
+            e.preventDefault();
+          },
+          { passive: false }
+        );
+
+        document.addEventListener(
+          'gestureend',
+          function (e) {
+            e.preventDefault();
+          },
+          { passive: false }
+        );
+
+        // Prevent double-tap zoom — if two taps land within 300 ms, cancel the second
+        var lastTouchEnd = 0;
+        document.addEventListener(
+          'touchend',
+          function (e) {
+            var now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+              e.preventDefault();
+            }
+            lastTouchEnd = now;
+          },
+          { passive: false }
+        );
+
+        // Prevent multi-touch zoom — block touchmove when more than one finger is down
+        document.addEventListener(
+          'touchmove',
+          function (e) {
+            if (e.touches.length > 1) {
+              e.preventDefault();
+            }
+          },
+          { passive: false }
+        );
+      })();
+    </script>
+
+    <!-- ================================================================= -->
+    <!--              SW OFFLINE BRIDGE (runs before bundles load)          -->
+    <!-- ================================================================= -->
+    <!--
+      Listens for the service worker's NETWORK_UNREACHABLE message, which is
+      sent when the SW's navigation fetch times out (1.5s). Sets a global
+      flag that probeNetworkReachability() reads so it can skip its own HEAD
+      request. The 'online' handler resets the flag when connectivity returns.
+    -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', function (e) {
+          if (e.data && e.data.type === 'NETWORK_UNREACHABLE') {
+            window.__stellarOffline = true;
+          }
+        });
+      }
+      window.addEventListener('online', function () {
+        window.__stellarOffline = false;
+      });
+    </script>
+
+    <!-- ================================================================= -->
+    <!--                SERVICE WORKER REGISTRATION                        -->
+    <!-- ================================================================= -->
+    <!--
+      Deferred registration strategy:
+        - Uses `requestIdleCallback` (with `setTimeout` fallback) so the SW
+          doesn't compete with first-paint work on the main thread.
+        - After registration, sets up three update-check triggers:
+            1. `visibilitychange` → check when tab becomes visible again
+            2. `setInterval`      → every 5 minutes (iOS fallback — it doesn't
+               reliably fire visibilitychange in standalone PWA mode)
+            3. `online`           → check when connectivity is restored
+    -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        // Use requestIdleCallback to defer SW registration until browser is idle
+        var registerSW = function () {
+          navigator.serviceWorker
+            .register('/sw.js')
+            .then(function (registration) {
+              // Primary: check for updates when tab becomes visible
+              document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') {
+                  registration.update();
+                }
+              });
+              // Fallback: periodic update check (iOS PWA doesn't fire visibilitychange reliably)
+              setInterval(
+                function () {
+                  registration.update();
+                },
+                5 * 60 * 1000
+              );
+              // Also check when device comes back online
+              window.addEventListener('online', function () {
+                registration.update();
+              });
+            })
+            .catch(function () {});
+        };
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(registerSW);
+        } else {
+          setTimeout(registerSW, 1);
+        }
+      }
+    </script>
+  </body>
+</html>

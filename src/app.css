@@ -1,0 +1,2678 @@
+/*
+ * ════════════════════════════════════════════════════════════════════════════════
+ * RADIANT FINANCE — Global Design System & CSS Foundation
+ * ════════════════════════════════════════════════════════════════════════════════
+ *
+ * The single source of truth for Radiant Finance's visual identity. This file defines:
+ *
+ *   1. **Design Tokens** — CSS custom properties for colors, spacing, radii,
+ *      shadows, gradients, timing, and typography
+ *   2. **CSS Reset** — Box-sizing, margin/padding reset, font smoothing
+ *   3. **Crystal Background** — Animated crystal lattice (`body::before`) and
+ *      rotating facet-edge highlight (`body::after`) that create the gem feel
+ *   4. **Base Typography** — Heading styles, prismatic gradient text shimmer on `h1`
+ *   5. **Form Elements** — Inputs, textareas, selects with frosted crystal styling
+ *   6. **Button System** — `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`,
+ *      `.btn-sm`, `.btn-ghost` — all with gem-glow hover/active micro-interactions
+ *   7. **Card Component** — Glassmorphic card with top highlight + crystal corner accents
+ *   8. **Container** — Responsive centered layout wrapper
+ *   9. **Animation Library** — Keyframes for fades, pulses, shimmers, glows, spins
+ *  10. **Page Transitions** — Cinematic `pageEnter` + staggered list items
+ *  11. **Budget Celebration** — Gem-fire glow, prismatic shimmer, facet breathing
+ *      for budgets/savings exceeding targets
+ *  12. **Utility Classes** — `.gradient-text`, `.loading-shimmer`, `.gem-glow`,
+ *      `.crystal-card`
+ *  13. **Responsive Typography** — Fluid heading sizes across breakpoints
+ *  14. **Mobile/iPhone Optimizations** — Safe areas, Dynamic Island, touch targets,
+ *      OLED dark mode, high contrast, reduced motion
+ *  15. **Comprehensive Animation System** — Item CRUD animations, checkbox pops,
+ *      drag-and-drop, inline editing, toggle switches, counters, progress bars,
+ *      panels, button flashes, focus rings — all with prismatic shimmer sweeps
+ *  16. **Truncate Tooltip** — Floating glassmorphic tooltip for overflowed text
+ *  17. **Print Styles** — Strip crystalline elements for paper output
+ *
+ * CONCEPT: Your finances are precious gems.
+ *
+ * Budgets are faceted crystals that refract light as you fill them.
+ * Savings goals are gems that grow brighter as they near completion.
+ * Income streams are veins of gold running through obsidian rock.
+ * Expenses are ruby fragments — small, precise, and trackable.
+ * The dashboard is your jeweler's loupe — a lens into your wealth.
+ *
+ * The amethyst purple represents potential and the clarity of planning.
+ * The emerald green marks financial health and positive cash flow.
+ *
+ * ════════════════════════════════════════════════════════════════════════════════
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — CSS Custom Properties (`:root`)
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   All visual values are defined here as CSS custom properties so components can
+   reference them consistently. Organized into logical groups:
+     - Colors (gem palette, precious stone spectrum, accents)
+     - Border radii (facet geometry)
+     - Shadows and glows (gem depth)
+     - Gradients (prismatic, crystal, and dark gradients)
+     - Timing and easing (facet motion physics)
+     - Typography (font stacks and letter spacing)
+
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ═══════════════════════════════════════════════════════════════════════════════
+     THE TREASURY — Gem Color Palette
+     ═══════════════════════════════════════════════════════════════════════════════ */
+
+  /* Obsidian — The deepest gem black
+     Ranges from near-black (#060612) to a subtle elevated dark (#22223e) */
+  --color-obsidian: #060612;
+  --color-bg: #0a0a16;
+  --color-bg-secondary: #0f0f20;
+  --color-bg-tertiary: #1a1a30;
+  --color-bg-elevated: #22223e;
+
+  /* Crystalline Light — Text that gleams
+     Three luminance levels for content hierarchy */
+  --color-text: #f0eeff;
+  --color-text-secondary: #c4c0e0;
+  --color-text-muted: #7874a0;
+
+  /* The Amethyst — Primary Purple (the signature gem of Radiant)
+     Full tonal range: dark -> base -> light -> hover, plus glow + subtle overlay */
+  --color-primary: #8b5cf6;
+  --color-primary-light: #a78bfa;
+  --color-primary-dark: #7c3aed;
+  --color-primary-hover: #9d7af8;
+  --color-primary-glow: rgba(139, 92, 246, 0.6);
+  --color-primary-subtle: rgba(139, 92, 246, 0.15);
+
+  /* Borders — Facet edges
+     Two opacity levels for default and emphasized borders */
+  --color-border: rgba(139, 92, 246, 0.2);
+  --color-border-strong: rgba(139, 92, 246, 0.45);
+
+  /* Precious Stone Spectrum — Budget progress colors
+     Used for progress bars, budget meters, and financial status indicators.
+     Each color has a matching glow variant at 50% opacity.
+     From danger (over-budget) to success (on-track) */
+  --color-red: #ef4444;
+  --color-red-glow: rgba(239, 68, 68, 0.5);
+  --color-orange: #f97316;
+  --color-orange-glow: rgba(249, 115, 22, 0.5);
+  --color-yellow: #eab308;
+  --color-yellow-glow: rgba(234, 179, 8, 0.5);
+  --color-lime: #84cc16;
+  --color-lime-glow: rgba(132, 204, 22, 0.5);
+  --color-green: #10b981;
+  --color-green-glow: rgba(16, 185, 129, 0.5);
+
+  /* Emerald Achievement — Success Green (financial health indicator)
+     Full tonal range for positive cash flow and savings milestones */
+  --color-success: #10b981;
+  --color-success-light: #34d399;
+  --color-success-dark: #059669;
+  --color-success-glow: rgba(16, 185, 129, 0.6);
+  --color-success-subtle: rgba(16, 185, 129, 0.15);
+
+  /* Rose Quartz Accent — Warm pink for highlights, badges, and decorations */
+  --color-accent: #f472b6;
+  --color-accent-glow: rgba(244, 114, 182, 0.4);
+
+  /* Aquamarine — For special highlights and celebration effects */
+  --color-cyan: #22d3ee;
+  --color-cyan-glow: rgba(34, 211, 238, 0.4);
+
+  /* Named Gemstone Colors — Semantic finance palette */
+  --color-gold: #f59e0b;
+  --color-gold-glow: rgba(245, 158, 11, 0.5);
+  --color-ruby: #ef4444;
+  --color-ruby-glow: rgba(239, 68, 68, 0.5);
+  --color-sapphire: #3b82f6;
+  --color-sapphire-glow: rgba(59, 130, 246, 0.5);
+  --color-emerald: #10b981;
+  --color-emerald-glow: rgba(16, 185, 129, 0.5);
+
+  /* ═══════════════════════════════════════════════════════════════════════════════
+     FACET GEOMETRY — Border Radii
+     ═══════════════════════════════════════════════════════════════════════════════
+
+     A consistent radius scale from sharp (4px) to fully-rounded pill (9999px).
+     Components reference these tokens instead of hardcoding pixel values. */
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --radius-full: 9999px; /* Pill shape for badges, scrollbars, tags */
+
+  /* ═══════════════════════════════════════════════════════════════════════════════
+     GEM DEPTH — Box Shadows & Glows
+     ═══════════════════════════════════════════════════════════════════════════════
+
+     Layered shadow system that creates depth in the dark UI.
+     Shadows use high-opacity black; glows use gem-colored translucency. */
+
+  /* Standard elevation shadows — sm -> xl intensity scale */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.4); /* Alias for `--shadow-md` */
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 64px rgba(0, 0, 0, 0.6);
+  --shadow-inset: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  /* Gem Glows — colored light emission for interactive elements */
+  --glow-primary: 0 0 30px var(--color-primary-glow);
+  --glow-primary-strong: 0 0 50px var(--color-primary-glow), 0 0 100px rgba(139, 92, 246, 0.3);
+  --glow-success: 0 0 30px var(--color-success-glow);
+  --glow-success-strong: 0 0 50px var(--color-success-glow), 0 0 100px rgba(16, 185, 129, 0.3);
+  --glow-gold: 0 0 30px var(--color-gold-glow);
+  --glow-ruby: 0 0 30px var(--color-ruby-glow);
+  --glow-sapphire: 0 0 30px var(--color-sapphire-glow);
+  --shadow-glow: 0 0 40px var(--color-primary-glow), 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  /* Crystal Gradients — reusable gradient backgrounds for cards, buttons, and overlays */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  --gradient-success: linear-gradient(135deg, var(--color-success) 0%, #14b8a6 100%);
+  --gradient-crystal: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.2) 0%,
+    rgba(244, 114, 182, 0.15) 25%,
+    rgba(34, 211, 238, 0.1) 50%,
+    rgba(16, 185, 129, 0.1) 75%,
+    rgba(245, 158, 11, 0.1) 100%
+  );
+  --gradient-dark: linear-gradient(180deg, var(--color-bg-secondary) 0%, var(--color-bg) 100%);
+  --gradient-gold: linear-gradient(135deg, var(--color-gold) 0%, #d97706 100%);
+  --gradient-glow: radial-gradient(
+    ellipse at center,
+    var(--color-primary-glow) 0%,
+    transparent 70%
+  );
+  --gradient-gem-fire: radial-gradient(circle, #fff 0%, var(--color-primary) 30%, transparent 70%);
+
+  /* ═══════════════════════════════════════════════════════════════════════════════
+     FACET MOTION — Transition Timing & Easing Curves
+     ═══════════════════════════════════════════════════════════════════════════════
+
+     Duration scale from instant (100ms micro-interactions) to crystalline (1200ms
+     dramatic entrances). Easing curves range from standard ease-out to
+     physics-inspired spring/bounce/gravity curves. */
+
+  /* Duration scale — named for gem-cutting precision */
+  --duration-instant: 100ms; /* Micro-interactions: hover highlights, focus rings */
+  --duration-fast: 200ms; /* Quick feedback: button presses, color changes */
+  --duration-normal: 300ms; /* Standard transitions: card hovers, panel slides */
+  --duration-slow: 500ms; /* Deliberate motion: page elements settling */
+  --duration-faceted: 800ms; /* Dramatic: expanding sections, large transforms */
+  --duration-crystalline: 1200ms; /* Cinematic: page entrances, celebration sequences */
+
+  /* Easing curves — each tuned for different motion personalities */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1); /* Quick start, gentle stop */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* Balanced acceleration */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1); /* Alias for `--ease-in-out` */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* Overshoots then settles — organic feel */
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55); /* Bouncy with pre-anticipation */
+  --ease-faceted: cubic-bezier(0.4, 0, 0, 1); /* Smooth deceleration like a gem settling */
+  --ease-gravity: cubic-bezier(0.55, 0, 0.1, 1); /* Heavy object falling — fast then cushioned */
+
+  /* ═══════════════════════════════════════════════════════════════════════════════
+     TYPOGRAPHY — Font Stacks & Letter Spacing
+     ═══════════════════════════════════════════════════════════════════════════════
+
+     Apple SF Pro preferred, with system-ui fallback chain for cross-platform.
+     Three roles: `display` (headings), `body` (paragraphs), `mono` (code/amounts). */
+
+  --font-sans:
+    'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-display:
+    'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
+
+  /* Letter spacing tokens — tight for headings, wide for labels/caps */
+  --tracking-tight: -0.03em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.05em;
+  --tracking-wider: 0.1em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   FOUNDATIONS — Universal Reset & Base Styles
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   Standard box-sizing reset + aggressive margin/padding removal on all elements
+   and pseudo-elements. This ensures components start from a clean baseline. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Root `<html>` element — fills entire viewport including safe areas on iOS */
+html {
+  height: 100%;
+  height: 100dvh; /* `dvh` = dynamic viewport height — accounts for mobile browser chrome */
+  width: 100%;
+  -webkit-font-smoothing: antialiased; /* Smoother text on macOS/iOS */
+  -moz-osx-font-smoothing: grayscale; /* Smoother text on Firefox macOS */
+  text-rendering: optimizeLegibility; /* Better kerning and ligatures */
+  /* Background on html to extend into safe areas on iOS PWA */
+  background: var(--color-obsidian);
+}
+
+html,
+body {
+  height: 100%;
+  height: 100dvh;
+  width: 100%;
+}
+
+/* `<body>` element — sets global font, color, and background */
+body {
+  min-height: 100%;
+  min-height: 100dvh;
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 16px; /* Base size — all `rem` values are relative to this */
+  line-height: 1.6; /* Comfortable reading line height */
+  color: var(--color-text);
+  background: var(--color-obsidian);
+  overflow-x: hidden; /* Prevent horizontal scroll from crystal effects */
+  margin: 0;
+  padding: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   THE GEM VAULT — Animated Crystal Lattice Background (`body::before`)
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   A fixed pseudo-element behind all content that renders a crystal lattice
+   using stacked radial and linear gradients. Includes:
+     - 10 individual "sparkle" dots at various positions — like light
+       catching facet edges of scattered gems
+     - 3 large prismatic cloud gradients (amethyst, rose quartz, emerald)
+     - Subtle geometric repeating pattern that evokes crystal structure
+     - Slow facet-twinkle animation (8s cycle) for a gentle breathing effect
+
+   The element extends into iOS safe areas via `env()` calculations to prevent
+   black bars behind the notch or Dynamic Island. */
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Extend past the viewport into notch/Dynamic Island area */
+  height: calc(100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
+  margin-top: calc(-1 * env(safe-area-inset-top, 0px)); /* Pull up behind the notch */
+  background:
+    /* Crystal sparkle points — tiny bright dots like light hitting gem facets */
+    radial-gradient(1px 1px at 15% 25%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 35% 65%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 45% 15%, rgba(139, 92, 246, 0.9) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 75%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 65% 35%, rgba(244, 114, 182, 0.8) 0%, transparent 100%),
+    radial-gradient(1px 1px at 75% 55%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 85% 45%, rgba(16, 185, 129, 0.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 85%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 92% 18%, rgba(245, 158, 11, 0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 8% 55%, rgba(34, 211, 238, 0.5) 0%, transparent 100%),
+    /* Prismatic light refractions — large soft ellipses like light through crystal */
+    radial-gradient(ellipse 80% 60% at 70% 100%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(244, 114, 182, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 50% at 90% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
+    /* Subtle geometric lattice — faint diagonal lines evoking crystal structure */
+    repeating-linear-gradient(
+        60deg,
+        transparent,
+        transparent 120px,
+        rgba(139, 92, 246, 0.015) 120px,
+        rgba(139, 92, 246, 0.015) 121px
+      ),
+    repeating-linear-gradient(
+      -60deg,
+      transparent,
+      transparent 120px,
+      rgba(244, 114, 182, 0.01) 120px,
+      rgba(244, 114, 182, 0.01) 121px
+    );
+  pointer-events: none; /* Click-through so content below remains interactive */
+  z-index: 0;
+  animation: crystalTwinkle 8s ease-in-out infinite;
+}
+
+/* Gentle opacity oscillation — makes the crystal lattice "breathe" like
+   light slowly shifting through a gemstone */
+@keyframes crystalTwinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.82;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   THE GEM VAULT — Rotating Facet-Edge Highlight (`body::after`)
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   A massive (200vmax) circular conic gradient that slowly rotates behind content.
+   Creates the illusion of prismatic light refracting through a huge crystal.
+   Uses three gem-colored bands (amethyst, emerald, rose quartz) at very low
+   opacity so it's subtle but perceptible — like catching the edge of a gemstone
+   in candlelight. */
+
+body::after {
+  content: '';
+  position: fixed;
+  top: calc(50% - env(safe-area-inset-top, 0px) / 2); /* Centered, adjusted for safe area */
+  left: 50%;
+  width: 200vmax; /* Oversized to fill any viewport orientation */
+  height: 200vmax;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    transparent 0deg,
+    rgba(139, 92, 246, 0.03) 45deg,
+    /* Amethyst facet */ transparent 90deg,
+    rgba(245, 158, 11, 0.02) 135deg,
+    /* Gold facet */ transparent 180deg,
+    rgba(16, 185, 129, 0.025) 225deg,
+    /* Emerald facet */ transparent 270deg,
+    rgba(244, 114, 182, 0.02) 315deg,
+    /* Rose quartz facet */ transparent 360deg
+  );
+  border-radius: 50%;
+  animation: facetRotation 90s linear infinite; /* Full rotation every 90 seconds */
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Continuous 360-degree rotation — `translate` is repeated to maintain centering */
+@keyframes facetRotation {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   SELECTION & SCROLLBARS — Browser chrome customization
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+
+/* Text selection highlight — primary amethyst with white text */
+::selection {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* WebKit scrollbar — styled to match the gem theme */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+  border-radius: var(--radius-full);
+}
+
+/* Scrollbar thumb — subtle amethyst gradient with 2px inset border */
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--color-primary-subtle) 0%, rgba(139, 92, 246, 0.3) 100%);
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-bg); /* Creates the inset "floating" look */
+  transition: background 0.3s;
+}
+
+/* Brighter gradient on hover for feedback */
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--color-primary-glow) 0%, var(--color-primary) 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY — Base heading and link styles
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+
+/* All headings share display font, bold weight, and tight tracking */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* `h1` — Extra bold with an animated prismatic text shimmer effect.
+   The gradient is 200% wide and slides horizontally via `background-position`,
+   creating the effect of light sweeping across a polished gemstone surface. */
+h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(
+    135deg,
+    var(--color-text) 0%,
+    var(--color-primary-light) 25%,
+    var(--color-accent) 50%,
+    var(--color-primary-light) 75%,
+    var(--color-text) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: prismaticSweep 8s linear infinite;
+}
+
+/* Horizontal sweep of the prismatic gradient — like light refracting
+   through crystal facets, creating a moving rainbow highlight */
+@keyframes prismaticSweep {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* Links — inherit color, no underline, smooth color transition */
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-smooth);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   FORM ELEMENTS — Frosted Crystal inputs, textareas, and selects
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   All form controls share a dark translucent background with `backdrop-filter: blur`
+   for the frosted crystal effect. Focus states add an amethyst glow and subtle lift,
+   like holding a gem up to the light. */
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--color-text);
+  background: rgba(26, 26, 48, 0.6); /* Semi-transparent dark base — like frosted obsidian */
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0.875rem 1.125rem;
+  backdrop-filter: blur(10px); /* Frosted crystal blur */
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+/* Hover — slightly stronger border and more opaque background */
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--color-border-strong);
+  background: rgba(26, 26, 48, 0.8);
+}
+
+/* Focus — amethyst border, gem glow, inset light, subtle upward lift */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: rgba(34, 34, 62, 0.9);
+  box-shadow:
+    var(--glow-primary),
+    inset 0 0 20px rgba(139, 92, 246, 0.1); /* Inner gem-fire glow */
+  transform: translateY(-1px); /* Micro-lift for "focused" feel */
+}
+
+/* Placeholder text — muted with reduced opacity */
+input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+/* Button reset — remove all browser defaults for custom styling */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  touch-action: manipulation; /* Disable double-tap zoom on buttons */
+  color: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   BUTTONS — Gem-themed button system with micro-interactions
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   Base `.btn` class handles layout and transitions. Variants:
+     - `.btn-primary` — gradient amethyst -> rose quartz with gem glow
+     - `.btn-secondary` — dark crystal glass with facet-edge border
+     - `.btn-danger` — gradient ruby with glow
+     - `.btn-sm` — compact size
+     - `.btn-ghost` — invisible until hovered
+
+   All buttons have a `::before` overlay that creates a facet light sweep
+   on hover, like catching the flat edge of a cut gemstone. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem; /* Space between icon and label */
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9375rem; /* 15px — slightly below 1rem for refinement */
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  line-height: 1.4;
+  border-radius: var(--radius-lg);
+  transition: all var(--duration-normal) var(--ease-out);
+  position: relative;
+  overflow: hidden; /* Contains the `::before` light sweep */
+  white-space: nowrap;
+}
+
+/* Facet light sweep overlay — diagonal gradient from top-left, hidden by default.
+   Mimics light hitting the flat face of a gem cut. */
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+}
+
+/* Reveal the facet sweep on hover */
+.btn:hover::before {
+  opacity: 1;
+}
+
+/* --- Primary Button — gradient background with outer gem glow --- */
+
+.btn-primary {
+  background: var(--gradient-primary);
+  color: white;
+  box-shadow:
+    var(--shadow-md),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    /* Inner facet highlight ring */ 0 0 30px var(--color-primary-glow); /* Outer gem glow */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); /* Legibility on gradient */
+}
+
+/* Hover — lift up, scale slightly, intensify glow like rotating a gem */
+.btn-primary:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+    var(--glow-primary-strong);
+}
+
+/* Active/pressed — push down, shrink slightly, reduce glow */
+.btn-primary:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 20px var(--color-primary-glow);
+}
+
+/* --- Secondary Button — crystal glass panel with facet-edge border --- */
+
+.btn-secondary {
+  background: rgba(34, 34, 62, 0.8);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(10px);
+}
+
+.btn-secondary:hover {
+  background: rgba(34, 34, 62, 1);
+  border-color: var(--color-border-strong);
+  box-shadow:
+    var(--shadow-md),
+    0 0 20px rgba(139, 92, 246, 0.2);
+  transform: translateY(-1px);
+}
+
+/* --- Danger Button — ruby gradient with red glow --- */
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--color-ruby) 0%, #f87171 100%);
+  color: white;
+  box-shadow:
+    var(--shadow-md),
+    0 0 20px var(--color-ruby-glow);
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 40px var(--color-ruby-glow);
+}
+
+/* --- Small Button — compact padding and font --- */
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem; /* 13px */
+  border-radius: var(--radius-md);
+}
+
+/* --- Ghost Button — invisible until hovered, for toolbar actions --- */
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-muted);
+  padding: 0.5rem 0.75rem;
+}
+
+.btn-ghost:hover {
+  color: var(--color-text);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+/* --- Gold Button — for income/wealth-related actions --- */
+
+.btn-gold {
+  background: var(--gradient-gold);
+  color: white;
+  box-shadow:
+    var(--shadow-md),
+    0 0 20px var(--color-gold-glow);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.btn-gold:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 40px var(--color-gold-glow);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   CARDS — Glassmorphic crystal containers with gradient border accents
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   Cards use a dark gradient background with `backdrop-filter: blur` for the
+   frosted crystal effect. Two pseudo-elements add visual polish:
+     - `::before` — a thin horizontal highlight line across the top, like the
+       bright edge of a gem's crown facet
+     - `::after` — gradient border accents in opposite corners (amethyst -> emerald)
+       using the `mask-composite: exclude` technique for border-only rendering,
+       evoking the prismatic edges of a crystal prism */
+
+.card {
+  background: linear-gradient(145deg, rgba(15, 15, 32, 0.9) 0%, rgba(26, 26, 48, 0.8) 100%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem;
+  position: relative;
+  backdrop-filter: blur(20px);
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out);
+}
+
+/* Subtle top highlight — a 1px gradient line across the card's upper edge,
+   like the bright reflection on the table facet of a cut gem */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.5),
+    rgba(255, 255, 255, 0.3),
+    rgba(139, 92, 246, 0.5),
+    transparent
+  );
+  border-radius: var(--radius-full);
+}
+
+/* Corner gradient accents — uses `mask-composite: exclude` to render only
+   the border pixels of a gradient overlay (amethyst top-left, emerald bottom-right),
+   creating the prismatic edge effect seen on gem facet boundaries */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.3) 0%,
+    transparent 30%,
+    transparent 70%,
+    rgba(16, 185, 129, 0.2) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude; /* Only the 1px border gap is visible */
+  pointer-events: none;
+}
+
+/* Card hover — lift, strengthen border, add layered gem glow */
+.card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-border-strong);
+  box-shadow:
+    var(--shadow-xl),
+    0 0 60px rgba(139, 92, 246, 0.15),
+    0 0 100px rgba(139, 92, 246, 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   CONTAINER — Responsive centered layout wrapper
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  position: relative;
+  z-index: 1; /* Above the crystal background pseudo-elements */
+}
+
+/* Tablet — slightly more padding */
+@media (min-width: 768px) {
+  .container {
+    padding: 2.5rem;
+  }
+}
+
+/* Mobile — tighter padding */
+@media (max-width: 768px) {
+  .container {
+    padding: 1.25rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   CORE ANIMATION KEYFRAMES — Reusable gem motion primitives
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   These keyframes are referenced throughout the app by animation utility classes
+   and individual component styles. Each is a self-contained motion primitive. */
+
+/* Simple fade-in from transparent */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Fade in while sliding up 30px — for entering content */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade in while sliding down 30px — for dropdown menus, tooltips */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pulsing scale + opacity — for attention-drawing elements */
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+/* Horizontal shimmer sweep — moves background position for loading skeletons,
+   like light catching a polished gem surface */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Box-shadow glow oscillation — amethyst glow + rose quartz accent intensifies
+   at midpoint, like the internal fire of a gem */
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px var(--color-primary-glow);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow:
+      0 0 50px var(--color-primary-glow),
+      0 0 80px var(--color-accent-glow);
+    filter: brightness(1.1);
+  }
+}
+
+/* Gem-fire glow — internal light that pulses within a gem, alternating
+   between warm gold and cool amethyst */
+@keyframes gemFire {
+  0%,
+  100% {
+    box-shadow:
+      0 0 15px var(--color-primary-glow),
+      inset 0 0 10px rgba(139, 92, 246, 0.1);
+    filter: brightness(1);
+  }
+  33% {
+    box-shadow:
+      0 0 30px var(--color-gold-glow),
+      inset 0 0 15px rgba(245, 158, 11, 0.15);
+    filter: brightness(1.08);
+  }
+  66% {
+    box-shadow:
+      0 0 25px var(--color-accent-glow),
+      inset 0 0 12px rgba(244, 114, 182, 0.12);
+    filter: brightness(1.05);
+  }
+}
+
+/* Continuous 360-degree rotation — for spinners and loading indicators */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Expanding ring pulse — a ring that grows outward then fades,
+   like a shockwave through crystal */
+@keyframes ringPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-primary-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
+/* Crystal sparkle — a brief bright flash that fades, like catching
+   a facet edge in direct light */
+@keyframes crystalSparkle {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0) rotate(360deg);
+  }
+}
+
+/* Facet rotation — subtle 3D tilt that catches light differently,
+   like slowly rotating a diamond under a lamp */
+@keyframes facetTilt {
+  0%,
+  100% {
+    transform: perspective(600px) rotateX(0deg) rotateY(0deg);
+  }
+  25% {
+    transform: perspective(600px) rotateX(1deg) rotateY(0.5deg);
+  }
+  50% {
+    transform: perspective(600px) rotateX(0deg) rotateY(1deg);
+  }
+  75% {
+    transform: perspective(600px) rotateX(-0.5deg) rotateY(0deg);
+  }
+}
+
+/* Gem-cut loading — a hexagonal rotation that evokes gem cutting,
+   used for loading states */
+@keyframes gemCutSpin {
+  0% {
+    transform: rotate(0deg);
+    border-radius: 50%;
+  }
+  25% {
+    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+  }
+  50% {
+    transform: rotate(180deg);
+    border-radius: 50%;
+  }
+  75% {
+    border-radius: 70% 30% 30% 70% / 70% 70% 30% 30%;
+  }
+  100% {
+    transform: rotate(360deg);
+    border-radius: 50%;
+  }
+}
+
+/* Prismatic color shift — cycles through gem colors, used for
+   celebration states and progress indicators */
+@keyframes prismaticShift {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   CINEMATIC PAGE TRANSITIONS — Like entering a gem vault
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   Two variants:
+     - `pageEnter` — desktop: fade + slide up + tiny scale + blur clear
+     - `pageEnterMobile` — mobile: lighter version without scale/blur for perf */
+
+/* Desktop page entrance — with blur-to-focus effect like adjusting a jeweler's loupe */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.99);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Mobile page entrance — simpler, no blur for better performance */
+@keyframes pageEnterMobile {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Utility class applied to page wrappers for entrance animation */
+.page-content-enter {
+  animation: pageEnter 0.4s var(--ease-out) forwards;
+}
+
+/* Switch to lighter animation on mobile */
+@media (max-width: 640px) {
+  .page-content-enter {
+    animation: pageEnterMobile 0.35s var(--ease-out) forwards;
+  }
+}
+
+/* --- Staggered Content Animation — for lists and card grids --- */
+
+/* Each `.stagger-item` child gets an incrementing delay (50ms apart) */
+@keyframes staggerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-item {
+  animation: staggerFadeIn 0.4s var(--ease-out) backwards;
+}
+
+/* Stagger delays — 50ms increments for up to 8 items */
+.stagger-item:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.stagger-item:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.stagger-item:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.stagger-item:nth-child(4) {
+  animation-delay: 0.2s;
+}
+.stagger-item:nth-child(5) {
+  animation-delay: 0.25s;
+}
+.stagger-item:nth-child(6) {
+  animation-delay: 0.3s;
+}
+.stagger-item:nth-child(7) {
+  animation-delay: 0.35s;
+}
+.stagger-item:nth-child(8) {
+  animation-delay: 0.4s;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   BUDGET CELEBRATION ANIMATIONS — For savings/budgets exceeding targets
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   When a savings goal or budget target is exceeded, these animations celebrate
+   the achievement with escalating gem effects. All animations use CSS custom
+   properties (e.g., `--glow-size`, `--glow-color`) so JavaScript can
+   dynamically control intensity based on the overflow percentage. */
+
+/* Gem-fire glow — pulsing brightness + drop-shadow, intensity driven by
+   `--glow-size` and `--glow-brightness` custom properties */
+@keyframes gemFireGlow {
+  0%,
+  100% {
+    filter: brightness(1)
+      drop-shadow(0 0 var(--glow-size, 10px) var(--glow-color, var(--color-gold)));
+  }
+  50% {
+    filter: brightness(calc(1 + var(--glow-brightness, 0.1)))
+      drop-shadow(0 0 calc(var(--glow-size, 10px) * 1.5) var(--glow-color, var(--color-gold)));
+  }
+}
+
+/* Fast shimmer for prismatic flash effect — a bright streak sweeps left to right,
+   like sunlight catching a gem's pavilion facets */
+@keyframes prismaticFlash {
+  0% {
+    left: -100%;
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0.5;
+  }
+}
+
+/* Crystal breathing — gentle scale + opacity pulse, intensity driven by
+   `--crystal-min` and `--crystal-max` custom properties */
+@keyframes crystalBreath {
+  0%,
+  100% {
+    opacity: var(--crystal-min, 0.1);
+    transform: scale(1);
+  }
+  50% {
+    opacity: var(--crystal-max, 0.3);
+    transform: scale(1.05);
+  }
+}
+
+/* Orbiting sparkles — circular path around a progress element, radius driven by
+   `--orbit-radius` custom property */
+@keyframes facetOrbit {
+  from {
+    transform: rotate(0deg) translateX(var(--orbit-radius, 50px)) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(var(--orbit-radius, 50px)) rotate(-360deg);
+  }
+}
+
+/* Crystal twinkle for celebration particles — scale + opacity oscillation,
+   range driven by `--twinkle-min` and `--twinkle-max` custom properties */
+@keyframes celebrationTwinkle {
+  0%,
+  100% {
+    opacity: var(--twinkle-min, 0.3);
+    transform: scale(1);
+  }
+  50% {
+    opacity: var(--twinkle-max, 1);
+    transform: scale(1.2);
+  }
+}
+
+/* Disable all celebration animations when user prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .celebrating,
+  .celebrating * {
+    animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES — Reusable visual effects
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+
+/* Gradient text — animated multi-color prismatic shimmer using `background-clip: text`.
+   Cycles through amethyst, crystalline white, emerald, and back — like light
+   refracting through a prism */
+.gradient-text {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-text) 30%,
+    var(--color-success) 70%,
+    var(--color-primary-light) 100%
+  );
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: prismaticSweep 10s linear infinite;
+}
+
+/* Loading shimmer — skeleton placeholder with sweeping highlight,
+   like light sliding across a polished gemstone */
+.loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 0%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* Gem glow — adds a pulsing amethyst glow to any element */
+.gem-glow {
+  animation: gemFire 4s ease-in-out infinite;
+}
+
+/* Crystal card — enhanced card variant with prismatic border and
+   stronger frosted glass effect */
+.crystal-card {
+  background: linear-gradient(145deg, rgba(15, 15, 32, 0.95) 0%, rgba(26, 26, 48, 0.85) 100%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem;
+  position: relative;
+  backdrop-filter: blur(24px);
+  overflow: hidden;
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out);
+}
+
+/* Crystal card top highlight — wider and brighter prismatic edge */
+.crystal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.4),
+    rgba(244, 114, 182, 0.3),
+    rgba(34, 211, 238, 0.3),
+    rgba(16, 185, 129, 0.4),
+    rgba(139, 92, 246, 0.4),
+    transparent
+  );
+  border-radius: var(--radius-full);
+}
+
+/* Crystal card prismatic border — full rainbow gradient border */
+.crystal-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.3) 0%,
+    rgba(244, 114, 182, 0.15) 25%,
+    transparent 50%,
+    rgba(34, 211, 238, 0.15) 75%,
+    rgba(16, 185, 129, 0.2) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.crystal-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-border-strong);
+  box-shadow:
+    var(--shadow-xl),
+    0 0 60px rgba(139, 92, 246, 0.15),
+    0 0 30px rgba(244, 114, 182, 0.08);
+}
+
+/* Gem-cut loading spinner — morphing shape that rotates */
+.gem-loading {
+  width: 24px;
+  height: 24px;
+  background: var(--gradient-primary);
+  animation: gemCutSpin 1.5s ease-in-out infinite;
+}
+
+/* Gold text — for monetary amounts and income display */
+.text-gold {
+  color: var(--color-gold);
+}
+
+/* Ruby text — for expenses and negative amounts */
+.text-ruby {
+  color: var(--color-ruby);
+}
+
+/* Emerald text — for savings and positive amounts */
+.text-emerald {
+  color: var(--color-emerald);
+}
+
+/* Sapphire text — for informational/neutral amounts */
+.text-sapphire {
+  color: var(--color-sapphire);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE TYPOGRAPHY — Fluid heading sizes across breakpoints
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+
+/* Tablet — scale down headings */
+@media (max-width: 768px) {
+  h1 {
+    font-size: 2rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+  }
+  h3 {
+    font-size: 1.25rem;
+  }
+}
+
+/* Small mobile — reduce base font size to 15px and further shrink h1 */
+@media (max-width: 640px) {
+  html {
+    font-size: 15px; /* All `rem` values shrink proportionally */
+  }
+
+  h1 {
+    font-size: 1.75rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   MOBILE & iPHONE OPTIMIZATIONS — iPhone 16 Pro Optimized
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   This section handles:
+     - iOS PWA full-screen rendering (eliminating black bars)
+     - Safe area management for notch and Dynamic Island
+     - Touch target sizing per Apple HIG (44px minimum)
+     - Overscroll behavior, text size adjustment, tap highlights
+     - Device-specific breakpoints for iPhone SE, 14/15/16, Pro, Pro Max
+     - OLED dark mode, high contrast, and reduced motion support */
+
+/* iOS PWA Full Screen Hack — eliminates black bars on notch/Dynamic Island devices.
+   The `min-height` includes the safe area to prevent bottom white/black bar. */
+html {
+  min-height: calc(100% + env(safe-area-inset-top));
+  background: var(--color-obsidian);
+  background-attachment: fixed;
+  overflow: hidden; /* Let body handle scrolling, not html */
+}
+
+body {
+  min-height: 100%;
+  min-height: 100dvh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Momentum scrolling on iOS */
+  overscroll-behavior: none; /* Prevent pull-to-refresh / rubber-banding */
+  background: var(--color-obsidian);
+}
+
+/* Better touch targets for mobile — minimum 44px per Apple Human Interface Guidelines */
+@media (max-width: 768px) {
+  button,
+  a,
+  [role='button'],
+  input[type='checkbox'],
+  input[type='radio'] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Exception for inline text links — they shouldn't be forced to 44px */
+  a:not(.btn):not(.nav-link):not(.tab-item) {
+    min-height: auto;
+    min-width: auto;
+  }
+
+  /* Exception for toggle switches — they need fixed dimensions for proper aspect ratio */
+  .toggle-btn {
+    min-height: auto;
+    min-width: auto;
+  }
+
+  /* Exception for styled checkboxes within labels — the label provides the touch target */
+  .checkbox-label input[type='checkbox'] {
+    min-height: auto;
+    min-width: auto;
+  }
+
+  /* Exception for custom circular checkboxes — they have explicit sizes and
+     the surrounding row already provides an adequate touch target */
+  .checkbox {
+    min-height: auto;
+    min-width: auto;
+  }
+}
+
+/* Prevent text size adjustment on orientation change (iOS/Android) */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Prevent overscroll bounce (rubber-banding) on iOS */
+html,
+body {
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Prevent callout on long-press for iOS (the "Copy / Look Up" popup) */
+a,
+button,
+img {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Disable the blue/grey tap highlight on all elements (mobile WebKit) */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Allow text selection only in text inputs and textareas */
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Remove focus outlines on touch devices — visual focus rings are distracting
+   when using fingers (focus is implied by the active touch) */
+@media (hover: none) and (pointer: coarse) {
+  .btn:focus,
+  .nav-link:focus,
+  input:focus,
+  button:focus {
+    outline: none;
+  }
+}
+
+/* --- iPhone SE (375px logical width) --- */
+@media (max-width: 375px) {
+  :root {
+    --radius-xl: 20px; /* Slightly tighter radii for smaller screen */
+    --radius-2xl: 24px;
+  }
+
+  .container {
+    padding: 1rem;
+  }
+
+  .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .btn-sm {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* --- iPhone 14/15/16 (390px-430px logical width) --- */
+@media (min-width: 390px) and (max-width: 430px) {
+  .container {
+    padding: 1.25rem;
+  }
+}
+
+/* --- iPhone 14/15/16 Pro Max and Plus models (430px+ logical width) --- */
+@media (min-width: 430px) and (max-width: 640px) {
+  .container {
+    padding: 1.5rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   iPHONE PRO DYNAMIC ISLAND SPECIFIC STYLES
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   The Dynamic Island is ~126px wide on iPhone 14/15/16 Pro models.
+   Time displays on the LEFT, battery/signal on the RIGHT of the island.
+   These rules ensure content doesn't overlap with the island's flanking
+   status bar areas by using `env(safe-area-inset-*)` with `max()` fallbacks. */
+
+/* iPhone 14 Pro / 15 Pro / 16 Pro (393px logical width) */
+@media (min-width: 390px) and (max-width: 395px) and (max-width: 640px) {
+  .container {
+    padding-left: max(1.25rem, env(safe-area-inset-left, 1.25rem));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 1.25rem));
+  }
+}
+
+/* iPhone 14/15/16 Pro Max (430px logical width) */
+@media (min-width: 428px) and (max-width: 435px) {
+  .container {
+    padding-left: max(1.5rem, env(safe-area-inset-left, 1.5rem));
+    padding-right: max(1.5rem, env(safe-area-inset-right, 1.5rem));
+  }
+}
+
+/* Dynamic Island detection via safe-area height:
+     - Notch devices (iPhone X-13): ~47px `safe-area-inset-top`
+     - Dynamic Island devices (iPhone 14-16 Pro): ~59px `safe-area-inset-top`
+   We can't directly query this value, but we use the combination of
+   screen size + safe area support as a reasonable heuristic. */
+@supports (padding-top: env(safe-area-inset-top)) {
+  @media (max-width: 640px) {
+    /* Extra top margin on page headers to clear the Dynamic Island */
+    .page-header {
+      margin-top: 0.5rem;
+    }
+
+    /* Modals must not render behind the Dynamic Island */
+    .modal-content {
+      margin-top: max(1rem, calc(env(safe-area-inset-top, 0px) + 0.5rem));
+    }
+  }
+}
+
+/* Landscape mode placeholder — handled in `app.html` via viewport meta */
+
+/* --- OLED Dark Mode — Pure black backgrounds for power savings --- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-obsidian: #000000; /* True black for OLED pixel-off */
+    --color-bg: #000000;
+    --color-bg-secondary: #0a0a0a;
+  }
+}
+
+/* --- High Contrast Mode — Stronger text and borders for accessibility --- */
+@media (prefers-contrast: high) {
+  :root {
+    --color-text: #ffffff;
+    --color-text-secondary: #e0e0e0;
+    --color-border: rgba(255, 255, 255, 0.4);
+  }
+
+  .btn-primary {
+    border: 2px solid white; /* Visible boundary for primary action */
+  }
+}
+
+/* --- Reduced Motion — Respect user's accessibility preference --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Completely disable the crystal background animations */
+  body::before,
+  body::after {
+    animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   MOBILE-SPECIFIC COMPONENT ADJUSTMENTS
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  /* Prevent iOS auto-zoom on input focus — requires minimum 16px font-size.
+     iOS Safari zooms in when focusing inputs smaller than 16px. */
+  input,
+  input[type='text'],
+  input[type='email'],
+  input[type='password'],
+  input[type='number'],
+  input[type='search'],
+  input[type='tel'],
+  input[type='url'],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+
+  /* Stack form buttons vertically on mobile — reverse order puts
+     primary action at bottom (thumb-friendly) */
+  .form-actions {
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Full-width cards on mobile — negative margins bleed into container padding */
+  .card {
+    border-radius: var(--radius-xl);
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   COMPREHENSIVE ANIMATION SYSTEM — Beautiful animations for every action
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   This animation system provides beautiful, seamless animations for:
+     - Remote changes from other devices (realtime sync)
+     - Local actions (create, delete, toggle, reorder, rename)
+     - Form interactions and state changes
+
+   Design principles:
+     - Subtle and non-jarring — enhance, don't distract
+     - Spring easing (`--ease-spring`) for organic feel
+     - Consistent timing across actions
+     - Prismatic shimmer sweeps (amethyst -> rose quartz -> aquamarine)
+       as the signature effect — like light refracting through a gem
+     - Graceful degradation with `prefers-reduced-motion: reduce`
+
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+
+/* ---------------------------------------------------------------------------------
+   ITEM CHANGE ANIMATIONS — Highlight items updated by local or remote sync
+   --------------------------------------------------------------------------------- */
+
+/* Base class for any list item that can receive sync updates.
+   Provides smooth transitions on background, shadow, transform, and opacity. */
+.syncable-item {
+  position: relative;
+  transition:
+    background-color 0.5s var(--ease-out),
+    box-shadow 0.5s var(--ease-out),
+    transform 0.3s var(--ease-spring),
+    opacity 0.3s var(--ease-out);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PRISMATIC SHIMMER SYSTEM — Crystal-light sweep across all changes
+   ═══════════════════════════════════════════════════════════════════════════════
+
+   The signature visual effect: a horizontal gradient streak that sweeps left
+   to right across an element via `::after` pseudo-elements. Reused across
+   multiple animation classes (`.item-changed`, `.item-toggled`,
+   `.item-created`, `.item-deleting`, `.item-reordering`, etc.) with
+   different gem-color palettes — like light passing through different
+   precious stones. */
+
+/* Shared prismatic shimmer keyframe — translates the pseudo-element from -100% to +100% */
+@keyframes prismaticShimmer {
+  0% {
+    left: -100%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+/* --- Generic Change Highlight — applied when any field is updated --- */
+
+/* Background flash: subtle amethyst fade-out over 1.5s */
+.item-changed {
+  animation: itemChangeHighlight 1.5s var(--ease-out);
+  overflow: hidden; /* Contains the shimmer pseudo-element */
+}
+
+/* Toggle highlight — emerald flash with spring-scale bounce */
+.item-toggled {
+  animation: itemToggleHighlight 0.6s var(--ease-spring);
+  overflow: hidden;
+}
+
+@keyframes itemToggleHighlight {
+  0% {
+    background-color: rgba(16, 185, 129, 0.15);
+    transform: scale(1);
+  }
+  30% {
+    background-color: rgba(16, 185, 129, 0.2);
+    transform: scale(1.02); /* Slight "pop" at peak */
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes itemChangeHighlight {
+  0% {
+    background-color: rgba(139, 92, 246, 0.08);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Prismatic shimmer sweep for generic changes — amethyst -> rose quartz -> aquamarine */
+.item-changed::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(139, 92, 246, 0.1) 10%,
+    rgba(139, 92, 246, 0.25) 20%,
+    rgba(244, 114, 182, 0.3) 35%,
+    rgba(34, 211, 238, 0.3) 50%,
+    rgba(244, 114, 182, 0.25) 65%,
+    rgba(255, 255, 255, 0.2) 78%,
+    rgba(139, 92, 246, 0.1) 90%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: prismaticShimmer 1.4s var(--ease-out) forwards;
+  z-index: 1;
+}
+
+/* Emerald shimmer sweep for toggle actions — emerald -> aquamarine -> crystal dust */
+.item-toggled::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(16, 185, 129, 0.1) 10%,
+    rgba(16, 185, 129, 0.3) 25%,
+    rgba(34, 211, 238, 0.35) 45%,
+    rgba(16, 185, 129, 0.3) 60%,
+    rgba(255, 255, 255, 0.25) 78%,
+    rgba(16, 185, 129, 0.1) 90%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: prismaticShimmer 1s var(--ease-out) forwards;
+  z-index: 1;
+}
+
+/* --- Item Enter — elements appearing in a list (e.g., from realtime sync) --- */
+
+.item-enter {
+  animation: itemEnter 0.5s var(--ease-spring);
+}
+
+@keyframes itemEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+    background-color: rgba(16, 185, 129, 0.1);
+  }
+  50% {
+    background-color: rgba(16, 185, 129, 0.15);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    background-color: transparent;
+  }
+}
+
+/* --- Item Exit — elements being removed from a list --- */
+
+.item-exit {
+  animation: itemExit 0.4s var(--ease-out) forwards;
+}
+
+/* Collapse animation: shrink opacity + scale, then collapse height/padding */
+@keyframes itemExit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    max-height: 200px;
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateX(-10px);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+}
+
+/* --- Field-Level Change Indicator — prismatic shimmer on individual fields --- */
+
+.field-changed {
+  position: relative;
+  overflow: hidden;
+}
+
+.field-changed::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(139, 92, 246, 0.1) 10%,
+    rgba(139, 92, 246, 0.25) 25%,
+    rgba(244, 114, 182, 0.3) 40%,
+    rgba(34, 211, 238, 0.3) 55%,
+    rgba(255, 255, 255, 0.2) 75%,
+    rgba(139, 92, 246, 0.1) 90%,
+    transparent 100%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+  animation: prismaticShimmer 1.2s var(--ease-out) forwards;
+  z-index: 1;
+}
+
+/* --- Deferred Changes Indicator — pulsing gold dot for entities being edited
+   on another device while the current user is also editing them --- */
+
+.has-deferred-changes {
+  position: relative;
+}
+
+/* Gold pulsing dot at top-right corner — signals pending remote changes */
+.has-deferred-changes::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  box-shadow: 0 0 8px var(--color-gold-glow);
+  animation: deferredChangesPulse 2s ease-in-out infinite;
+  z-index: 10;
+}
+
+@keyframes deferredChangesPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.85);
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   LOCAL ACTION ANIMATIONS — Creating, toggling, deleting, reordering
+   ---------------------------------------------------------------------------------
+
+   These classes are applied by Svelte components when the user performs
+   direct actions. Each has a body animation + shimmer pseudo-elements. */
+
+/* === ITEM CREATION — New items appearing in lists === */
+
+.item-created {
+  animation: itemCreate 0.5s var(--ease-spring) forwards;
+  overflow: hidden;
+}
+
+/* Spring entrance: slide down, blur-to-focus, tiny overshoot bounce —
+   like a gem being set into its mount */
+@keyframes itemCreate {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+    filter: blur(2px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.01); /* Slight overshoot */
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Crystal formation shimmer — amethyst -> aquamarine -> crystal dust sweep */
+.item-created::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(139, 92, 246, 0.15) 15%,
+    rgba(34, 211, 238, 0.3) 35%,
+    rgba(244, 114, 182, 0.35) 50%,
+    rgba(34, 211, 238, 0.3) 65%,
+    rgba(255, 255, 255, 0.3) 80%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: prismaticShimmer 0.8s var(--ease-out) 0.15s forwards; /* 150ms delay for stagger */
+  z-index: 1;
+}
+
+/* Gem-fire burst — radial glow that expands outward and fades,
+   like a gem catching the light for the first time */
+.item-created::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at center,
+    rgba(139, 92, 246, 0.5),
+    rgba(244, 114, 182, 0.3) 40%,
+    transparent 70%
+  );
+  opacity: 0;
+  animation: gemBurst 0.6s var(--ease-out) forwards;
+  pointer-events: none;
+}
+
+@keyframes gemBurst {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+
+/* === ITEM DELETION — Graceful removal from lists === */
+
+.item-deleting {
+  animation: itemDelete 0.4s var(--ease-out) forwards;
+  pointer-events: none; /* Prevent interaction during exit animation */
+  overflow: hidden;
+}
+
+/* Slide right + fade + blur as the item dissolves — like a gem
+   turning to dust */
+@keyframes itemDelete {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+  40% {
+    opacity: 0.4;
+    transform: translateX(8px) scale(0.98);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.95);
+    filter: blur(2px);
+  }
+}
+
+/* Ruby flash overlay on delete */
+.item-deleting::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(239, 68, 68, 0.2);
+  animation: deleteFade 0.3s var(--ease-out) forwards;
+  pointer-events: none;
+}
+
+@keyframes deleteFade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Ruby shatter shimmer — red -> orange -> crystal dust dissolve */
+.item-deleting::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(239, 68, 68, 0.15) 15%,
+    rgba(239, 68, 68, 0.3) 30%,
+    rgba(249, 115, 22, 0.35) 50%,
+    rgba(239, 68, 68, 0.25) 70%,
+    rgba(255, 255, 255, 0.2) 85%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: prismaticShimmer 0.45s var(--ease-out) forwards;
+  z-index: 1;
+}
+
+/* === CHECKBOX TOGGLE — Satisfying completion animation === */
+
+/* Pop-bounce on the checkbox circle itself */
+.checkbox-animating {
+  animation: checkboxPop 0.4s var(--ease-spring);
+}
+
+@keyframes checkboxPop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.3); /* Overshoot big */
+  }
+  70% {
+    transform: scale(0.9); /* Bounce back past 1.0 */
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* SVG checkmark draw animation — stroke-dasharray reveals the path progressively */
+.checkmark-animate {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: drawCheckmark 0.3s var(--ease-out) 0.1s forwards; /* 100ms delay after pop */
+}
+
+@keyframes drawCheckmark {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Strike-through line that sweeps across the task name on completion */
+.task-completing .task-name {
+  position: relative;
+}
+
+.task-completing .task-name::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 2px;
+  background: var(--color-emerald);
+  animation: strikeThrough 0.3s var(--ease-out) forwards;
+  box-shadow: 0 0 8px var(--color-emerald-glow); /* Emerald glow trail */
+}
+
+@keyframes strikeThrough {
+  0% {
+    width: 0;
+    opacity: 1;
+  }
+  100% {
+    width: 100%;
+    opacity: 0.6;
+  }
+}
+
+/* Radial emerald ripple that expands outward from the checkbox center */
+.completion-ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-emerald-glow), transparent 70%);
+  animation: completionRipple 0.6s var(--ease-out) forwards;
+  pointer-events: none;
+}
+
+@keyframes completionRipple {
+  0% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.5);
+  }
+}
+
+/* === DRAG AND REORDER — Smooth position changes === */
+
+/* Element being actively dragged — elevated, glowing, grabbing cursor */
+.item-dragging {
+  z-index: 100;
+  cursor: grabbing !important;
+  transform: scale(1.03);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    0 0 30px var(--color-primary-glow);
+  transition:
+    transform 0.15s var(--ease-spring),
+    box-shadow 0.15s var(--ease-out);
+}
+
+/* Drop target highlight — amethyst tint + border + downward shift */
+.item-drag-over {
+  background-color: rgba(139, 92, 246, 0.15);
+  border-color: var(--color-primary) !important;
+  transform: translateY(4px);
+  transition: all 0.2s var(--ease-spring);
+}
+
+/* After reorder completes — brief flash as items settle */
+.item-reordering {
+  animation: reorderSlide 0.35s var(--ease-spring);
+  overflow: hidden;
+}
+
+@keyframes reorderSlide {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Facet shift shimmer — amethyst -> aquamarine -> amethyst sweep after reorder */
+.item-reordering::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(139, 92, 246, 0.1) 15%,
+    rgba(139, 92, 246, 0.25) 30%,
+    rgba(34, 211, 238, 0.3) 50%,
+    rgba(139, 92, 246, 0.25) 70%,
+    rgba(255, 255, 255, 0.15) 85%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: prismaticShimmer 0.6s var(--ease-out) forwards;
+  z-index: 1;
+}
+
+/* Ghost placeholder — semi-transparent dashed outline left behind during drag */
+.item-ghost {
+  opacity: 0.4;
+  border-style: dashed !important;
+  transform: scale(0.98);
+}
+
+/* === INLINE EDIT — Text change animations === */
+
+/* Focus-in animation for editable fields — background tint + glow ring */
+.field-editing {
+  animation: fieldFocusIn 0.3s var(--ease-out);
+}
+
+@keyframes fieldFocusIn {
+  0% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  100% {
+    background-color: rgba(139, 92, 246, 0.1);
+    box-shadow: 0 0 0 2px var(--color-primary-glow);
+  }
+}
+
+/* Save confirmation flash — emerald tint + ring that fades out */
+.field-saved {
+  animation: fieldSaveFlash 0.5s var(--ease-out);
+}
+
+@keyframes fieldSaveFlash {
+  0% {
+    background-color: rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 2px var(--color-emerald-glow);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+/* Prismatic text shimmer — amethyst -> rose quartz sweep over renamed/updated text */
+.text-changed {
+  position: relative;
+  overflow: hidden;
+}
+
+.text-changed::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(139, 92, 246, 0.15) 15%,
+    rgba(139, 92, 246, 0.3) 30%,
+    rgba(244, 114, 182, 0.35) 50%,
+    rgba(139, 92, 246, 0.25) 70%,
+    rgba(255, 255, 255, 0.2) 85%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: prismaticShimmer 0.8s var(--ease-out) forwards;
+  z-index: 1;
+}
+
+/* === TOGGLE SWITCHES — Smooth state transitions === */
+
+/* Bouncy knob animation using CSS custom properties for start/mid/end positions.
+   JS sets `--toggle-start`, `--toggle-mid`, `--toggle-end` based on direction. */
+.toggle-animating .toggle-knob {
+  animation: toggleBounce 0.35s var(--ease-spring);
+}
+
+@keyframes toggleBounce {
+  0% {
+    transform: translateX(var(--toggle-start, 0)) scale(1);
+  }
+  50% {
+    transform: translateX(var(--toggle-mid, 8px)) scale(1.15); /* Squash/stretch feel */
+  }
+  100% {
+    transform: translateX(var(--toggle-end, 16px)) scale(1);
+  }
+}
+
+/* === INCREMENT/DECREMENT — Counter value change animations === */
+
+.counter-increment {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Emerald ascent shimmer — emerald -> aquamarine -> crystal dust (for value going up) */
+.counter-increment::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(16, 185, 129, 0.15) 15%,
+    rgba(16, 185, 129, 0.3) 30%,
+    rgba(34, 211, 238, 0.35) 50%,
+    rgba(16, 185, 129, 0.25) 70%,
+    rgba(255, 255, 255, 0.2) 85%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: prismaticShimmer 0.6s var(--ease-out) forwards;
+  z-index: 1;
+}
+
+.counter-decrement {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ruby descent shimmer — orange -> ruby -> crystal dust (for value going down) */
+.counter-decrement::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(249, 115, 22, 0.15) 15%,
+    rgba(239, 68, 68, 0.3) 30%,
+    rgba(249, 115, 22, 0.35) 50%,
+    rgba(239, 68, 68, 0.25) 70%,
+    rgba(255, 255, 255, 0.2) 85%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: prismaticShimmer 0.6s var(--ease-out) forwards;
+  z-index: 1;
+}
+
+/* === PROGRESS BAR — Fill and completion animations === */
+
+/* Smooth width transitions as progress changes — spring easing for organic feel */
+.progress-animating {
+  transition:
+    width 0.5s var(--ease-spring),
+    background 0.3s var(--ease-out);
+}
+
+/* Flash of brightness when progress hits 100% — like a gem reaching full brilliance */
+.progress-complete {
+  animation: progressComplete 0.6s var(--ease-spring);
+}
+
+@keyframes progressComplete {
+  0% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.5);
+    box-shadow: 0 0 20px var(--color-emerald-glow);
+  }
+  100% {
+    filter: brightness(1);
+    box-shadow: none;
+  }
+}
+
+/* === MODAL AND PANEL TRANSITIONS === */
+
+/* Panel expand — slides down from top with spring scaleY */
+.panel-expanding {
+  animation: panelExpand 0.35s var(--ease-spring);
+}
+
+@keyframes panelExpand {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scaleY(0.95);
+    transform-origin: top;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+/* Panel collapse — reverse of expand, faster (250ms) */
+.panel-collapsing {
+  animation: panelCollapse 0.25s var(--ease-out) forwards;
+}
+
+@keyframes panelCollapse {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+    transform-origin: top;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scaleY(0.95);
+  }
+}
+
+/* === BUTTON INTERACTIONS — Success flash feedback === */
+
+/* Brief emerald flash on successful action buttons (e.g., "Saved!") */
+.btn-success-flash {
+  animation: buttonSuccessFlash 0.5s var(--ease-out);
+}
+
+@keyframes buttonSuccessFlash {
+  0% {
+    background: var(--color-emerald);
+    box-shadow: 0 0 30px var(--color-emerald-glow);
+  }
+  100% {
+    background: var(--gradient-primary);
+    box-shadow: 0 0 0 var(--color-primary-glow);
+  }
+}
+
+/* === FOCUS STATES WITH ANIMATION — Accessible focus ring === */
+
+/* Pulsing focus ring for keyboard navigation — draws attention to focused element */
+.focus-ring-animate {
+  animation: focusRingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes focusRingPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--color-primary-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px var(--color-primary-glow),
+      0 0 20px var(--color-primary-glow);
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   REDUCED MOTION SUPPORT — Disable all animation system animations
+   ---------------------------------------------------------------------------------
+
+   Comprehensive override that disables every animation class defined above.
+   This is separate from the earlier global `prefers-reduced-motion` rule
+   because it specifically targets the named animation classes rather than
+   using the universal `*` selector. */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Realtime sync animations */
+  .item-changed,
+  .item-enter,
+  .item-exit,
+  .field-changed {
+    animation: none;
+  }
+
+  .item-changed::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .has-deferred-changes::before {
+    animation: none;
+  }
+
+  /* Local action animations */
+  .item-created,
+  .item-deleting,
+  .checkbox-animating,
+  .checkmark-animate,
+  .item-dragging,
+  .item-reordering,
+  .field-editing,
+  .field-saved,
+  .text-changed,
+  .toggle-animating .toggle-knob,
+  .counter-increment,
+  .counter-decrement,
+  .progress-animating,
+  .progress-complete,
+  .panel-expanding,
+  .panel-collapsing,
+  .btn-success-flash,
+  .focus-ring-animate,
+  .gem-glow,
+  .gem-loading {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Pseudo-element animations on creation/deletion */
+  .item-created::after,
+  .item-deleting::before,
+  .item-deleting::after {
+    animation: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   TRUNCATE TOOLTIP — Floating glassmorphic tooltip for overflowed text
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   Shows the full text of a truncated element on hover/focus. Positioned via
+   JavaScript (fixed positioning), styled as a dark crystal glass panel with blur. */
+
+.truncate-tooltip {
+  position: fixed;
+  z-index: 10000; /* Above everything including modals */
+  max-width: min(90vw, 400px); /* Responsive max — 90% of viewport or 400px */
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-text);
+  background: rgba(15, 15, 32, 0.92); /* Near-opaque dark crystal glass */
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 20px rgba(139, 92, 246, 0.15); /* Subtle amethyst ambient glow */
+  pointer-events: none; /* Click-through — purely visual */
+  opacity: 0;
+  transform: translateY(4px); /* Starts slightly below final position */
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* Visible state — JS adds this class when tooltip should appear */
+.truncate-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   FINANCIAL DATA UTILITIES — Specialized styles for finance UI elements
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   Currency amounts, percentage displays, and financial indicators that need
+   consistent formatting and gem-themed visual treatment. */
+
+/* Monetary amount display — uses monospace for aligned columns */
+.amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* Positive amount — emerald glow */
+.amount-positive {
+  color: var(--color-emerald);
+}
+
+/* Negative amount — ruby red */
+.amount-negative {
+  color: var(--color-ruby);
+}
+
+/* Neutral amount — default text color */
+.amount-neutral {
+  color: var(--color-text-secondary);
+}
+
+/* Budget meter background track */
+.budget-track {
+  background: rgba(26, 26, 48, 0.6);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  height: 8px;
+}
+
+/* Budget meter fill — color changes based on usage percentage via
+   inline style or JS-set custom property */
+.budget-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition:
+    width 0.5s var(--ease-spring),
+    background-color 0.3s var(--ease-out);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   PRINT STYLES — Clean output for paper
+   ═══════════════════════════════════════════════════════════════════════════════════
+
+   Strips all crystalline visual effects and navigation elements, switches to
+   white background with black text, and simplifies card borders. */
+
+@media print {
+  /* Remove crystal backgrounds and navigation */
+  body::before,
+  body::after,
+  .nav-desktop,
+  .nav-mobile {
+    display: none !important;
+  }
+
+  /* White background, black text for readability on paper */
+  body {
+    background: white;
+    color: black;
+  }
+
+  /* Simplified card borders — no shadows or glows */
+  .card,
+  .crystal-card {
+    border: 1px solid #ccc;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  /* Remove all pseudo-element decorations */
+  .card::before,
+  .card::after,
+  .crystal-card::before,
+  .crystal-card::after {
+    display: none;
+  }
+
+  /* Ensure monetary amounts are readable in black */
+  .amount-positive,
+  .amount-negative,
+  .amount-neutral {
+    color: black;
+  }
+
+  /* Remove gradient text effects for legibility */
+  .gradient-text,
+  h1 {
+    background: none;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: black;
+    background-clip: unset;
+    color: black;
+  }
+
+  /* Remove all animations */
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
