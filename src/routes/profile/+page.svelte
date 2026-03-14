@@ -1110,16 +1110,16 @@
   /* ================================================================= */
 
   :root {
-    --prof-void: #050510;
-    --prof-surface: rgba(18, 18, 38, 0.88);
-    --prof-surface-border: rgba(120, 90, 200, 0.12);
-    --prof-gem: #a78bfa;
-    --prof-gem-light: #c4b5fd;
-    --prof-gem-accent: #7c3aed;
-    --prof-gem-teal: #5eead4;
-    --prof-text: #e8e4f0;
-    --prof-text-muted: #9890a8;
-    --prof-text-dim: #6b6280;
+    --prof-void: #0a0806;
+    --prof-surface: rgba(18, 14, 10, 0.88);
+    --prof-surface-border: rgba(180, 140, 50, 0.12);
+    --prof-gem: #e8b94a;
+    --prof-gem-light: #f0d88a;
+    --prof-gem-accent: #b8862e;
+    --prof-gem-aqua: #2ec4a6;
+    --prof-text: #f0e8d0;
+    --prof-text-muted: #a09478;
+    --prof-text-dim: #706450;
     --prof-error: #fb7185;
     --prof-success: #34d399;
     --prof-radius: 16px;
@@ -1135,8 +1135,8 @@
     min-height: 100dvh;
     background: var(--prof-void);
     background-image:
-      radial-gradient(ellipse 70% 40% at 30% 0%, rgba(124, 58, 237, 0.07) 0%, transparent 60%),
-      radial-gradient(ellipse 50% 30% at 80% 100%, rgba(94, 234, 212, 0.04) 0%, transparent 50%);
+      radial-gradient(ellipse 70% 40% at 30% 0%, rgba(184, 134, 46, 0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 30% at 80% 100%, rgba(46, 196, 166, 0.04) 0%, transparent 50%);
     padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
     animation: profileEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
@@ -1156,23 +1156,29 @@
     content: '';
     position: fixed;
     inset: 0;
-    background-image:
-      radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.4), transparent),
-      radial-gradient(1px 1px at 60% 20%, rgba(167, 139, 250, 0.5), transparent),
-      radial-gradient(1px 1px at 80% 60%, rgba(255, 255, 255, 0.3), transparent),
-      radial-gradient(1px 1px at 40% 80%, rgba(94, 234, 212, 0.4), transparent),
-      radial-gradient(1px 1px at 10% 70%, rgba(255, 255, 255, 0.35), transparent);
+    background:
+      /* Prismatic light band — sweeps diagonally like light refracting through a gem */ linear-gradient(
+      135deg,
+      transparent 0%,
+      rgba(212, 160, 57, 0.04) 20%,
+      transparent 35%,
+      rgba(46, 196, 166, 0.03) 50%,
+      transparent 65%,
+      rgba(232, 93, 117, 0.03) 80%,
+      transparent 100%
+    );
+    background-size: 200% 200%;
     z-index: -1;
     pointer-events: none;
-    animation: profileSparkle 6s ease-in-out infinite alternate;
+    animation: profilePrismSweep 12s ease-in-out infinite alternate;
   }
 
-  @keyframes profileSparkle {
+  @keyframes profilePrismSweep {
     0% {
-      opacity: 0.7;
+      background-position: 0% 0%;
     }
     100% {
-      opacity: 1;
+      background-position: 100% 100%;
     }
   }
 
@@ -1189,10 +1195,10 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(5, 5, 16, 0.8);
+    background: rgba(10, 8, 6, 0.8);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid rgba(120, 90, 200, 0.06);
+    border-bottom: 1px solid rgba(180, 140, 50, 0.06);
   }
 
   .header-back {
@@ -1201,8 +1207,8 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    background: rgba(167, 139, 250, 0.08);
-    border: 1px solid rgba(167, 139, 250, 0.12);
+    background: rgba(232, 185, 74, 0.08);
+    border: 1px solid rgba(232, 185, 74, 0.12);
     border-radius: 10px;
     color: var(--prof-gem);
     cursor: pointer;
@@ -1210,7 +1216,7 @@
   }
 
   .header-back:hover {
-    background: rgba(167, 139, 250, 0.15);
+    background: rgba(232, 185, 74, 0.15);
   }
 
   .header-title {
@@ -1268,50 +1274,68 @@
     font-weight: 700;
     color: #fff;
     letter-spacing: 0.02em;
-    box-shadow: 0 0 28px rgba(124, 58, 237, 0.2);
+    box-shadow: 0 0 28px rgba(184, 134, 46, 0.2);
     margin-bottom: 12px;
   }
 
   .avatar-circle::before {
     content: '';
     position: absolute;
-    inset: -6px;
-    border-radius: 50%;
-    border: 1.5px solid var(--prof-gem, #a78bfa);
-    opacity: 0.4;
-    animation: avatarRingPulse 3s ease-in-out infinite;
+    inset: -10px;
+    background: linear-gradient(
+      135deg,
+      rgba(232, 185, 74, 0.5),
+      rgba(46, 196, 166, 0.35),
+      rgba(232, 93, 117, 0.3),
+      rgba(232, 185, 74, 0.5)
+    );
+    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+    opacity: 0.6;
+    animation: gemBezelGlow 4s ease-in-out infinite;
   }
 
-  @keyframes avatarRingPulse {
+  @keyframes gemBezelGlow {
     0%,
     100% {
-      transform: scale(1);
-      opacity: 0.3;
+      opacity: 0.4;
+      filter: brightness(1);
     }
     50% {
-      transform: scale(1.08);
-      opacity: 0.6;
+      opacity: 0.7;
+      filter: brightness(1.3);
     }
   }
 
   .avatar-circle::after {
     content: '';
     position: absolute;
-    inset: -12px;
+    inset: -4px;
     border-radius: 50%;
-    border: 1px dashed transparent;
-    border-top-color: var(--prof-gem-teal, #5eead4);
-    border-right-color: var(--prof-gem-teal, #5eead4);
-    opacity: 0.25;
-    animation: avatarOrbit 15s linear infinite;
+    background: linear-gradient(
+      135deg,
+      transparent 0%,
+      rgba(232, 185, 74, 0.5) 20%,
+      rgba(46, 196, 166, 0.4) 40%,
+      transparent 50%,
+      rgba(232, 93, 117, 0.4) 70%,
+      rgba(245, 158, 11, 0.3) 85%,
+      transparent 100%
+    );
+    background-size: 300% 300%;
+    mask: radial-gradient(circle, transparent 78%, black 80%);
+    -webkit-mask: radial-gradient(circle, transparent 78%, black 80%);
+    animation: gemShimmerSweep 5s ease-in-out infinite;
   }
 
-  @keyframes avatarOrbit {
-    from {
-      transform: rotate(0deg);
+  @keyframes gemShimmerSweep {
+    0% {
+      background-position: 100% 100%;
     }
-    to {
-      transform: rotate(360deg);
+    50% {
+      background-position: 0% 0%;
+    }
+    100% {
+      background-position: 100% 100%;
     }
   }
 
@@ -1327,7 +1351,7 @@
     );
     font-size: 1.125rem;
     font-weight: 600;
-    background: linear-gradient(135deg, var(--prof-text, #e8e4f0), var(--prof-gem-light, #c4b5fd));
+    background: linear-gradient(135deg, var(--prof-text, #f0e8d0), var(--prof-gem-light, #f0d88a));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -1390,9 +1414,9 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(167, 139, 250, 0.35),
+      rgba(232, 185, 74, 0.35),
       rgba(255, 255, 255, 0.2),
-      rgba(167, 139, 250, 0.35),
+      rgba(232, 185, 74, 0.35),
       transparent
     );
     border-radius: 1px;
@@ -1402,8 +1426,8 @@
     transform: translateY(-2px);
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.3),
-      0 0 30px rgba(124, 58, 237, 0.08);
-    border-color: rgba(120, 90, 200, 0.2);
+      0 0 30px rgba(184, 134, 46, 0.08);
+    border-color: rgba(180, 140, 50, 0.2);
   }
 
   .settings-card.compact {
@@ -1481,7 +1505,7 @@
     width: 100%;
     padding: 10px 12px;
     background: rgba(10, 10, 26, 0.6);
-    border: 1px solid rgba(120, 90, 200, 0.12);
+    border: 1px solid rgba(180, 140, 50, 0.12);
     border-radius: var(--prof-radius-sm);
     color: var(--prof-text);
     font-family: var(
@@ -1507,7 +1531,7 @@
 
   .field-input:focus {
     border-color: var(--prof-gem);
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+    box-shadow: 0 0 0 3px rgba(232, 185, 74, 0.1);
   }
 
   .field-input:disabled {
@@ -1599,7 +1623,7 @@
     font-weight: 500;
     color: var(--prof-text);
     background: rgba(10, 10, 26, 0.7);
-    border: 1.5px solid rgba(120, 90, 200, 0.15);
+    border: 1.5px solid rgba(180, 140, 50, 0.15);
     border-radius: 8px;
     outline: none;
     caret-color: var(--prof-gem);
@@ -1610,7 +1634,7 @@
 
   .pin-digit:focus {
     border-color: var(--prof-gem);
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.12);
+    box-shadow: 0 0 0 3px rgba(232, 185, 74, 0.12);
   }
 
   .pin-digit:disabled {
@@ -1652,8 +1676,8 @@
   .btn-action:hover:not(:disabled) {
     transform: translateY(-2px) scale(1.02);
     box-shadow:
-      0 8px 24px rgba(124, 58, 237, 0.25),
-      0 0 30px rgba(124, 58, 237, 0.12);
+      0 8px 24px rgba(184, 134, 46, 0.25),
+      0 0 30px rgba(184, 134, 46, 0.12);
   }
 
   .btn-action:active:not(:disabled) {
@@ -1807,8 +1831,8 @@
     position: relative;
     width: 44px;
     height: 24px;
-    background: rgba(120, 90, 200, 0.15);
-    border: 1px solid rgba(120, 90, 200, 0.2);
+    background: rgba(180, 140, 50, 0.15);
+    border: 1px solid rgba(180, 140, 50, 0.2);
     border-radius: 12px;
     cursor: pointer;
     transition:
@@ -1839,7 +1863,7 @@
 
   .toggle-switch.on .toggle-thumb {
     transform: translateX(20px);
-    box-shadow: 0 0 12px rgba(124, 58, 237, 0.4);
+    box-shadow: 0 0 12px rgba(184, 134, 46, 0.4);
   }
 
   /* ================================================================= */
@@ -1928,8 +1952,8 @@
   .device-badge {
     font-size: 0.625rem;
     font-weight: 600;
-    color: var(--prof-gem-teal);
-    background: rgba(94, 234, 212, 0.1);
+    color: var(--prof-gem-aqua);
+    background: rgba(46, 196, 166, 0.1);
     padding: 2px 7px;
     border-radius: 6px;
     text-transform: uppercase;
@@ -2015,7 +2039,7 @@
     display: inline-block;
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(167, 139, 250, 0.2);
+    border: 2px solid rgba(232, 185, 74, 0.2);
     border-top-color: var(--prof-gem);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
@@ -2036,8 +2060,8 @@
     bottom: calc(100px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(18, 18, 38, 0.95);
-    border: 1px solid rgba(120, 90, 200, 0.2);
+    background: rgba(18, 14, 10, 0.95);
+    border: 1px solid rgba(180, 140, 50, 0.2);
     color: var(--prof-text);
     font-family: var(
       --font-body,
@@ -2075,7 +2099,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 5, 16, 0.85);
+    background: rgba(10, 8, 6, 0.85);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -2126,9 +2150,9 @@
     height: 64px;
     margin: 0 auto 16px;
     border-radius: 50%;
-    background: rgba(167, 139, 250, 0.1);
+    background: rgba(232, 185, 74, 0.1);
     color: var(--prof-gem);
-    border: 1px solid rgba(167, 139, 250, 0.15);
+    border: 1px solid rgba(232, 185, 74, 0.15);
   }
 
   .modal-title {
@@ -2191,9 +2215,9 @@
 
   .btn-modal {
     padding: 10px 20px;
-    background: rgba(167, 139, 250, 0.1);
+    background: rgba(232, 185, 74, 0.1);
     color: var(--prof-gem-light);
-    border: 1px solid rgba(167, 139, 250, 0.2);
+    border: 1px solid rgba(232, 185, 74, 0.2);
     border-radius: var(--prof-radius-sm);
     font-family: var(
       --font-body,
@@ -2211,7 +2235,7 @@
   }
 
   .btn-modal:hover:not(:disabled) {
-    background: rgba(167, 139, 250, 0.18);
+    background: rgba(232, 185, 74, 0.18);
   }
 
   .btn-modal:disabled {
@@ -2381,9 +2405,11 @@
     }
     .avatar-circle::before {
       animation: none;
+      opacity: 0.5;
     }
     .avatar-circle::after {
       animation: none;
+      background-position: 50% 50%;
     }
   }
 </style>

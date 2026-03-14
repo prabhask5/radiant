@@ -174,7 +174,7 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(139, 92, 246, 0.3) 50%,
+      rgba(212, 160, 57, 0.3) 50%,
       transparent 100%
     );
   }

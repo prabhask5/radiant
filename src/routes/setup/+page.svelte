@@ -578,57 +578,112 @@
     background:
       radial-gradient(ellipse at 25% 15%, rgba(60, 20, 120, 0.5) 0%, transparent 50%),
       radial-gradient(ellipse at 75% 85%, rgba(80, 30, 100, 0.3) 0%, transparent 50%),
-      linear-gradient(180deg, #050510 0%, #0a0a1a 30%, #0d0d22 60%, #080816 100%);
-    color: var(--color-text, #f0eeff);
+      linear-gradient(180deg, #0a0806 0%, #0e0c08 30%, #141210 60%, #0c0a08 100%);
+    color: var(--color-text, #f5efe0);
     overflow: hidden;
   }
 
-  /* ═══ Crystal Lattice Background — gem sparkle points + prismatic clouds ═══ */
+  /* ═══ Crystal Lattice Background — angular facet refractions + prismatic clouds ═══ */
 
   .setup-page::before {
     content: '';
     position: fixed;
     inset: 0;
     background-image:
-      radial-gradient(1px 1px at 12% 18%, rgba(255, 255, 255, 0.6) 50%, transparent 100%),
-      radial-gradient(1px 1px at 28% 42%, rgba(255, 255, 255, 0.5) 50%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 48% 12%, rgba(139, 92, 246, 0.8) 50%, transparent 100%),
-      radial-gradient(1px 1px at 62% 68%, rgba(255, 255, 255, 0.5) 50%, transparent 100%),
-      radial-gradient(1px 1px at 88% 32%, rgba(255, 255, 255, 0.4) 50%, transparent 100%),
-      radial-gradient(1px 1px at 22% 72%, rgba(244, 114, 182, 0.5) 50%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 72% 22%, rgba(255, 255, 255, 0.5) 50%, transparent 100%),
-      radial-gradient(1px 1px at 38% 88%, rgba(139, 92, 246, 0.4) 50%, transparent 100%),
-      radial-gradient(2px 2px at 82% 78%, rgba(34, 211, 238, 0.4) 50%, transparent 100%),
-      radial-gradient(1px 1px at 55% 52%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
-    animation: gemTwinkle 4s ease-in-out infinite alternate;
+      /* Angular facet-edge refractions — sharp light lines at gem-cut angles */
+      linear-gradient(
+        127deg,
+        transparent 0%,
+        transparent 23.8%,
+        rgba(212, 160, 57, 0.16) 24%,
+        rgba(212, 160, 57, 0.16) 24.3%,
+        transparent 24.5%
+      ),
+      linear-gradient(
+        53deg,
+        transparent 0%,
+        transparent 67.5%,
+        rgba(232, 93, 117, 0.12) 67.8%,
+        rgba(232, 93, 117, 0.12) 68.1%,
+        transparent 68.3%
+      ),
+      linear-gradient(
+        172deg,
+        transparent 0%,
+        transparent 41.5%,
+        rgba(255, 255, 255, 0.14) 41.7%,
+        rgba(255, 255, 255, 0.14) 42%,
+        transparent 42.2%
+      ),
+      linear-gradient(
+        98deg,
+        transparent 0%,
+        transparent 80.5%,
+        rgba(16, 185, 129, 0.1) 80.7%,
+        rgba(16, 185, 129, 0.1) 81%,
+        transparent 81.2%
+      ),
+      linear-gradient(
+        145deg,
+        transparent 0%,
+        transparent 54.5%,
+        rgba(245, 158, 11, 0.09) 54.7%,
+        rgba(245, 158, 11, 0.09) 55%,
+        transparent 55.2%
+      ),
+      linear-gradient(
+        34deg,
+        transparent 0%,
+        transparent 36%,
+        rgba(46, 196, 166, 0.08) 36.2%,
+        rgba(46, 196, 166, 0.08) 36.5%,
+        transparent 36.7%
+      ),
+      /* Geometric lattice — crystal structure lines */
+      repeating-linear-gradient(
+          60deg,
+          transparent,
+          transparent 100px,
+          rgba(212, 160, 57, 0.02) 100px,
+          rgba(212, 160, 57, 0.02) 101px
+        ),
+      repeating-linear-gradient(
+        -60deg,
+        transparent,
+        transparent 100px,
+        rgba(232, 93, 117, 0.015) 100px,
+        rgba(232, 93, 117, 0.015) 101px
+      );
+    animation: gemFacetBreathe 8s ease-in-out infinite;
     pointer-events: none;
     z-index: 0;
   }
 
-  /* Prismatic nebula clouds — amethyst + rose quartz + aquamarine */
+  /* Prismatic gem clouds — amethyst + rose quartz + aquamarine */
   .setup-page::after {
     content: '';
     position: fixed;
     inset: 0;
     background:
-      radial-gradient(600px 600px at 20% 10%, rgba(139, 92, 246, 0.08) 0%, transparent 70%),
-      radial-gradient(500px 500px at 85% 90%, rgba(244, 114, 182, 0.06) 0%, transparent 70%),
-      radial-gradient(400px 400px at 50% 50%, rgba(34, 211, 238, 0.04) 0%, transparent 70%);
-    animation: nebulaDrift 20s ease-in-out infinite alternate;
+      radial-gradient(600px 600px at 20% 10%, rgba(212, 160, 57, 0.08) 0%, transparent 70%),
+      radial-gradient(500px 500px at 85% 90%, rgba(232, 93, 117, 0.06) 0%, transparent 70%),
+      radial-gradient(400px 400px at 50% 50%, rgba(46, 196, 166, 0.04) 0%, transparent 70%);
+    animation: prismCloudDrift 20s ease-in-out infinite alternate;
     pointer-events: none;
     z-index: 0;
   }
 
-  @keyframes gemTwinkle {
-    0% {
-      opacity: 0.6;
-    }
+  @keyframes gemFacetBreathe {
+    0%,
     100% {
+      opacity: 0.85;
+    }
+    50% {
       opacity: 1;
     }
   }
 
-  @keyframes nebulaDrift {
+  @keyframes prismCloudDrift {
     0% {
       transform: translate(0, 0) scale(1);
     }
@@ -662,8 +717,8 @@
     font-size: 1.75rem;
     font-weight: 700;
     margin: 0;
-    color: var(--color-text, #f0eeff);
-    background: linear-gradient(135deg, #f0eeff, #a78bfa, #f472b6, #f0eeff);
+    color: var(--color-text, #f5efe0);
+    background: linear-gradient(135deg, #f5efe0, #e8b94a, #e85d75, #f5efe0);
     background-size: 200% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -683,7 +738,7 @@
 
   .subtitle {
     font-size: 0.9375rem;
-    color: var(--color-text-muted, #7874a0);
+    color: var(--color-text-muted, #8a7e68);
     margin: 0;
     font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
@@ -707,8 +762,8 @@
     justify-content: center;
     font-size: 0.8125rem;
     font-weight: 700;
-    border: 2px solid rgba(139, 92, 246, 0.25);
-    color: var(--color-text-muted, #7874a0);
+    border: 2px solid rgba(212, 160, 57, 0.25);
+    color: var(--color-text-muted, #8a7e68);
     background: rgba(10, 10, 22, 0.8);
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     flex-shrink: 0;
@@ -716,10 +771,10 @@
   }
 
   .step-dot.active {
-    border-color: var(--color-primary, #8b5cf6);
-    color: var(--color-primary-light, #a78bfa);
-    background: rgba(139, 92, 246, 0.15);
-    box-shadow: 0 0 16px rgba(139, 92, 246, 0.35);
+    border-color: var(--color-primary, #d4a039);
+    color: var(--color-primary-light, #e8b94a);
+    background: rgba(212, 160, 57, 0.15);
+    box-shadow: 0 0 16px rgba(212, 160, 57, 0.35);
   }
 
   .step-dot.completed {
@@ -736,7 +791,7 @@
   .step-line {
     width: 44px;
     height: 2px;
-    background: rgba(139, 92, 246, 0.15);
+    background: rgba(212, 160, 57, 0.15);
     transition: background 0.3s ease;
     flex-shrink: 0;
   }
@@ -751,8 +806,8 @@
      ═══════════════════════════════════════════════════════════════════════════════════ */
 
   .step-card {
-    background: linear-gradient(165deg, rgba(12, 12, 28, 0.92) 0%, rgba(18, 18, 36, 0.88) 100%);
-    border: 1px solid rgba(139, 92, 246, 0.25);
+    background: linear-gradient(165deg, rgba(14, 12, 8, 0.92) 0%, rgba(18, 14, 10, 0.88) 100%);
+    border: 1px solid rgba(212, 160, 57, 0.25);
     border-radius: 16px;
     padding: 1.25rem 1.5rem 1.5rem;
     backdrop-filter: blur(24px);
@@ -775,9 +830,9 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(139, 92, 246, 0.5),
+      rgba(212, 160, 57, 0.5),
       rgba(255, 255, 255, 0.3),
-      rgba(244, 114, 182, 0.4),
+      rgba(232, 93, 117, 0.4),
       transparent
     );
   }
@@ -785,21 +840,21 @@
   .step-card h2 {
     font-size: 1.0625rem;
     font-weight: 700;
-    color: var(--color-text, #f0eeff);
+    color: var(--color-text, #f5efe0);
     margin: 0 0 1rem;
     font-family: var(--font-display, 'Cinzel', Georgia, serif);
   }
 
   .step-card p {
     font-size: 0.875rem;
-    color: var(--color-text-muted, #7874a0);
+    color: var(--color-text-muted, #8a7e68);
     margin: 0 0 1rem;
     line-height: 1.6;
     font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .step-card p strong {
-    color: var(--color-text, #f0eeff);
+    color: var(--color-text, #f5efe0);
     font-weight: 600;
   }
 
@@ -810,31 +865,31 @@
     flex-direction: column;
     gap: 0.625rem;
     font-size: 0.875rem;
-    color: var(--color-text-muted, #7874a0);
+    color: var(--color-text-muted, #8a7e68);
     line-height: 1.6;
     font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .step-card ol li::marker {
-    color: rgba(139, 92, 246, 0.6);
+    color: rgba(212, 160, 57, 0.6);
     font-weight: 600;
   }
 
   .step-card ol strong {
-    color: var(--color-text, #f0eeff);
+    color: var(--color-text, #f5efe0);
     font-weight: 600;
   }
 
   .step-card a {
-    color: var(--color-primary-light, #a78bfa);
+    color: var(--color-primary-light, #e8b94a);
     text-decoration: none;
-    border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+    border-bottom: 1px solid rgba(232, 185, 74, 0.3);
     transition: all 0.2s;
   }
 
   .step-card a:hover {
-    color: var(--color-primary, #8b5cf6);
-    border-bottom-color: rgba(139, 92, 246, 0.6);
+    color: var(--color-primary, #d4a039);
+    border-bottom-color: rgba(212, 160, 57, 0.6);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════
@@ -843,17 +898,17 @@
 
   .info-note {
     padding: 0.75rem 1rem;
-    background: rgba(139, 92, 246, 0.08);
-    border: 1px solid rgba(139, 92, 246, 0.2);
+    background: rgba(212, 160, 57, 0.08);
+    border: 1px solid rgba(212, 160, 57, 0.2);
     border-radius: 8px;
     font-size: 0.8125rem;
-    color: var(--color-text-muted, #7874a0);
+    color: var(--color-text-muted, #8a7e68);
     line-height: 1.5;
     font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
 
   .info-note strong {
-    color: var(--color-text, #f0eeff);
+    color: var(--color-text, #f5efe0);
     font-weight: 600;
   }
 
@@ -870,7 +925,7 @@
 
   .form-group label {
     font-weight: 700;
-    color: var(--color-text-muted, #7874a0);
+    color: var(--color-text-muted, #8a7e68);
     font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -881,9 +936,9 @@
     width: 100%;
     padding: 0.875rem 1rem;
     font-size: 0.9375rem;
-    color: var(--color-text, #f0eeff);
+    color: var(--color-text, #f5efe0);
     background: rgba(10, 10, 18, 0.6);
-    border: 1px solid rgba(139, 92, 246, 0.2);
+    border: 1px solid rgba(212, 160, 57, 0.2);
     border-radius: 10px;
     transition: all 0.3s;
     font-family: inherit;
@@ -892,8 +947,8 @@
 
   .form-group input:focus {
     outline: none;
-    border-color: rgba(139, 92, 246, 0.5);
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+    border-color: rgba(212, 160, 57, 0.5);
+    box-shadow: 0 0 20px rgba(212, 160, 57, 0.15);
   }
 
   .form-group input:disabled {
@@ -909,9 +964,9 @@
     width: 100%;
     padding: 0.875rem 1rem;
     font-size: 0.9375rem;
-    color: var(--color-text, #f0eeff);
+    color: var(--color-text, #f5efe0);
     background: rgba(10, 10, 18, 0.6);
-    border: 1px solid rgba(139, 92, 246, 0.2);
+    border: 1px solid rgba(212, 160, 57, 0.2);
     border-radius: 10px;
     transition: all 0.3s;
     font-family: inherit;
@@ -920,13 +975,13 @@
 
   .form-group select:focus {
     outline: none;
-    border-color: rgba(139, 92, 246, 0.5);
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+    border-color: rgba(212, 160, 57, 0.5);
+    box-shadow: 0 0 20px rgba(212, 160, 57, 0.15);
   }
 
   .hint {
     font-size: 0.75rem;
-    color: var(--color-text-muted, #7874a0);
+    color: var(--color-text-muted, #8a7e68);
     opacity: 0.7;
     font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
   }
@@ -951,49 +1006,49 @@
   }
 
   .btn-primary {
-    background: var(--gradient-primary, linear-gradient(135deg, #8b5cf6, #f472b6));
+    background: var(--gradient-primary, linear-gradient(135deg, #d4a039, #e85d75));
     color: white;
-    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
+    box-shadow: 0 4px 16px rgba(212, 160, 57, 0.25);
   }
 
   .btn-primary:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(139, 92, 246, 0.4);
+    box-shadow: 0 6px 24px rgba(212, 160, 57, 0.4);
   }
 
   .btn-secondary {
-    background: rgba(139, 92, 246, 0.15);
-    color: var(--color-primary-light, #a78bfa);
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    background: rgba(212, 160, 57, 0.15);
+    color: var(--color-primary-light, #e8b94a);
+    border: 1px solid rgba(212, 160, 57, 0.3);
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background: rgba(139, 92, 246, 0.25);
-    border-color: rgba(139, 92, 246, 0.5);
+    background: rgba(212, 160, 57, 0.25);
+    border-color: rgba(212, 160, 57, 0.5);
   }
 
   .btn-back {
     background: transparent;
-    color: var(--color-text-muted, #7874a0);
-    border: 1px solid rgba(139, 92, 246, 0.15);
+    color: var(--color-text-muted, #8a7e68);
+    border: 1px solid rgba(212, 160, 57, 0.15);
   }
 
   .btn-back:hover {
-    background: rgba(139, 92, 246, 0.08);
-    border-color: rgba(139, 92, 246, 0.3);
-    color: var(--color-text-secondary, #c4c0e0);
+    background: rgba(212, 160, 57, 0.08);
+    border-color: rgba(212, 160, 57, 0.3);
+    color: var(--color-text-secondary, #c8bfa8);
   }
 
   .btn-skip {
     background: transparent;
-    color: var(--color-text-muted, #7874a0);
-    border: 1px solid rgba(139, 92, 246, 0.15);
+    color: var(--color-text-muted, #8a7e68);
+    border: 1px solid rgba(212, 160, 57, 0.15);
   }
 
   .btn-skip:hover {
-    background: rgba(139, 92, 246, 0.08);
-    border-color: rgba(139, 92, 246, 0.3);
-    color: var(--color-text-secondary, #c4c0e0);
+    background: rgba(212, 160, 57, 0.08);
+    border-color: rgba(212, 160, 57, 0.3);
+    color: var(--color-text-secondary, #c8bfa8);
   }
 
   .btn:disabled {
@@ -1055,7 +1110,7 @@
     align-items: center;
     gap: 0.75rem;
     font-size: 0.875rem;
-    color: var(--color-text-muted, #7874a0);
+    color: var(--color-text-muted, #8a7e68);
     opacity: 0.5;
     transition: all 0.3s;
     font-family: var(--font-body, 'Raleway', system-ui, sans-serif);
@@ -1063,7 +1118,7 @@
 
   .deploy-stage.active {
     opacity: 1;
-    color: var(--color-primary-light, #a78bfa);
+    color: var(--color-primary-light, #e8b94a);
   }
 
   .deploy-stage.done {
@@ -1203,7 +1258,7 @@
     h1 {
       animation: none;
       background: none;
-      -webkit-text-fill-color: var(--color-text, #f0eeff);
+      -webkit-text-fill-color: var(--color-text, #f5efe0);
     }
 
     .btn {

@@ -39,7 +39,7 @@
  * Expenses are ruby fragments — small, precise, and trackable.
  * The dashboard is your jeweler's loupe — a lens into your wealth.
  *
- * The amethyst purple represents potential and the clarity of planning.
+ * The citrine gold represents abundance and the warmth of prosperity.
  * The emerald green marks financial health and positive cash flow.
  *
  * ════════════════════════════════════════════════════════════════════════════════
@@ -65,33 +65,33 @@
      THE TREASURY — Gem Color Palette
      ═══════════════════════════════════════════════════════════════════════════════ */
 
-  /* Obsidian — The deepest gem black
-     Ranges from near-black (#060612) to a subtle elevated dark (#22223e) */
-  --color-obsidian: #060612;
-  --color-bg: #0a0a16;
-  --color-bg-secondary: #0f0f20;
-  --color-bg-tertiary: #1a1a30;
-  --color-bg-elevated: #22223e;
+  /* Obsidian — The deepest gem black, warm-toned
+     Ranges from warm near-black (#0a0806) to a subtle warm elevated (#2a2520) */
+  --color-obsidian: #0a0806;
+  --color-bg: #0e0c08;
+  --color-bg-secondary: #161310;
+  --color-bg-tertiary: #201c16;
+  --color-bg-elevated: #2a2520;
 
-  /* Crystalline Light — Text that gleams
+  /* Crystalline Light — Text that gleams with warm cream tones
      Three luminance levels for content hierarchy */
-  --color-text: #f0eeff;
-  --color-text-secondary: #c4c0e0;
-  --color-text-muted: #7874a0;
+  --color-text: #f5efe0;
+  --color-text-secondary: #c8bfa8;
+  --color-text-muted: #8a7e68;
 
-  /* The Amethyst — Primary Purple (the signature gem of Radiant)
+  /* The Citrine — Primary Gold (the signature gem of Radiant)
      Full tonal range: dark -> base -> light -> hover, plus glow + subtle overlay */
-  --color-primary: #8b5cf6;
-  --color-primary-light: #a78bfa;
-  --color-primary-dark: #7c3aed;
-  --color-primary-hover: #9d7af8;
-  --color-primary-glow: rgba(139, 92, 246, 0.6);
-  --color-primary-subtle: rgba(139, 92, 246, 0.15);
+  --color-primary: #d4a039;
+  --color-primary-light: #e8b94a;
+  --color-primary-dark: #b8862e;
+  --color-primary-hover: #dbb044;
+  --color-primary-glow: rgba(212, 160, 57, 0.6);
+  --color-primary-subtle: rgba(212, 160, 57, 0.15);
 
   /* Borders — Facet edges
      Two opacity levels for default and emphasized borders */
-  --color-border: rgba(139, 92, 246, 0.2);
-  --color-border-strong: rgba(139, 92, 246, 0.45);
+  --color-border: rgba(212, 160, 57, 0.15);
+  --color-border-strong: rgba(212, 160, 57, 0.35);
 
   /* Precious Stone Spectrum — Budget progress colors
      Used for progress bars, budget meters, and financial status indicators.
@@ -116,13 +116,13 @@
   --color-success-glow: rgba(16, 185, 129, 0.6);
   --color-success-subtle: rgba(16, 185, 129, 0.15);
 
-  /* Rose Quartz Accent — Warm pink for highlights, badges, and decorations */
-  --color-accent: #f472b6;
-  --color-accent-glow: rgba(244, 114, 182, 0.4);
+  /* Ruby Accent — Deep rose for highlights, badges, and decorations */
+  --color-accent: #e85d75;
+  --color-accent-glow: rgba(232, 93, 117, 0.4);
 
   /* Aquamarine — For special highlights and celebration effects */
-  --color-cyan: #22d3ee;
-  --color-cyan-glow: rgba(34, 211, 238, 0.4);
+  --color-cyan: #2ec4a6;
+  --color-cyan-glow: rgba(46, 196, 166, 0.4);
 
   /* Named Gemstone Colors — Semantic finance palette */
   --color-gold: #f59e0b;
@@ -166,7 +166,7 @@
 
   /* Gem Glows — colored light emission for interactive elements */
   --glow-primary: 0 0 30px var(--color-primary-glow);
-  --glow-primary-strong: 0 0 50px var(--color-primary-glow), 0 0 100px rgba(139, 92, 246, 0.3);
+  --glow-primary-strong: 0 0 50px var(--color-primary-glow), 0 0 100px rgba(212, 160, 57, 0.3);
   --glow-success: 0 0 30px var(--color-success-glow);
   --glow-success-strong: 0 0 50px var(--color-success-glow), 0 0 100px rgba(16, 185, 129, 0.3);
   --glow-gold: 0 0 30px var(--color-gold-glow);
@@ -179,11 +179,11 @@
   --gradient-success: linear-gradient(135deg, var(--color-success) 0%, #14b8a6 100%);
   --gradient-crystal: linear-gradient(
     135deg,
-    rgba(139, 92, 246, 0.2) 0%,
-    rgba(244, 114, 182, 0.15) 25%,
-    rgba(34, 211, 238, 0.1) 50%,
+    rgba(212, 160, 57, 0.2) 0%,
+    rgba(232, 93, 117, 0.15) 25%,
+    rgba(46, 196, 166, 0.1) 50%,
     rgba(16, 185, 129, 0.1) 75%,
-    rgba(245, 158, 11, 0.1) 100%
+    rgba(184, 134, 46, 0.1) 100%
   );
   --gradient-dark: linear-gradient(180deg, var(--color-bg-secondary) 0%, var(--color-bg) 100%);
   --gradient-gold: linear-gradient(135deg, var(--color-gold) 0%, #d97706 100%);
@@ -244,13 +244,13 @@
      Semi-transparent backgrounds with backdrop blur for nav bars, toasts,
      and overlays that float above the crystal lattice background. */
 
-  --color-glass: rgba(6, 6, 18, 0.75);
-  --color-glass-border: rgba(139, 92, 246, 0.12);
-  --color-glass-hover: rgba(6, 6, 18, 0.85);
+  --color-glass: rgba(10, 8, 6, 0.75);
+  --color-glass-border: rgba(212, 160, 57, 0.1);
+  --color-glass-hover: rgba(10, 8, 6, 0.85);
 
-  /* Error State — Rose quartz for destructive actions and error messaging */
-  --color-error: #f472b6;
-  --color-error-glow: rgba(244, 114, 182, 0.4);
+  /* Error State — Ruby for destructive actions and error messaging */
+  --color-error: #e85d75;
+  --color-error-glow: rgba(232, 93, 117, 0.4);
 
   /* ═══════════════════════════════════════════════════════════════════════════════
      LAYOUT DIMENSIONS — App Shell Spacing
@@ -319,9 +319,9 @@ body {
    ═══════════════════════════════════════════════════════════════════════════════════
 
    A fixed pseudo-element behind all content that renders a crystal lattice
-   using stacked radial and linear gradients. Includes:
-     - 10 individual "sparkle" dots at various positions — like light
-       catching facet edges of scattered gems
+   using stacked linear and radial gradients. Includes:
+     - 7 angular facet-refraction lines at gem-cut angles — sharp thin
+       bands of prismatic color like looking into a cut diamond
      - 3 large prismatic cloud gradients (amethyst, rose quartz, emerald)
      - Subtle geometric repeating pattern that evokes crystal structure
      - Slow facet-twinkle animation (8s cycle) for a gentle breathing effect
@@ -340,35 +340,82 @@ body::before {
   height: calc(100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
   margin-top: calc(-1 * env(safe-area-inset-top, 0px)); /* Pull up behind the notch */
   background:
-    /* Crystal sparkle points — tiny bright dots like light hitting gem facets */
-    radial-gradient(1px 1px at 15% 25%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
-    radial-gradient(1px 1px at 35% 65%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 45% 15%, rgba(139, 92, 246, 0.9) 0%, transparent 100%),
-    radial-gradient(1px 1px at 55% 75%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 65% 35%, rgba(244, 114, 182, 0.8) 0%, transparent 100%),
-    radial-gradient(1px 1px at 75% 55%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 85% 45%, rgba(16, 185, 129, 0.7) 0%, transparent 100%),
-    radial-gradient(1px 1px at 25% 85%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 92% 18%, rgba(245, 158, 11, 0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 8% 55%, rgba(34, 211, 238, 0.5) 0%, transparent 100%),
+    /* Facet-edge refractions — sharp angular light lines like looking into a cut diamond.
+       Each line is a thin band of prismatic color at a gem-cut angle. */
+    linear-gradient(
+      127deg,
+      transparent 0%,
+      transparent 23.8%,
+      rgba(212, 160, 57, 0.14) 24%,
+      rgba(212, 160, 57, 0.14) 24.3%,
+      transparent 24.5%
+    ),
+    linear-gradient(
+      53deg,
+      transparent 0%,
+      transparent 67.5%,
+      rgba(232, 93, 117, 0.1) 67.8%,
+      rgba(232, 93, 117, 0.1) 68.1%,
+      transparent 68.3%
+    ),
+    linear-gradient(
+      172deg,
+      transparent 0%,
+      transparent 41.5%,
+      rgba(255, 255, 255, 0.12) 41.7%,
+      rgba(255, 255, 255, 0.12) 42%,
+      transparent 42.2%
+    ),
+    linear-gradient(
+      98deg,
+      transparent 0%,
+      transparent 80.5%,
+      rgba(16, 185, 129, 0.09) 80.7%,
+      rgba(16, 185, 129, 0.09) 81%,
+      transparent 81.2%
+    ),
+    linear-gradient(
+      145deg,
+      transparent 0%,
+      transparent 54.5%,
+      rgba(245, 158, 11, 0.08) 54.7%,
+      rgba(245, 158, 11, 0.08) 55%,
+      transparent 55.2%
+    ),
+    linear-gradient(
+      34deg,
+      transparent 0%,
+      transparent 36%,
+      rgba(46, 196, 166, 0.07) 36.2%,
+      rgba(46, 196, 166, 0.07) 36.5%,
+      transparent 36.7%
+    ),
+    linear-gradient(
+      160deg,
+      transparent 0%,
+      transparent 88%,
+      rgba(212, 160, 57, 0.06) 88.2%,
+      rgba(212, 160, 57, 0.06) 88.5%,
+      transparent 88.7%
+    ),
     /* Prismatic light refractions — large soft ellipses like light through crystal */
-    radial-gradient(ellipse 80% 60% at 70% 100%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(244, 114, 182, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 70% 100%, rgba(212, 160, 57, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(232, 93, 117, 0.06) 0%, transparent 50%),
     radial-gradient(ellipse 50% 50% at 90% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
     /* Subtle geometric lattice — faint diagonal lines evoking crystal structure */
     repeating-linear-gradient(
         60deg,
         transparent,
         transparent 120px,
-        rgba(139, 92, 246, 0.015) 120px,
-        rgba(139, 92, 246, 0.015) 121px
+        rgba(212, 160, 57, 0.015) 120px,
+        rgba(212, 160, 57, 0.015) 121px
       ),
     repeating-linear-gradient(
       -60deg,
       transparent,
       transparent 120px,
-      rgba(244, 114, 182, 0.01) 120px,
-      rgba(244, 114, 182, 0.01) 121px
+      rgba(232, 93, 117, 0.01) 120px,
+      rgba(232, 93, 117, 0.01) 121px
     );
   pointer-events: none; /* Click-through so content below remains interactive */
   z-index: 0;
@@ -408,13 +455,13 @@ body::after {
   background: conic-gradient(
     from 0deg at 50% 50%,
     transparent 0deg,
-    rgba(139, 92, 246, 0.03) 45deg,
+    rgba(212, 160, 57, 0.03) 45deg,
     /* Amethyst facet */ transparent 90deg,
     rgba(245, 158, 11, 0.02) 135deg,
     /* Gold facet */ transparent 180deg,
     rgba(16, 185, 129, 0.025) 225deg,
     /* Emerald facet */ transparent 270deg,
-    rgba(244, 114, 182, 0.02) 315deg,
+    rgba(232, 93, 117, 0.02) 315deg,
     /* Rose quartz facet */ transparent 360deg
   );
   border-radius: 50%;
@@ -456,7 +503,7 @@ body::after {
 
 /* Scrollbar thumb — subtle amethyst gradient with 2px inset border */
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--color-primary-subtle) 0%, rgba(139, 92, 246, 0.3) 100%);
+  background: linear-gradient(180deg, var(--color-primary-subtle) 0%, rgba(212, 160, 57, 0.3) 100%);
   border-radius: var(--radius-full);
   border: 2px solid var(--color-bg); /* Creates the inset "floating" look */
   transition: background 0.3s;
@@ -567,7 +614,7 @@ select:focus {
   background: rgba(34, 34, 62, 0.9);
   box-shadow:
     var(--glow-primary),
-    inset 0 0 20px rgba(139, 92, 246, 0.1); /* Inner gem-fire glow */
+    inset 0 0 20px rgba(212, 160, 57, 0.1); /* Inner gem-fire glow */
   transform: translateY(-1px); /* Micro-lift for "focused" feel */
 }
 
@@ -677,7 +724,7 @@ button {
   border-color: var(--color-border-strong);
   box-shadow:
     var(--shadow-md),
-    0 0 20px rgba(139, 92, 246, 0.2);
+    0 0 20px rgba(212, 160, 57, 0.2);
   transform: translateY(-1px);
 }
 
@@ -716,7 +763,7 @@ button {
 
 .btn-ghost:hover {
   color: var(--color-text);
-  background: rgba(139, 92, 246, 0.1);
+  background: rgba(212, 160, 57, 0.1);
 }
 
 /* --- Gold Button — for income/wealth-related actions --- */
@@ -774,9 +821,9 @@ button {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(139, 92, 246, 0.5),
+    rgba(212, 160, 57, 0.5),
     rgba(255, 255, 255, 0.3),
-    rgba(139, 92, 246, 0.5),
+    rgba(212, 160, 57, 0.5),
     transparent
   );
   border-radius: var(--radius-full);
@@ -793,7 +840,7 @@ button {
   padding: 1px;
   background: linear-gradient(
     135deg,
-    rgba(139, 92, 246, 0.3) 0%,
+    rgba(212, 160, 57, 0.3) 0%,
     transparent 30%,
     transparent 70%,
     rgba(16, 185, 129, 0.2) 100%
@@ -815,8 +862,8 @@ button {
   border-color: var(--color-border-strong);
   box-shadow:
     var(--shadow-xl),
-    0 0 60px rgba(139, 92, 246, 0.15),
-    0 0 100px rgba(139, 92, 246, 0.05);
+    0 0 60px rgba(212, 160, 57, 0.15),
+    0 0 100px rgba(212, 160, 57, 0.05);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════════
@@ -934,7 +981,7 @@ button {
   100% {
     box-shadow:
       0 0 15px var(--color-primary-glow),
-      inset 0 0 10px rgba(139, 92, 246, 0.1);
+      inset 0 0 10px rgba(212, 160, 57, 0.1);
     filter: brightness(1);
   }
   33% {
@@ -946,7 +993,7 @@ button {
   66% {
     box-shadow:
       0 0 25px var(--color-accent-glow),
-      inset 0 0 12px rgba(244, 114, 182, 0.12);
+      inset 0 0 12px rgba(232, 93, 117, 0.12);
     filter: brightness(1.05);
   }
 }
@@ -1286,11 +1333,11 @@ button {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(139, 92, 246, 0.4),
-    rgba(244, 114, 182, 0.3),
-    rgba(34, 211, 238, 0.3),
+    rgba(212, 160, 57, 0.4),
+    rgba(232, 93, 117, 0.3),
+    rgba(46, 196, 166, 0.3),
     rgba(16, 185, 129, 0.4),
-    rgba(139, 92, 246, 0.4),
+    rgba(212, 160, 57, 0.4),
     transparent
   );
   border-radius: var(--radius-full);
@@ -1305,10 +1352,10 @@ button {
   padding: 1px;
   background: linear-gradient(
     135deg,
-    rgba(139, 92, 246, 0.3) 0%,
-    rgba(244, 114, 182, 0.15) 25%,
+    rgba(212, 160, 57, 0.3) 0%,
+    rgba(232, 93, 117, 0.15) 25%,
     transparent 50%,
-    rgba(34, 211, 238, 0.15) 75%,
+    rgba(46, 196, 166, 0.15) 75%,
     rgba(16, 185, 129, 0.2) 100%
   );
   -webkit-mask:
@@ -1327,8 +1374,8 @@ button {
   border-color: var(--color-border-strong);
   box-shadow:
     var(--shadow-xl),
-    0 0 60px rgba(139, 92, 246, 0.15),
-    0 0 30px rgba(244, 114, 182, 0.08);
+    0 0 60px rgba(212, 160, 57, 0.15),
+    0 0 30px rgba(232, 93, 117, 0.08);
 }
 
 /* Gem-cut loading spinner — morphing shape that rotates */
@@ -1766,7 +1813,7 @@ textarea {
 
 @keyframes itemChangeHighlight {
   0% {
-    background-color: rgba(139, 92, 246, 0.08);
+    background-color: rgba(212, 160, 57, 0.08);
   }
   100% {
     background-color: transparent;
@@ -1784,13 +1831,13 @@ textarea {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(139, 92, 246, 0.1) 10%,
-    rgba(139, 92, 246, 0.25) 20%,
-    rgba(244, 114, 182, 0.3) 35%,
-    rgba(34, 211, 238, 0.3) 50%,
-    rgba(244, 114, 182, 0.25) 65%,
+    rgba(212, 160, 57, 0.1) 10%,
+    rgba(212, 160, 57, 0.25) 20%,
+    rgba(232, 93, 117, 0.3) 35%,
+    rgba(46, 196, 166, 0.3) 50%,
+    rgba(232, 93, 117, 0.25) 65%,
     rgba(255, 255, 255, 0.2) 78%,
-    rgba(139, 92, 246, 0.1) 90%,
+    rgba(212, 160, 57, 0.1) 90%,
     transparent 100%
   );
   pointer-events: none;
@@ -1811,7 +1858,7 @@ textarea {
     transparent 0%,
     rgba(16, 185, 129, 0.1) 10%,
     rgba(16, 185, 129, 0.3) 25%,
-    rgba(34, 211, 238, 0.35) 45%,
+    rgba(46, 196, 166, 0.35) 45%,
     rgba(16, 185, 129, 0.3) 60%,
     rgba(255, 255, 255, 0.25) 78%,
     rgba(16, 185, 129, 0.1) 90%,
@@ -1889,12 +1936,12 @@ textarea {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(139, 92, 246, 0.1) 10%,
-    rgba(139, 92, 246, 0.25) 25%,
-    rgba(244, 114, 182, 0.3) 40%,
-    rgba(34, 211, 238, 0.3) 55%,
+    rgba(212, 160, 57, 0.1) 10%,
+    rgba(212, 160, 57, 0.25) 25%,
+    rgba(232, 93, 117, 0.3) 40%,
+    rgba(46, 196, 166, 0.3) 55%,
     rgba(255, 255, 255, 0.2) 75%,
-    rgba(139, 92, 246, 0.1) 90%,
+    rgba(212, 160, 57, 0.1) 90%,
     transparent 100%
   );
   pointer-events: none;
@@ -1982,10 +2029,10 @@ textarea {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(139, 92, 246, 0.15) 15%,
-    rgba(34, 211, 238, 0.3) 35%,
-    rgba(244, 114, 182, 0.35) 50%,
-    rgba(34, 211, 238, 0.3) 65%,
+    rgba(212, 160, 57, 0.15) 15%,
+    rgba(46, 196, 166, 0.3) 35%,
+    rgba(232, 93, 117, 0.35) 50%,
+    rgba(46, 196, 166, 0.3) 65%,
     rgba(255, 255, 255, 0.3) 80%,
     transparent 100%
   );
@@ -2003,8 +2050,8 @@ textarea {
   border-radius: inherit;
   background: radial-gradient(
     circle at center,
-    rgba(139, 92, 246, 0.5),
-    rgba(244, 114, 182, 0.3) 40%,
+    rgba(212, 160, 57, 0.5),
+    rgba(232, 93, 117, 0.3) 40%,
     transparent 70%
   );
   opacity: 0;
@@ -2198,7 +2245,7 @@ textarea {
 
 /* Drop target highlight — amethyst tint + border + downward shift */
 .item-drag-over {
-  background-color: rgba(139, 92, 246, 0.15);
+  background-color: rgba(212, 160, 57, 0.15);
   border-color: var(--color-primary) !important;
   transform: translateY(4px);
   transition: all 0.2s var(--ease-spring);
@@ -2235,10 +2282,10 @@ textarea {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(139, 92, 246, 0.1) 15%,
-    rgba(139, 92, 246, 0.25) 30%,
-    rgba(34, 211, 238, 0.3) 50%,
-    rgba(139, 92, 246, 0.25) 70%,
+    rgba(212, 160, 57, 0.1) 15%,
+    rgba(212, 160, 57, 0.25) 30%,
+    rgba(46, 196, 166, 0.3) 50%,
+    rgba(212, 160, 57, 0.25) 70%,
     rgba(255, 255, 255, 0.15) 85%,
     transparent 100%
   );
@@ -2267,7 +2314,7 @@ textarea {
     box-shadow: none;
   }
   100% {
-    background-color: rgba(139, 92, 246, 0.1);
+    background-color: rgba(212, 160, 57, 0.1);
     box-shadow: 0 0 0 2px var(--color-primary-glow);
   }
 }
@@ -2304,10 +2351,10 @@ textarea {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(139, 92, 246, 0.15) 15%,
-    rgba(139, 92, 246, 0.3) 30%,
-    rgba(244, 114, 182, 0.35) 50%,
-    rgba(139, 92, 246, 0.25) 70%,
+    rgba(212, 160, 57, 0.15) 15%,
+    rgba(212, 160, 57, 0.3) 30%,
+    rgba(232, 93, 117, 0.35) 50%,
+    rgba(212, 160, 57, 0.25) 70%,
     rgba(255, 255, 255, 0.2) 85%,
     transparent 100%
   );
@@ -2356,7 +2403,7 @@ textarea {
     transparent 0%,
     rgba(16, 185, 129, 0.15) 15%,
     rgba(16, 185, 129, 0.3) 30%,
-    rgba(34, 211, 238, 0.35) 50%,
+    rgba(46, 196, 166, 0.35) 50%,
     rgba(16, 185, 129, 0.25) 70%,
     rgba(255, 255, 255, 0.2) 85%,
     transparent 100%
@@ -2576,7 +2623,7 @@ textarea {
   backdrop-filter: blur(16px);
   box-shadow:
     var(--shadow-lg),
-    0 0 20px rgba(139, 92, 246, 0.15); /* Subtle amethyst ambient glow */
+    0 0 20px rgba(212, 160, 57, 0.15); /* Subtle amethyst ambient glow */
   pointer-events: none; /* Click-through — purely visual */
   opacity: 0;
   transform: translateY(4px); /* Starts slightly below final position */

@@ -597,11 +597,11 @@
           <defs>
             <linearGradient id="crystGrad1" x1="34" y1="12" x2="62" y2="60">
               <stop offset="0%" stop-color="#67e8f9" />
-              <stop offset="100%" stop-color="#22d3ee" />
+              <stop offset="100%" stop-color="#2ec4a6" />
             </linearGradient>
             <linearGradient id="crystGrad2" x1="18" y1="28" x2="78" y2="68">
-              <stop offset="0%" stop-color="#a78bfa" />
-              <stop offset="100%" stop-color="#818cf8" />
+              <stop offset="0%" stop-color="#e8b94a" />
+              <stop offset="100%" stop-color="#b8862e" />
             </linearGradient>
           </defs>
         </svg>
@@ -886,29 +886,29 @@
 <style>
   /* ── Design Tokens ──────────────────────────────────────────────────────── */
   .accounts-page {
-    --cyan: #22d3ee;
+    --cyan: #2ec4a6;
     --cyan-dim: #083344;
-    --cyan-glow: rgba(34, 211, 238, 0.3);
-    --amethyst: #a78bfa;
+    --cyan-glow: rgba(46, 196, 166, 0.3);
+    --amethyst: #e8b94a;
     --amethyst-dim: #2e1065;
-    --amethyst-glow: rgba(167, 139, 250, 0.3);
+    --amethyst-glow: rgba(232, 185, 74, 0.3);
     --emerald: #34d399;
     --emerald-glow: rgba(52, 211, 153, 0.3);
     --ruby: #f87171;
     --ruby-glow: rgba(248, 113, 113, 0.3);
     --gold: #fbbf24;
 
-    --surface-base: #0c0f14;
-    --surface-card: #13171f;
-    --surface-raised: #1a1f2b;
-    --surface-overlay: #222938;
+    --surface-base: #0c0a06;
+    --surface-card: #14100a;
+    --surface-raised: #1a1610;
+    --surface-overlay: #221e16;
 
-    --text-primary: #e8ecf4;
-    --text-secondary: #8896b0;
-    --text-muted: #4f5d78;
+    --text-primary: #f0e8d0;
+    --text-secondary: #a09478;
+    --text-muted: #706450;
 
-    --border-subtle: rgba(136, 150, 176, 0.1);
-    --border-interactive: rgba(136, 150, 176, 0.2);
+    --border-subtle: rgba(180, 150, 80, 0.1);
+    --border-interactive: rgba(180, 150, 80, 0.2);
 
     position: relative;
     min-height: 100dvh;
@@ -935,8 +935,8 @@
     pointer-events: none;
     z-index: 0;
     background:
-      radial-gradient(ellipse at 20% 30%, rgba(34, 211, 238, 0.04) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 60%, rgba(167, 139, 250, 0.03) 0%, transparent 50%);
+      radial-gradient(ellipse at 20% 30%, rgba(46, 196, 166, 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 60%, rgba(232, 185, 74, 0.03) 0%, transparent 50%);
   }
 
   .lattice-bg::before {
@@ -947,15 +947,15 @@
       linear-gradient(
         30deg,
         transparent 49.5%,
-        rgba(34, 211, 238, 0.012) 49.5%,
-        rgba(34, 211, 238, 0.012) 50.5%,
+        rgba(46, 196, 166, 0.012) 49.5%,
+        rgba(46, 196, 166, 0.012) 50.5%,
         transparent 50.5%
       ),
       linear-gradient(
         150deg,
         transparent 49.5%,
-        rgba(167, 139, 250, 0.008) 49.5%,
-        rgba(167, 139, 250, 0.008) 50.5%,
+        rgba(232, 185, 74, 0.008) 49.5%,
+        rgba(232, 185, 74, 0.008) 50.5%,
         transparent 50.5%
       );
     background-size: 100px 100px;
@@ -1000,8 +1000,8 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.55rem 1.15rem;
-    background: linear-gradient(135deg, var(--cyan-dim), rgba(34, 211, 238, 0.18));
-    border: 1px solid rgba(34, 211, 238, 0.3);
+    background: linear-gradient(135deg, var(--cyan-dim), rgba(46, 196, 166, 0.18));
+    border: 1px solid rgba(46, 196, 166, 0.3);
     border-radius: 10px;
     color: var(--cyan);
     font-family: var(
@@ -1021,8 +1021,8 @@
   }
 
   .connect-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(34, 211, 238, 0.12));
-    border-color: rgba(34, 211, 238, 0.5);
+    background: linear-gradient(135deg, rgba(46, 196, 166, 0.22), rgba(46, 196, 166, 0.12));
+    border-color: rgba(46, 196, 166, 0.5);
     box-shadow: 0 0 24px var(--cyan-glow);
     transform: translateY(-1px);
   }
@@ -1258,9 +1258,9 @@
     inset: 0;
     background: linear-gradient(
       135deg,
-      rgba(34, 211, 238, 0.03) 0%,
+      rgba(46, 196, 166, 0.03) 0%,
       transparent 40%,
-      rgba(167, 139, 250, 0.03) 100%
+      rgba(232, 185, 74, 0.03) 100%
     );
     pointer-events: none;
   }
@@ -1537,7 +1537,7 @@
     top: 20%;
     bottom: 20%;
     width: 2px;
-    background: linear-gradient(180deg, var(--cyan, #22d3ee), var(--acct-amethyst, #a78bfa));
+    background: linear-gradient(180deg, var(--cyan, #2ec4a6), var(--acct-amethyst, #e8b94a));
     border-radius: 2px;
     opacity: 0.4;
     transition:
@@ -1547,7 +1547,7 @@
 
   .account-card:hover::before {
     opacity: 0.8;
-    box-shadow: 0 0 8px rgba(34, 211, 238, 0.3);
+    box-shadow: 0 0 8px rgba(46, 196, 166, 0.3);
   }
 
   @keyframes acct-enter {
@@ -1565,7 +1565,7 @@
     transform: translateY(-2px);
     box-shadow:
       0 8px 24px rgba(0, 0, 0, 0.3),
-      0 0 20px rgba(34, 211, 238, 0.06);
+      0 0 20px rgba(46, 196, 166, 0.06);
   }
 
   .account-card.hidden-account {
@@ -1585,7 +1585,7 @@
   }
 
   .acct-icon-checking {
-    background: rgba(34, 211, 238, 0.08);
+    background: rgba(46, 196, 166, 0.08);
     color: var(--cyan);
   }
 
@@ -1595,7 +1595,7 @@
   }
 
   .acct-icon-credit {
-    background: rgba(167, 139, 250, 0.08);
+    background: rgba(232, 185, 74, 0.08);
     color: var(--amethyst);
   }
 
@@ -1655,12 +1655,12 @@
   }
 
   .type-depository {
-    background: rgba(34, 211, 238, 0.1);
+    background: rgba(46, 196, 166, 0.1);
     color: var(--cyan);
   }
 
   .type-credit {
-    background: rgba(167, 139, 250, 0.1);
+    background: rgba(232, 185, 74, 0.1);
     color: var(--amethyst);
   }
 

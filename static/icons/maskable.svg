@@ -1,38 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="gemGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a78bfa"/>
-      <stop offset="50%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#f472b6"/>
+      <stop offset="0%" stop-color="#e8b94a"/>
+      <stop offset="50%" stop-color="#d4a039"/>
+      <stop offset="100%" stop-color="#e85d75"/>
     </linearGradient>
     <linearGradient id="tableGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="100%" stop-color="#a78bfa"/>
+      <stop offset="0%" stop-color="#f0d88a"/>
+      <stop offset="100%" stop-color="#e8b94a"/>
     </linearGradient>
   </defs>
 
   <!-- Background - full bleed for maskable -->
-  <rect width="512" height="512" fill="#8b5cf6"/>
+  <rect width="512" height="512" fill="#d4a039"/>
 
   <!-- Gem scaled to fit within 80% safe zone (center 410x410, so ~51-461) -->
   <!-- Gem centered, smaller: spans roughly 160,160 to 352,352 -->
-  <polygon points="256,140 336,185 366,256 336,327 256,372 176,327 146,256 176,185" fill="url(#gemGrad)" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="256,140 336,185 366,256 336,327 256,372 176,327 146,256 176,185" fill="url(#gemGrad)" stroke="#b8862e" stroke-width="2"/>
 
   <!-- Crown facets -->
-  <polygon points="256,140 176,185 206,226 256,200" fill="#a78bfa" opacity="0.7"/>
-  <polygon points="256,140 336,185 306,226 256,200" fill="#9366f0" opacity="0.7"/>
-  <polygon points="336,185 366,256 326,242 306,226" fill="#8b5cf6" opacity="0.6"/>
-  <polygon points="366,256 336,327 326,270 326,242" fill="#7c3aed" opacity="0.6"/>
-  <polygon points="336,327 256,372 270,306 326,270" fill="#9f5cf6" opacity="0.5"/>
-  <polygon points="256,372 176,327 190,306 270,306" fill="#c474d0" opacity="0.5"/>
-  <polygon points="176,327 146,256 186,270 190,306" fill="#d466b8" opacity="0.5"/>
-  <polygon points="146,256 176,185 206,226 186,270" fill="#b47cf6" opacity="0.6"/>
+  <polygon points="256,140 176,185 206,226 256,200" fill="#e8b94a" opacity="0.7"/>
+  <polygon points="256,140 336,185 306,226 256,200" fill="#c89a35" opacity="0.7"/>
+  <polygon points="336,185 366,256 326,242 306,226" fill="#d4a039" opacity="0.6"/>
+  <polygon points="366,256 336,327 326,270 326,242" fill="#b8862e" opacity="0.6"/>
+  <polygon points="336,327 256,372 270,306 326,270" fill="#daa840" opacity="0.5"/>
+  <polygon points="256,372 176,327 190,306 270,306" fill="#e8a050" opacity="0.5"/>
+  <polygon points="176,327 146,256 186,270 190,306" fill="#e88850" opacity="0.5"/>
+  <polygon points="146,256 176,185 206,226 186,270" fill="#e8b94a" opacity="0.6"/>
 
   <!-- Table facet -->
   <polygon points="256,200 306,226 326,242 326,270 270,306 190,306 186,270 206,226" fill="url(#tableGrad)" opacity="0.8"/>
 
   <!-- Inner table -->
-  <polygon points="256,216 292,234 304,256 292,278 256,290 220,278 208,256 220,234" fill="#ddd6fe" opacity="0.5"/>
+  <polygon points="256,216 292,234 304,256 292,278 256,290 220,278 208,256 220,234" fill="#f5e6b8" opacity="0.5"/>
 
   <!-- Facet edge highlights -->
   <line x1="256" y1="140" x2="256" y2="200" stroke="white" stroke-width="1.5" opacity="0.4"/>

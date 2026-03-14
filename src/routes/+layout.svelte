@@ -333,7 +333,7 @@
             />
             <defs>
               <linearGradient id="signoutGemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="var(--color-primary, #8b5cf6)" />
+                <stop offset="0%" stop-color="var(--color-primary, #d4a039)" />
                 <stop offset="100%" stop-color="var(--color-success, #10b981)" />
               </linearGradient>
             </defs>
@@ -421,11 +421,11 @@
               />
               <defs>
                 <linearGradient id="islandGemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="var(--color-primary, #8b5cf6)" />
+                  <stop offset="0%" stop-color="var(--color-primary, #d4a039)" />
                   <stop offset="100%" stop-color="#e056a0" />
                 </linearGradient>
                 <linearGradient id="islandGemFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="rgba(139, 92, 246, 0.15)" />
+                  <stop offset="0%" stop-color="rgba(212, 160, 57, 0.15)" />
                   <stop offset="100%" stop-color="rgba(224, 86, 160, 0.05)" />
                 </linearGradient>
               </defs>
@@ -461,11 +461,11 @@
               />
               <defs>
                 <linearGradient id="brandGemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="var(--color-primary, #8b5cf6)" />
+                  <stop offset="0%" stop-color="var(--color-primary, #d4a039)" />
                   <stop offset="100%" stop-color="#e056a0" />
                 </linearGradient>
                 <linearGradient id="brandGemFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="rgba(139, 92, 246, 0.2)" />
+                  <stop offset="0%" stop-color="rgba(212, 160, 57, 0.2)" />
                   <stop offset="100%" stop-color="rgba(224, 86, 160, 0.05)" />
                 </linearGradient>
               </defs>
@@ -936,14 +936,14 @@
     font-size: 0.875rem;
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(139, 92, 246, 0.08);
+      inset 0 1px 0 rgba(212, 160, 57, 0.08);
   }
 
   .toast-error .toast-content {
-    border-color: rgba(244, 114, 182, 0.25);
+    border-color: rgba(232, 93, 117, 0.25);
     box-shadow:
-      0 8px 32px rgba(244, 114, 182, 0.15),
-      inset 0 1px 0 rgba(244, 114, 182, 0.08);
+      0 8px 32px rgba(232, 93, 117, 0.15),
+      inset 0 1px 0 rgba(232, 93, 117, 0.08);
   }
 
   .toast-content span {
@@ -1082,7 +1082,7 @@
   .brand-icon {
     display: flex;
     align-items: center;
-    filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.4));
+    filter: drop-shadow(0 0 6px rgba(212, 160, 57, 0.4));
   }
 
   .brand-text {
@@ -1127,12 +1127,12 @@
 
   .nav-link:hover {
     color: var(--color-text);
-    background: rgba(139, 92, 246, 0.08);
+    background: rgba(212, 160, 57, 0.08);
   }
 
   .nav-link.active {
     color: var(--color-primary-light);
-    background: rgba(139, 92, 246, 0.12);
+    background: rgba(212, 160, 57, 0.12);
   }
 
   .link-icon {
@@ -1144,7 +1144,7 @@
 
   .nav-link.active .link-icon {
     opacity: 1;
-    filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.5));
+    filter: drop-shadow(0 0 4px rgba(212, 160, 57, 0.5));
   }
 
   .link-text {
@@ -1163,8 +1163,8 @@
     border-radius: 2px;
     background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
     box-shadow:
-      0 0 8px rgba(139, 92, 246, 0.6),
-      0 0 16px rgba(139, 92, 246, 0.3);
+      0 0 8px rgba(212, 160, 57, 0.6),
+      0 0 16px rgba(212, 160, 57, 0.3);
     animation: gem-glow-pulse 2s ease-in-out infinite;
   }
 
@@ -1172,13 +1172,13 @@
     0%,
     100% {
       box-shadow:
-        0 0 8px rgba(139, 92, 246, 0.6),
-        0 0 16px rgba(139, 92, 246, 0.3);
+        0 0 8px rgba(212, 160, 57, 0.6),
+        0 0 16px rgba(212, 160, 57, 0.3);
     }
     50% {
       box-shadow:
-        0 0 12px rgba(139, 92, 246, 0.8),
-        0 0 24px rgba(139, 92, 246, 0.5);
+        0 0 12px rgba(212, 160, 57, 0.8),
+        0 0 24px rgba(212, 160, 57, 0.5);
     }
   }
 
@@ -1210,8 +1210,8 @@
 
   .logout-btn:hover {
     color: var(--color-error);
-    background: rgba(244, 114, 182, 0.08);
-    border-color: rgba(244, 114, 182, 0.25);
+    background: rgba(232, 93, 117, 0.08);
+    border-color: rgba(232, 93, 117, 0.25);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -1311,7 +1311,7 @@
   }
 
   .tab-item.active .tab-glow {
-    background: rgba(139, 92, 246, 0.12);
+    background: rgba(212, 160, 57, 0.12);
   }
 
   .tab-icon {
@@ -1325,7 +1325,7 @@
 
   .tab-item.active .tab-icon {
     transform: translateY(-1px);
-    filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.5));
+    filter: drop-shadow(0 0 4px rgba(212, 160, 57, 0.5));
   }
 
   .tab-label {
@@ -1349,8 +1349,8 @@
     border-radius: 50%;
     background: var(--color-primary-light);
     box-shadow:
-      0 0 6px rgba(139, 92, 246, 0.7),
-      0 0 12px rgba(139, 92, 246, 0.4);
+      0 0 6px rgba(212, 160, 57, 0.7),
+      0 0 12px rgba(212, 160, 57, 0.4);
     animation: gem-dot-pulse 2s ease-in-out infinite;
   }
 
@@ -1358,13 +1358,13 @@
     0%,
     100% {
       box-shadow:
-        0 0 6px rgba(139, 92, 246, 0.7),
-        0 0 12px rgba(139, 92, 246, 0.4);
+        0 0 6px rgba(212, 160, 57, 0.7),
+        0 0 12px rgba(212, 160, 57, 0.4);
     }
     50% {
       box-shadow:
-        0 0 10px rgba(139, 92, 246, 0.9),
-        0 0 20px rgba(139, 92, 246, 0.6);
+        0 0 10px rgba(212, 160, 57, 0.9),
+        0 0 20px rgba(212, 160, 57, 0.6);
     }
   }
 

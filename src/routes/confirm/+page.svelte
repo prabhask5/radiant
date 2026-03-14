@@ -317,13 +317,13 @@
   .btn-primary {
     background: var(--gradient-primary);
     color: #fff;
-    box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 2px 12px rgba(212, 160, 57, 0.3);
   }
 
   .btn-primary:hover {
     box-shadow:
-      0 4px 24px rgba(139, 92, 246, 0.5),
-      0 0 40px rgba(139, 92, 246, 0.2);
+      0 4px 24px rgba(212, 160, 57, 0.5),
+      0 0 40px rgba(212, 160, 57, 0.2);
   }
 
   @media (prefers-reduced-motion: reduce) {

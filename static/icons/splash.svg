@@ -1,20 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="gemGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a78bfa"/>
-      <stop offset="50%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#f472b6"/>
+      <stop offset="0%" stop-color="#e8b94a"/>
+      <stop offset="50%" stop-color="#d4a039"/>
+      <stop offset="100%" stop-color="#e85d75"/>
     </linearGradient>
     <linearGradient id="tableGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="100%" stop-color="#a78bfa"/>
+      <stop offset="0%" stop-color="#f0d88a"/>
+      <stop offset="100%" stop-color="#e8b94a"/>
     </linearGradient>
     <!-- Large outer radiance -->
     <radialGradient id="outerRadiance" cx="0.5" cy="0.4" r="0.5">
-      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.6"/>
-      <stop offset="30%" stop-color="#8b5cf6" stop-opacity="0.2"/>
-      <stop offset="60%" stop-color="#f472b6" stop-opacity="0.08"/>
-      <stop offset="100%" stop-color="#060612" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#d4a039" stop-opacity="0.6"/>
+      <stop offset="30%" stop-color="#d4a039" stop-opacity="0.2"/>
+      <stop offset="60%" stop-color="#e85d75" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#0a0806" stop-opacity="0"/>
     </radialGradient>
     <!-- Bright inner glow -->
     <radialGradient id="innerGlow" cx="0.5" cy="0.38" r="0.3">
@@ -23,13 +23,13 @@
     </radialGradient>
     <!-- Pink accent glow -->
     <radialGradient id="pinkAccent" cx="0.55" cy="0.45" r="0.25">
-      <stop offset="0%" stop-color="#f472b6" stop-opacity="0.3"/>
-      <stop offset="100%" stop-color="#f472b6" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#e85d75" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#e85d75" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
   <!-- Deep dark background -->
-  <rect width="512" height="512" fill="#060612"/>
+  <rect width="512" height="512" fill="#0a0806"/>
 
   <!-- Radiance layers -->
   <ellipse cx="256" cy="200" rx="250" ry="220" fill="url(#outerRadiance)"/>
@@ -37,33 +37,33 @@
   <ellipse cx="256" cy="195" rx="130" ry="120" fill="url(#innerGlow)"/>
 
   <!-- Light rays emanating from gem -->
-  <line x1="256" y1="80" x2="256" y2="40" stroke="#c4b5fd" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
-  <line x1="190" y1="110" x2="160" y2="72" stroke="#c4b5fd" stroke-width="1.5" opacity="0.3" stroke-linecap="round"/>
-  <line x1="322" y1="110" x2="352" y2="72" stroke="#c4b5fd" stroke-width="1.5" opacity="0.25" stroke-linecap="round"/>
-  <line x1="135" y1="170" x2="100" y2="148" stroke="#a78bfa" stroke-width="1.5" opacity="0.2" stroke-linecap="round"/>
-  <line x1="377" y1="170" x2="412" y2="148" stroke="#a78bfa" stroke-width="1.5" opacity="0.18" stroke-linecap="round"/>
-  <line x1="120" y1="230" x2="82" y2="225" stroke="#a78bfa" stroke-width="1" opacity="0.15" stroke-linecap="round"/>
-  <line x1="392" y1="230" x2="430" y2="225" stroke="#a78bfa" stroke-width="1" opacity="0.12" stroke-linecap="round"/>
+  <line x1="256" y1="80" x2="256" y2="40" stroke="#f0d88a" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
+  <line x1="190" y1="110" x2="160" y2="72" stroke="#f0d88a" stroke-width="1.5" opacity="0.3" stroke-linecap="round"/>
+  <line x1="322" y1="110" x2="352" y2="72" stroke="#f0d88a" stroke-width="1.5" opacity="0.25" stroke-linecap="round"/>
+  <line x1="135" y1="170" x2="100" y2="148" stroke="#e8b94a" stroke-width="1.5" opacity="0.2" stroke-linecap="round"/>
+  <line x1="377" y1="170" x2="412" y2="148" stroke="#e8b94a" stroke-width="1.5" opacity="0.18" stroke-linecap="round"/>
+  <line x1="120" y1="230" x2="82" y2="225" stroke="#e8b94a" stroke-width="1" opacity="0.15" stroke-linecap="round"/>
+  <line x1="392" y1="230" x2="430" y2="225" stroke="#e8b94a" stroke-width="1" opacity="0.12" stroke-linecap="round"/>
 
   <!-- Gem (slightly raised, centered above text) -->
   <!-- Center Y ~210, spans 100-320 vertically -->
-  <polygon points="256,90 346,143 382,230 346,317 256,360 166,317 130,230 166,143" fill="url(#gemGrad)" stroke="#a78bfa" stroke-width="1.5"/>
+  <polygon points="256,90 346,143 382,230 346,317 256,360 166,317 130,230 166,143" fill="url(#gemGrad)" stroke="#e8b94a" stroke-width="1.5"/>
 
   <!-- Crown facets -->
-  <polygon points="256,90 166,143 200,196 256,170" fill="#a78bfa" opacity="0.75"/>
-  <polygon points="256,90 346,143 312,196 256,170" fill="#9366f0" opacity="0.75"/>
-  <polygon points="346,143 382,230 330,214 312,196" fill="#8b5cf6" opacity="0.65"/>
-  <polygon points="382,230 346,317 330,248 330,214" fill="#7c3aed" opacity="0.65"/>
-  <polygon points="346,317 256,360 270,290 330,248" fill="#9f5cf6" opacity="0.55"/>
-  <polygon points="256,360 166,317 182,290 270,290" fill="#c474d0" opacity="0.55"/>
-  <polygon points="166,317 130,230 182,248 182,290" fill="#d466b8" opacity="0.55"/>
-  <polygon points="130,230 166,143 200,196 182,248" fill="#b47cf6" opacity="0.65"/>
+  <polygon points="256,90 166,143 200,196 256,170" fill="#e8b94a" opacity="0.75"/>
+  <polygon points="256,90 346,143 312,196 256,170" fill="#c89a35" opacity="0.75"/>
+  <polygon points="346,143 382,230 330,214 312,196" fill="#d4a039" opacity="0.65"/>
+  <polygon points="382,230 346,317 330,248 330,214" fill="#b8862e" opacity="0.65"/>
+  <polygon points="346,317 256,360 270,290 330,248" fill="#daa840" opacity="0.55"/>
+  <polygon points="256,360 166,317 182,290 270,290" fill="#e8a050" opacity="0.55"/>
+  <polygon points="166,317 130,230 182,248 182,290" fill="#e88850" opacity="0.55"/>
+  <polygon points="130,230 166,143 200,196 182,248" fill="#e8b94a" opacity="0.65"/>
 
   <!-- Table facet -->
   <polygon points="256,170 312,196 330,214 330,248 270,290 182,290 182,248 200,196" fill="url(#tableGrad)" opacity="0.85"/>
 
   <!-- Inner table -->
-  <polygon points="256,192 296,212 308,232 296,258 256,272 216,258 204,232 216,212" fill="#ddd6fe" opacity="0.55"/>
+  <polygon points="256,192 296,212 308,232 296,258 256,272 216,258 204,232 216,212" fill="#f5e6b8" opacity="0.55"/>
 
   <!-- Facet edge highlights -->
   <line x1="256" y1="90" x2="256" y2="170" stroke="white" stroke-width="1.5" opacity="0.5"/>

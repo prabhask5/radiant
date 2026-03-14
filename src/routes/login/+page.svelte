@@ -1181,17 +1181,17 @@
   /* ================================================================= */
 
   :root {
-    --login-void: #050510;
-    --login-surface: rgba(18, 18, 38, 0.85);
-    --login-surface-border: rgba(120, 90, 200, 0.15);
-    --login-gem-primary: #a78bfa;
-    --login-gem-secondary: #c4b5fd;
-    --login-gem-accent: #7c3aed;
-    --login-gem-rose: #f0abfc;
-    --login-gem-teal: #5eead4;
-    --login-text: #e8e4f0;
-    --login-text-muted: #9890a8;
-    --login-text-dim: #6b6280;
+    --login-void: #0a0806;
+    --login-surface: rgba(20, 16, 10, 0.85);
+    --login-surface-border: rgba(180, 140, 50, 0.15);
+    --login-gem-primary: #e8b94a;
+    --login-gem-secondary: #f0d080;
+    --login-gem-accent: #b8862e;
+    --login-gem-ruby: #e85d75;
+    --login-gem-teal: #2ec4a6;
+    --login-text: #f0e8d0;
+    --login-text-muted: #a09478;
+    --login-text-dim: #706450;
     --login-error: #fb7185;
     --login-success: #34d399;
     --login-radius: 20px;
@@ -1207,9 +1207,9 @@
     inset: 0;
     background: var(--login-void);
     background-image:
-      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(124, 58, 237, 0.12) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 50% at 80% 20%, rgba(167, 139, 250, 0.08) 0%, transparent 50%),
-      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(94, 234, 212, 0.04) 0%, transparent 40%);
+      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(184, 134, 46, 0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 20%, rgba(232, 185, 74, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(46, 196, 166, 0.04) 0%, transparent 40%);
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -1220,7 +1220,7 @@
 
   .crystal-shard {
     position: absolute;
-    border: 1px solid rgba(167, 139, 250, 0.08);
+    border: 1px solid rgba(232, 185, 74, 0.08);
     pointer-events: none;
   }
 
@@ -1229,7 +1229,7 @@
     height: 300px;
     top: -60px;
     right: -80px;
-    background: linear-gradient(135deg, rgba(124, 58, 237, 0.06) 0%, transparent 70%);
+    background: linear-gradient(135deg, rgba(184, 134, 46, 0.06) 0%, transparent 70%);
     clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
     animation: shardFloat 20s ease-in-out infinite;
   }
@@ -1239,7 +1239,7 @@
     height: 200px;
     bottom: 10%;
     left: -40px;
-    background: linear-gradient(225deg, rgba(94, 234, 212, 0.05) 0%, transparent 70%);
+    background: linear-gradient(225deg, rgba(46, 196, 166, 0.05) 0%, transparent 70%);
     clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
     animation: shardFloat 25s ease-in-out infinite reverse;
   }
@@ -1249,7 +1249,7 @@
     height: 160px;
     top: 30%;
     left: 15%;
-    background: linear-gradient(315deg, rgba(240, 171, 252, 0.04) 0%, transparent 70%);
+    background: linear-gradient(315deg, rgba(240, 200, 122, 0.04) 0%, transparent 70%);
     clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
     animation: shardFloat 18s ease-in-out infinite;
     animation-delay: -5s;
@@ -1261,7 +1261,7 @@
     background: repeating-conic-gradient(
       from 0deg at 50% 50%,
       transparent 0deg 88deg,
-      rgba(167, 139, 250, 0.015) 88deg 92deg
+      rgba(232, 185, 74, 0.015) 88deg 92deg
     );
     pointer-events: none;
   }
@@ -1318,7 +1318,7 @@
     -webkit-backdrop-filter: blur(24px);
     box-shadow:
       0 4px 32px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(167, 139, 250, 0.06) inset;
+      0 0 0 1px rgba(232, 185, 74, 0.06) inset;
     overflow: visible;
   }
 
@@ -1332,9 +1332,9 @@
     background: linear-gradient(
       90deg,
       transparent,
-      var(--login-gem-secondary, #c4b5fd) 30%,
+      var(--login-gem-secondary) 30%,
       rgba(255, 255, 255, 0.3) 50%,
-      var(--login-gem-secondary, #c4b5fd) 70%,
+      var(--login-gem-secondary) 70%,
       transparent
     );
     z-index: 2;
@@ -1349,10 +1349,10 @@
     padding: 1px;
     background: linear-gradient(
       var(--border-angle, 0deg),
-      var(--login-gem-primary, #a78bfa),
-      var(--login-gem-rose, #f0abfc),
-      var(--login-gem-teal, #5eead4),
-      var(--login-gem-primary, #a78bfa)
+      var(--login-gem-primary, #e8b94a),
+      var(--login-gem-ruby, #e85d75),
+      var(--login-gem-teal, #2ec4a6),
+      var(--login-gem-primary, #e8b94a)
     );
     background-size: 300% 300%;
     -webkit-mask:
@@ -1451,12 +1451,12 @@
 
   .step-dot.active {
     background: var(--login-gem-primary);
-    box-shadow: 0 0 10px rgba(167, 139, 250, 0.5);
+    box-shadow: 0 0 10px rgba(232, 185, 74, 0.5);
   }
 
   .step-dot.done {
     background: var(--login-gem-teal);
-    box-shadow: 0 0 8px rgba(94, 234, 212, 0.4);
+    box-shadow: 0 0 8px rgba(46, 196, 166, 0.4);
   }
 
   .step-line {
@@ -1542,11 +1542,11 @@
     0%,
     100% {
       transform: scale(1);
-      filter: drop-shadow(0 0 8px rgba(124, 58, 237, 0.3));
+      filter: drop-shadow(0 0 8px rgba(184, 134, 46, 0.3));
     }
     50% {
       transform: scale(1.06);
-      filter: drop-shadow(0 0 16px rgba(124, 58, 237, 0.5));
+      filter: drop-shadow(0 0 16px rgba(184, 134, 46, 0.5));
     }
   }
 
@@ -1595,8 +1595,8 @@
   .form-input {
     width: 100%;
     padding: 12px 14px;
-    background: rgba(10, 10, 26, 0.6);
-    border: 1px solid rgba(120, 90, 200, 0.12);
+    background: rgba(14, 12, 8, 0.6);
+    border: 1px solid rgba(180, 140, 50, 0.12);
     border-radius: var(--login-radius-sm);
     color: var(--login-text);
     font-family: var(
@@ -1622,7 +1622,7 @@
 
   .form-input:focus {
     border-color: var(--login-gem-primary);
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+    box-shadow: 0 0 0 3px rgba(232, 185, 74, 0.1);
   }
 
   .form-input:disabled {
@@ -1676,8 +1676,8 @@
     font-size: 1.25rem;
     font-weight: 500;
     color: var(--login-text);
-    background: rgba(10, 10, 26, 0.7);
-    border: 1.5px solid rgba(120, 90, 200, 0.15);
+    background: rgba(14, 12, 8, 0.7);
+    border: 1.5px solid rgba(180, 140, 50, 0.15);
     border-radius: 10px;
     outline: none;
     caret-color: var(--login-gem-primary);
@@ -1691,10 +1691,10 @@
   .pin-digit:focus {
     border-color: var(--login-gem-primary);
     box-shadow:
-      0 0 0 3px rgba(124, 58, 237, 0.2),
-      0 0 20px rgba(124, 58, 237, 0.1);
+      0 0 0 3px rgba(184, 134, 46, 0.2),
+      0 0 20px rgba(184, 134, 46, 0.1);
     transform: scale(1.08);
-    background: rgba(124, 58, 237, 0.06);
+    background: rgba(184, 134, 46, 0.06);
   }
 
   .pin-digit:disabled {
@@ -1738,8 +1738,8 @@
     opacity: 0.92;
     transform: translateY(-2px) scale(1.02);
     box-shadow:
-      0 8px 24px rgba(124, 58, 237, 0.3),
-      0 0 40px rgba(124, 58, 237, 0.15);
+      0 8px 24px rgba(184, 134, 46, 0.3),
+      0 0 40px rgba(184, 134, 46, 0.15);
   }
 
   .btn-primary:active:not(:disabled) {
@@ -1764,9 +1764,9 @@
     align-items: center;
     justify-content: center;
     padding: 12px 24px;
-    background: rgba(167, 139, 250, 0.1);
+    background: rgba(232, 185, 74, 0.1);
     color: var(--login-gem-secondary);
-    border: 1px solid rgba(167, 139, 250, 0.2);
+    border: 1px solid rgba(232, 185, 74, 0.2);
     border-radius: var(--login-radius-sm);
     font-family: var(
       --font-body,
@@ -1786,8 +1786,8 @@
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background: rgba(167, 139, 250, 0.18);
-    border-color: rgba(167, 139, 250, 0.35);
+    background: rgba(232, 185, 74, 0.18);
+    border-color: rgba(232, 185, 74, 0.35);
   }
 
   .btn-secondary:disabled {
@@ -1849,39 +1849,67 @@
     font-size: 1.5rem;
     font-weight: 700;
     color: #fff;
-    box-shadow: 0 0 24px rgba(124, 58, 237, 0.25);
+    box-shadow: 0 0 24px rgba(184, 134, 46, 0.25);
   }
 
   .welcome-avatar::before {
     content: '';
     position: absolute;
-    inset: -8px;
-    border-radius: 50%;
-    border: 1.5px solid transparent;
-    border-top-color: var(--login-gem-primary, #a78bfa);
-    border-right-color: var(--login-gem-primary, #a78bfa);
-    animation: avatarRingSpin 8s linear infinite;
+    inset: -12px;
+    background: linear-gradient(
+      135deg,
+      rgba(232, 185, 74, 0.5),
+      rgba(46, 196, 166, 0.35),
+      rgba(232, 93, 117, 0.3),
+      rgba(232, 185, 74, 0.5)
+    );
+    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
     opacity: 0.5;
+    animation: loginGemBezelGlow 4s ease-in-out infinite;
   }
 
   .welcome-avatar::after {
     content: '';
     position: absolute;
-    inset: -14px;
+    inset: -5px;
     border-radius: 50%;
-    border: 1px dashed transparent;
-    border-bottom-color: var(--login-gem-teal, #5eead4);
-    border-left-color: var(--login-gem-teal, #5eead4);
-    animation: avatarRingSpin 12s linear infinite reverse;
-    opacity: 0.3;
+    background: linear-gradient(
+      135deg,
+      transparent 0%,
+      rgba(232, 185, 74, 0.5) 20%,
+      rgba(46, 196, 166, 0.4) 40%,
+      transparent 50%,
+      rgba(232, 93, 117, 0.4) 70%,
+      rgba(245, 158, 11, 0.3) 85%,
+      transparent 100%
+    );
+    background-size: 300% 300%;
+    mask: radial-gradient(circle, transparent 76%, black 78%);
+    -webkit-mask: radial-gradient(circle, transparent 76%, black 78%);
+    animation: loginGemShimmerSweep 5s ease-in-out infinite;
   }
 
-  @keyframes avatarRingSpin {
-    from {
-      transform: rotate(0deg);
+  @keyframes loginGemBezelGlow {
+    0%,
+    100% {
+      opacity: 0.35;
+      filter: brightness(1);
     }
-    to {
-      transform: rotate(360deg);
+    50% {
+      opacity: 0.65;
+      filter: brightness(1.3);
+    }
+  }
+
+  @keyframes loginGemShimmerSweep {
+    0% {
+      background-position: 100% 100%;
+    }
+    50% {
+      background-position: 0% 0%;
+    }
+    100% {
+      background-position: 100% 100%;
     }
   }
 
@@ -1952,7 +1980,7 @@
     display: inline-block;
     width: 16px;
     height: 16px;
-    border: 2px solid rgba(167, 139, 250, 0.2);
+    border: 2px solid rgba(232, 185, 74, 0.2);
     border-top-color: var(--login-gem-primary);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
@@ -1995,7 +2023,7 @@
 
   .facet-3 {
     inset: 12px;
-    border-bottom-color: var(--login-gem-rose);
+    border-bottom-color: var(--login-gem-ruby);
     animation: spin 1s linear infinite;
   }
 
@@ -2022,7 +2050,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 5, 16, 0.85);
+    background: rgba(10, 8, 6, 0.85);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -2073,15 +2101,15 @@
     height: 72px;
     margin: 0 auto 20px;
     border-radius: 50%;
-    background: rgba(167, 139, 250, 0.1);
+    background: rgba(232, 185, 74, 0.1);
     color: var(--login-gem-primary);
-    border: 1px solid rgba(167, 139, 250, 0.15);
+    border: 1px solid rgba(232, 185, 74, 0.15);
   }
 
   .modal-gem-icon.verification-icon {
-    background: rgba(94, 234, 212, 0.08);
+    background: rgba(46, 196, 166, 0.08);
     color: var(--login-gem-teal);
-    border-color: rgba(94, 234, 212, 0.15);
+    border-color: rgba(46, 196, 166, 0.15);
   }
 
   .modal-title {
@@ -2314,6 +2342,7 @@
     .welcome-avatar::before,
     .welcome-avatar::after {
       animation: none;
+      opacity: 0.4;
     }
     .card-icon {
       animation: none;

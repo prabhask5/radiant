@@ -5,31 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Confirm Your New Email</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #0f0f1a; color: #ffffff;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #0f0f1a;">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #100e0a; color: #ffffff;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #100e0a;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
         <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="max-width: 520px; width: 100%;">
           <tr>
-            <td align="center" style="padding-bottom: 24px; font-size: 24px; font-weight: 700; color: #8b5cf6;">
-              <svg width="20" height="20" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle; margin-right: 6px;"><polygon points="32,4 56,24 48,58 16,58 8,24" fill="#8b5cf6"/><polygon points="32,4 24,24 40,24" fill="#a78bfa" opacity="0.6"/><polygon points="24,24 40,24 48,58 16,58" fill="#7c3aed" opacity="0.3"/></svg>
+            <td align="center" style="padding-bottom: 24px; font-size: 24px; font-weight: 700; color: #d4a039;">
+              <svg width="20" height="20" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle; margin-right: 6px;"><polygon points="32,4 56,24 48,58 16,58 8,24" fill="#d4a039"/><polygon points="32,4 24,24 40,24" fill="#e8b94a" opacity="0.6"/><polygon points="24,24 40,24 48,58 16,58" fill="#b8862e" opacity="0.3"/></svg>
               {{ .Data.app_name }}
             </td>
           </tr>
           <tr>
-            <td style="background-color: #1a1a2e; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 40px;">
+            <td style="background-color: #1a1810; border: 1px solid rgba(212, 160, 57, 0.3); border-radius: 12px; padding: 40px;">
               <h1 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #ffffff; text-align: center;">Confirm Your New Email</h1>
               <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #b0b0cc; text-align: center;">You requested to change your email address. Click the button below to confirm this new email for your {{ .Data.app_name }} account.</p>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center" style="padding-bottom: 24px;">
-                    <a href="{{ .Data.app_domain }}/confirm?token_hash={{ .TokenHash }}&type=email_change" target="_blank" style="display: inline-block; padding: 14px 36px; font-size: 15px; font-weight: 600; color: #ffffff; background: linear-gradient(135deg, #8b5cf6, #a78bfa); text-decoration: none; border-radius: 8px;">Confirm New Email</a>
+                    <a href="{{ .Data.app_domain }}/confirm?token_hash={{ .TokenHash }}&type=email_change" target="_blank" style="display: inline-block; padding: 14px 36px; font-size: 15px; font-weight: 600; color: #ffffff; background: linear-gradient(135deg, #d4a039, #e8b94a); text-decoration: none; border-radius: 8px;">Confirm New Email</a>
                   </td>
                 </tr>
               </table>
-              <hr style="border: none; border-top: 1px solid rgba(139, 92, 246, 0.2); margin: 0 0 16px 0;">
+              <hr style="border: none; border-top: 1px solid rgba(212, 160, 57, 0.2); margin: 0 0 16px 0;">
               <p style="margin: 0 0 8px 0; font-size: 12px; color: #6a6a88; text-align: center;">Or copy and paste this link into your browser:</p>
-              <p style="margin: 0; font-size: 11px; word-break: break-all; text-align: center;"><a href="{{ .Data.app_domain }}/confirm?token_hash={{ .TokenHash }}&type=email_change" style="color: #a78bfa;">{{ .Data.app_domain }}/confirm?token_hash={{ .TokenHash }}&amp;type=email_change</a></p>
+              <p style="margin: 0; font-size: 11px; word-break: break-all; text-align: center;"><a href="{{ .Data.app_domain }}/confirm?token_hash={{ .TokenHash }}&type=email_change" style="color: #e8b94a;">{{ .Data.app_domain }}/confirm?token_hash={{ .TokenHash }}&amp;type=email_change</a></p>
             </td>
           </tr>
           <tr>

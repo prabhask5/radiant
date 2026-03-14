@@ -158,7 +158,7 @@
         id: b.id,
         name: b.name,
         icon: b.icon || cat?.icon || '●',
-        color: b.color || cat?.color || '#a78bfa',
+        color: b.color || cat?.color || '#e8b94a',
         spent,
         budgeted,
         remaining: Math.max(0, budgeted - spent),
@@ -549,18 +549,18 @@
      DESIGN TOKENS (gem / crystal palette)
      ────────────────────────────────────────────────────────────────────────── */
   .dashboard {
-    --gem-void: #050510;
-    --gem-obsidian: #0a0a1e;
-    --gem-onyx: #12122e;
-    --gem-surface: #1a1a3e;
-    --gem-surface-2: #222250;
-    --gem-border: rgba(167, 139, 250, 0.12);
-    --gem-border-hover: rgba(167, 139, 250, 0.25);
-    --gem-text: #e8e4f0;
-    --gem-text-dim: #9590a8;
-    --gem-text-muted: #6b6580;
-    --gem-amethyst: #a78bfa;
-    --gem-amethyst-glow: rgba(167, 139, 250, 0.15);
+    --gem-void: #0a0806;
+    --gem-obsidian: #0e0c08;
+    --gem-onyx: #161310;
+    --gem-surface: #201c16;
+    --gem-surface-2: #2a2520;
+    --gem-border: rgba(232, 185, 74, 0.12);
+    --gem-border-hover: rgba(232, 185, 74, 0.25);
+    --gem-text: #f0e8d0;
+    --gem-text-dim: #a09478;
+    --gem-text-muted: #706450;
+    --gem-citrine: #e8b94a;
+    --gem-citrine-glow: rgba(232, 185, 74, 0.15);
     --gem-topaz: #f59e0b;
     --gem-topaz-warm: #d97706;
     --gem-emerald: #34d399;
@@ -570,13 +570,13 @@
     --gem-citrine: #fbbf24;
     --gem-jade: #6ee7b7;
     --gem-gradient-gold: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
-    --gem-gradient-crystal: linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #60a5fa 100%);
+    --gem-gradient-crystal: linear-gradient(135deg, #e8b94a 0%, #d4a039 50%, #b8862e 100%);
     --gem-gradient-shimmer: linear-gradient(
       110deg,
       transparent 25%,
-      rgba(167, 139, 250, 0.06) 37%,
-      rgba(167, 139, 250, 0.12) 50%,
-      rgba(167, 139, 250, 0.06) 63%,
+      rgba(232, 185, 74, 0.06) 37%,
+      rgba(232, 185, 74, 0.12) 50%,
+      rgba(232, 185, 74, 0.06) 63%,
       transparent 75%
     );
     --radius: 16px;
@@ -651,7 +651,7 @@
     height: 200px;
     top: -60px;
     right: -40px;
-    background: radial-gradient(circle, rgba(167, 139, 250, 0.35), transparent 70%);
+    background: radial-gradient(circle, rgba(232, 185, 74, 0.35), transparent 70%);
     animation: refract-drift 12s ease-in-out infinite alternate;
   }
 
@@ -692,7 +692,7 @@
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--gem-amethyst);
+    color: var(--gem-citrine);
     margin: 0 0 8px;
   }
 
@@ -708,7 +708,7 @@
   .hero-name {
     background: var(
       --gem-gradient-crystal,
-      linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #60a5fa 100%)
+      linear-gradient(135deg, #e8b94a 0%, #d4a039 50%, #b8862e 100%)
     );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -785,7 +785,7 @@
     transform: translateY(-4px);
     box-shadow:
       0 16px 48px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(139, 92, 246, 0.1);
+      0 0 40px rgba(212, 160, 57, 0.1);
   }
 
   @media (min-width: 768px) {
@@ -801,7 +801,7 @@
     inset: 0;
     background: var(
       --gem-gradient-shimmer,
-      linear-gradient(90deg, transparent 0%, rgba(167, 139, 250, 0.15) 50%, transparent 100%)
+      linear-gradient(90deg, transparent 0%, rgba(232, 185, 74, 0.15) 50%, transparent 100%)
     );
     background-size: 300% 100%;
     opacity: 0;
@@ -841,7 +841,7 @@
 
   .card-icon {
     font-size: 0.8rem;
-    color: var(--gem-amethyst);
+    color: var(--gem-citrine);
   }
 
   .card-label {
@@ -973,7 +973,7 @@
   .section-link {
     font-size: 0.72rem;
     font-weight: 600;
-    color: var(--gem-amethyst);
+    color: var(--gem-citrine);
     text-decoration: none;
     letter-spacing: 0.04em;
     transition: color 0.2s;
@@ -1000,7 +1000,7 @@
     align-items: center;
     gap: 12px;
     padding: 12px 0;
-    border-bottom: 1px solid rgba(167, 139, 250, 0.06);
+    border-bottom: 1px solid rgba(232, 185, 74, 0.06);
     transition:
       background 0.2s ease,
       transform 0.2s ease;
@@ -1011,7 +1011,7 @@
   }
 
   .txn-row:hover {
-    background: rgba(167, 139, 250, 0.03);
+    background: rgba(232, 185, 74, 0.03);
     margin: 0 -12px;
     padding-left: 12px;
     padding-right: 12px;
@@ -1283,7 +1283,7 @@
     align-items: center;
     gap: 12px;
     padding: 12px 0;
-    border-bottom: 1px solid rgba(167, 139, 250, 0.06);
+    border-bottom: 1px solid rgba(232, 185, 74, 0.06);
   }
 
   .account-row:last-child {
@@ -1297,8 +1297,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--gem-amethyst-glow);
-    color: var(--gem-amethyst);
+    background: var(--gem-citrine-glow);
+    color: var(--gem-citrine);
     font-size: 0.9rem;
     flex-shrink: 0;
   }
@@ -1357,7 +1357,7 @@
 
   .empty-icon {
     font-size: 1.6rem;
-    color: var(--gem-amethyst);
+    color: var(--gem-citrine);
     opacity: 0.4;
     margin-bottom: 4px;
   }
@@ -1424,7 +1424,7 @@
     width: 600px;
     height: 400px;
     transform: translateX(-50%);
-    background: radial-gradient(ellipse at center, rgba(167, 139, 250, 0.04) 0%, transparent 70%);
+    background: radial-gradient(ellipse at center, rgba(232, 185, 74, 0.04) 0%, transparent 70%);
     pointer-events: none;
     z-index: -1;
   }
@@ -1454,9 +1454,9 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(139, 92, 246, 0.4),
+      rgba(212, 160, 57, 0.4),
       rgba(255, 255, 255, 0.25),
-      rgba(139, 92, 246, 0.4),
+      rgba(212, 160, 57, 0.4),
       transparent
     );
     z-index: 1;
@@ -1474,7 +1474,7 @@
     padding: 1px;
     background: linear-gradient(
       135deg,
-      rgba(139, 92, 246, 0.3) 0%,
+      rgba(212, 160, 57, 0.3) 0%,
       transparent 30%,
       transparent 70%,
       rgba(16, 185, 129, 0.2) 100%
@@ -1510,7 +1510,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      var(--gem-border-strong, rgba(139, 92, 246, 0.25)),
+      var(--gem-border-strong, rgba(212, 160, 57, 0.25)),
       transparent
     );
     border-radius: 1px;
@@ -1522,7 +1522,7 @@
   .card-networth:hover {
     box-shadow:
       0 16px 48px rgba(0, 0, 0, 0.4),
-      0 0 40px rgba(139, 92, 246, 0.12);
+      0 0 40px rgba(212, 160, 57, 0.12);
   }
 
   .card-balance:hover {

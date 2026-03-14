@@ -815,17 +815,17 @@
     --ruby-dim: #7f1d1d;
     --ruby-glow: rgba(248, 113, 113, 0.4);
 
-    --surface-base: #0c0f14;
-    --surface-card: #13171f;
-    --surface-raised: #1a1f2b;
-    --surface-overlay: #222938;
+    --surface-base: #0c0a06;
+    --surface-card: #14100a;
+    --surface-raised: #1a1610;
+    --surface-overlay: #221e16;
 
-    --text-primary: #e8ecf4;
-    --text-secondary: #8896b0;
-    --text-muted: #4f5d78;
+    --text-primary: #f0e8d0;
+    --text-secondary: #a09478;
+    --text-muted: #706450;
 
-    --border-subtle: rgba(136, 150, 176, 0.1);
-    --border-interactive: rgba(136, 150, 176, 0.2);
+    --border-subtle: rgba(180, 150, 80, 0.1);
+    --border-interactive: rgba(180, 150, 80, 0.2);
 
     position: relative;
     min-height: 100dvh;
@@ -1339,7 +1339,7 @@
     right: 10%;
     height: 1px;
     border-radius: 1px;
-    background: linear-gradient(90deg, transparent, var(--amethyst, #a78bfa), transparent);
+    background: linear-gradient(90deg, transparent, var(--amethyst, #e8b94a), transparent);
     opacity: 0.4;
     transition: opacity 0.3s ease;
   }

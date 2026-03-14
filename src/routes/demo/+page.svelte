@@ -246,7 +246,7 @@
   .tog.on .track {
     background: var(--demo-track-active-bg);
     border-color: var(--demo-track-active-border);
-    box-shadow: 0 0 30px rgba(108, 92, 231, 0.15);
+    box-shadow: 0 0 30px rgba(184, 134, 46, 0.15);
   }
 
   .tog:hover:not(:disabled) .track {
@@ -272,7 +272,7 @@
   .tog.on .knob {
     transform: translateX(132px);
     background: var(--demo-knob-active-bg);
-    box-shadow: 0 0 20px rgba(108, 92, 231, 0.4);
+    box-shadow: 0 0 20px rgba(184, 134, 46, 0.4);
   }
 
   /* ═══ STATE LABEL ═══ */

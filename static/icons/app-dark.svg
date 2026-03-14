@@ -1,33 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="gemGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a78bfa"/>
-      <stop offset="50%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#f472b6"/>
+      <stop offset="0%" stop-color="#e8b94a"/>
+      <stop offset="50%" stop-color="#d4a039"/>
+      <stop offset="100%" stop-color="#e85d75"/>
     </linearGradient>
     <linearGradient id="tableGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="100%" stop-color="#a78bfa"/>
+      <stop offset="0%" stop-color="#f0d88a"/>
+      <stop offset="100%" stop-color="#e8b94a"/>
     </linearGradient>
     <!-- Outer glow on dark background -->
     <radialGradient id="outerGlow" cx="0.5" cy="0.48" r="0.45">
-      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.5"/>
-      <stop offset="40%" stop-color="#8b5cf6" stop-opacity="0.15"/>
-      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#d4a039" stop-opacity="0.5"/>
+      <stop offset="40%" stop-color="#d4a039" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#d4a039" stop-opacity="0"/>
     </radialGradient>
     <!-- Pink glow accent -->
     <radialGradient id="pinkGlow" cx="0.55" cy="0.55" r="0.35">
-      <stop offset="0%" stop-color="#f472b6" stop-opacity="0.25"/>
-      <stop offset="100%" stop-color="#f472b6" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#e85d75" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#e85d75" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.2"/>
+      <stop offset="0%" stop-color="#d4a039" stop-opacity="0.2"/>
       <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
   <!-- Dark background -->
-  <rect width="512" height="512" rx="64" fill="#0f0f1a"/>
+  <rect width="512" height="512" rx="64" fill="#0e0c08"/>
 
   <!-- Ambient glow behind gem -->
   <ellipse cx="256" cy="246" rx="220" ry="200" fill="url(#outerGlow)"/>
@@ -37,23 +37,23 @@
   <ellipse cx="256" cy="370" rx="90" ry="16" fill="url(#shadow)"/>
 
   <!-- Girdle -->
-  <polygon points="256,96 356,156 396,256 356,356 256,396 156,356 116,256 156,156" fill="url(#gemGrad)" stroke="#a78bfa" stroke-width="1.5"/>
+  <polygon points="256,96 356,156 396,256 356,356 256,396 156,356 116,256 156,156" fill="url(#gemGrad)" stroke="#e8b94a" stroke-width="1.5"/>
 
   <!-- Crown facets -->
-  <polygon points="256,96 156,156 196,216 256,176" fill="#a78bfa" opacity="0.75"/>
-  <polygon points="256,96 356,156 316,216 256,176" fill="#9366f0" opacity="0.75"/>
-  <polygon points="356,156 396,256 336,236 316,216" fill="#8b5cf6" opacity="0.65"/>
-  <polygon points="396,256 356,356 336,276 336,236" fill="#7c3aed" opacity="0.65"/>
-  <polygon points="356,356 256,396 276,316 336,276" fill="#9f5cf6" opacity="0.55"/>
-  <polygon points="256,396 156,356 176,316 276,316" fill="#c474d0" opacity="0.55"/>
-  <polygon points="156,356 116,256 176,276 176,316" fill="#d466b8" opacity="0.55"/>
-  <polygon points="116,256 156,156 196,216 176,276" fill="#b47cf6" opacity="0.65"/>
+  <polygon points="256,96 156,156 196,216 256,176" fill="#e8b94a" opacity="0.75"/>
+  <polygon points="256,96 356,156 316,216 256,176" fill="#c89a35" opacity="0.75"/>
+  <polygon points="356,156 396,256 336,236 316,216" fill="#d4a039" opacity="0.65"/>
+  <polygon points="396,256 356,356 336,276 336,236" fill="#b8862e" opacity="0.65"/>
+  <polygon points="356,356 256,396 276,316 336,276" fill="#daa840" opacity="0.55"/>
+  <polygon points="256,396 156,356 176,316 276,316" fill="#e8a050" opacity="0.55"/>
+  <polygon points="156,356 116,256 176,276 176,316" fill="#e88850" opacity="0.55"/>
+  <polygon points="116,256 156,156 196,216 176,276" fill="#e8b94a" opacity="0.65"/>
 
   <!-- Table facet -->
   <polygon points="256,176 316,216 336,236 336,276 276,316 176,316 176,276 196,216" fill="url(#tableGrad)" opacity="0.85"/>
 
   <!-- Inner table -->
-  <polygon points="256,200 300,226 316,256 300,286 256,300 212,286 196,256 212,226" fill="#ddd6fe" opacity="0.55"/>
+  <polygon points="256,200 300,226 316,256 300,286 256,300 212,286 196,256 212,226" fill="#f5e6b8" opacity="0.55"/>
 
   <!-- Facet edge highlights (brighter on dark) -->
   <line x1="256" y1="96" x2="256" y2="176" stroke="white" stroke-width="1.5" opacity="0.5"/>
@@ -76,8 +76,8 @@
   <circle cx="280" cy="270" r="3" fill="white" opacity="0.3"/>
 
   <!-- Radiance rays -->
-  <line x1="200" y1="130" x2="180" y2="105" stroke="#c4b5fd" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
-  <line x1="310" y1="130" x2="330" y2="105" stroke="#c4b5fd" stroke-width="2" opacity="0.35" stroke-linecap="round"/>
-  <line x1="155" y1="195" x2="132" y2="182" stroke="#c4b5fd" stroke-width="1.5" opacity="0.25" stroke-linecap="round"/>
-  <line x1="360" y1="200" x2="382" y2="188" stroke="#c4b5fd" stroke-width="1.5" opacity="0.2" stroke-linecap="round"/>
+  <line x1="200" y1="130" x2="180" y2="105" stroke="#f0d88a" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
+  <line x1="310" y1="130" x2="330" y2="105" stroke="#f0d88a" stroke-width="2" opacity="0.35" stroke-linecap="round"/>
+  <line x1="155" y1="195" x2="132" y2="182" stroke="#f0d88a" stroke-width="1.5" opacity="0.25" stroke-linecap="round"/>
+  <line x1="360" y1="200" x2="382" y2="188" stroke="#f0d88a" stroke-width="1.5" opacity="0.2" stroke-linecap="round"/>
 </svg>
