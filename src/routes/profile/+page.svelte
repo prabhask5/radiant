@@ -2285,6 +2285,9 @@
       background 0.25s ease,
       border-color 0.25s ease;
     padding: 0;
+    flex-shrink: 0;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   .toggle-switch.on {

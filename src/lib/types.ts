@@ -26,6 +26,14 @@ export type { TellerEnrollment, Account, Transaction, Category } from './types.g
 export type AccountType = 'depository' | 'credit';
 
 /**
+ * How the account was connected.
+ *
+ * - `'teller'` — Linked via Teller Connect (automated sync)
+ * - `'manual'` — Created manually (CSV import for transactions)
+ */
+export type AccountSource = 'teller' | 'manual';
+
+/**
  * Detailed account subtype from the Teller API.
  *
  * Depository subtypes: checking, savings, money_market, certificate_of_deposit, treasury, sweep.

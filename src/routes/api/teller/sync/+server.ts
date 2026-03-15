@@ -73,9 +73,8 @@ export const POST: RequestHandler = async ({ request }) => {
       `[TELLER] Sync: found ${tellerAccounts.length} accounts for enrollment ${enrollmentId}`
     );
 
-    /* ── Fetch balances + transactions for each account ── */
+    /* ── Fetch balances for each account ── */
     const accountsData: Record<string, unknown>[] = [];
-    const transactionsData: Record<string, unknown>[] = [];
 
     for (const account of tellerAccounts) {
       let balances = { available: null as string | null, ledger: null as string | null };
@@ -97,44 +96,13 @@ export const POST: RequestHandler = async ({ request }) => {
         currency: account.currency,
         last_four: account.last_four,
         status: account.status,
+        source: 'teller',
         balance_available: balances.available,
         balance_ledger: balances.ledger,
         balance_updated_at: new Date().toISOString(),
         is_hidden: false
       });
-
-      try {
-        const transactions = await listTransactions(accessToken, account.id, { count: 500 });
-        console.log(
-          `[TELLER] Sync: fetched ${transactions.length} transactions for account ${account.id}`
-        );
-        for (const txn of transactions) {
-          transactionsData.push({
-            teller_transaction_id: txn.id,
-            teller_account_id: account.id,
-            amount: txn.amount,
-            date: txn.date,
-            description: txn.description,
-            counterparty_name: txn.details?.counterparty?.name || null,
-            counterparty_type: txn.details?.counterparty?.type || null,
-            teller_category: txn.details?.category || null,
-            status: txn.status,
-            type: txn.type,
-            running_balance: txn.running_balance,
-            is_excluded: false,
-            notes: null
-          });
-        }
-      } catch (err) {
-        console.log(
-          `[TELLER] Sync: transaction fetch failed for account ${account.id}: ${err instanceof Error ? err.message : 'unknown error'}`
-        );
-      }
     }
-
-    console.log(
-      `[TELLER] Sync fetched for enrollment ${enrollmentId}: ${accountsData.length} accounts, ${transactionsData.length} transactions`
-    );
 
     /* ── Persist to Supabase ── */
     const admin = createServerAdminClient('radiant');
@@ -145,12 +113,21 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({
         success: true,
         accounts: accountsData,
-        transactions: transactionsData,
+        transactions: [],
         syncedAt: new Date().toISOString()
       });
     }
 
     const timestamp = new Date().toISOString();
+
+    // Check previous sync timestamp BEFORE upserting (to detect initial vs refresh)
+    const { data: enrollmentData } = await admin
+      .from('teller_enrollments')
+      .select('last_synced_at')
+      .eq('id', localEnrollmentId)
+      .single();
+
+    const lastSyncedAt = (enrollmentData?.last_synced_at as string | null) ?? null;
 
     // Upsert enrollment to ensure it exists in Supabase for webhook lookups
     const { error: enrollError } = await admin.from('teller_enrollments').upsert(
@@ -173,6 +150,19 @@ export const POST: RequestHandler = async ({ request }) => {
     );
     if (enrollError) {
       console.log(`[TELLER] Supabase enrollment upsert error: ${enrollError.message}`);
+    }
+
+    // For incremental sync, compute a 7-day buffer before last sync
+    let bufferDate: string | null = null;
+    if (lastSyncedAt) {
+      const d = new Date(lastSyncedAt);
+      d.setDate(d.getDate() - 7);
+      bufferDate = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      console.log(
+        `[TELLER] Incremental sync: last_synced_at=${lastSyncedAt}, buffer_date=${bufferDate}`
+      );
+    } else {
+      console.log('[TELLER] Initial sync: fetching all transactions');
     }
 
     // Look up existing accounts by teller_account_id to get stable IDs
@@ -213,30 +203,87 @@ export const POST: RequestHandler = async ({ request }) => {
       }
     }
 
-    // Look up existing transactions by teller_transaction_id for stable IDs
-    const { data: existingTxns } = await admin
-      .from('transactions')
-      .select('id, teller_transaction_id')
-      .eq('user_id', userId);
-    const txnIdMap = new Map(
-      (existingTxns ?? []).map((t: { id: string; teller_transaction_id: string }) => [
-        t.teller_transaction_id,
-        t.id
-      ])
+    // Fetch transactions from Teller — incremental or full
+    const transactionsData: Record<string, unknown>[] = [];
+    for (const account of tellerAccounts) {
+      try {
+        const fetchOpts = bufferDate ? { start_date: bufferDate } : { count: 500 };
+        const transactions = await listTransactions(accessToken, account.id, fetchOpts);
+        console.log(
+          `[TELLER] Sync: fetched ${transactions.length} transactions for account ${account.id}`
+        );
+        for (const txn of transactions) {
+          transactionsData.push({
+            teller_transaction_id: txn.id,
+            teller_account_id: account.id,
+            amount: txn.amount,
+            date: txn.date,
+            description: txn.description,
+            counterparty_name: txn.details?.counterparty?.name || null,
+            counterparty_type: txn.details?.counterparty?.type || null,
+            teller_category: txn.details?.category || null,
+            status: txn.status,
+            type: txn.type,
+            running_balance: txn.running_balance,
+            is_excluded: false,
+            notes: null
+          });
+        }
+      } catch (err) {
+        console.log(
+          `[TELLER] Sync: transaction fetch failed for account ${account.id}: ${err instanceof Error ? err.message : 'unknown error'}`
+        );
+      }
+    }
+
+    console.log(
+      `[TELLER] Sync fetched: ${accountsData.length} accounts, ${transactionsData.length} transactions`
     );
 
-    // Assign stable IDs to transactions, resolve account FK
-    const txnRows = transactionsData
-      .map((txn) => {
-        const tellerTxnId = txn.teller_transaction_id as string;
-        const tellerAcctId = txn.teller_account_id as string;
-        const accountId = acctIdMap.get(tellerAcctId);
-        if (!accountId) return null;
+    // Look up existing transactions — scoped to date window for incremental sync
+    let txnQuery = admin
+      .from('transactions')
+      .select('id, teller_transaction_id, deleted')
+      .eq('user_id', userId);
+    if (bufferDate) txnQuery = txnQuery.gte('date', bufferDate);
+    const { data: existingTxns } = await txnQuery;
+    const txnLookup = new Map(
+      (existingTxns ?? []).map(
+        (t: { id: string; teller_transaction_id: string; deleted: boolean }) => [
+          t.teller_transaction_id,
+          { id: t.id, deleted: t.deleted }
+        ]
+      )
+    );
 
-        const id = txnIdMap.get(tellerTxnId) ?? crypto.randomUUID();
+    // Three-way routing: new inserts vs selective updates vs skip (deleted)
+    const insertRows: Record<string, unknown>[] = [];
+    const updateRows: Record<string, unknown>[] = [];
+
+    // Teller-owned fields that can change on existing active transactions
+    const TELLER_OWNED_FIELDS = [
+      'amount',
+      'status',
+      'running_balance',
+      'counterparty_name',
+      'counterparty_type',
+      'teller_category',
+      'type'
+    ] as const;
+
+    for (const txn of transactionsData) {
+      const tellerTxnId = txn.teller_transaction_id as string;
+      const tellerAcctId = txn.teller_account_id as string;
+      const accountId = acctIdMap.get(tellerAcctId);
+      if (!accountId) continue;
+
+      const existing = txnLookup.get(tellerTxnId);
+
+      if (!existing) {
+        // New transaction — full insert
         const { teller_account_id: _, ...txnFields } = txn;
-        return {
-          id,
+        insertRows.push({
+          id: crypto.randomUUID(),
           user_id: userId,
           account_id: accountId,
           ...txnFields,
@@ -244,20 +291,48 @@ export const POST: RequestHandler = async ({ request }) => {
           updated_at: timestamp,
           deleted: false,
           _version: 1
+        });
+      } else if (existing.deleted) {
+        // Existing + soft-deleted — skip
+        continue;
+      } else {
+        // Existing + active — selective update of Teller-owned fields only
+        const updates: Record<string, unknown> = {
+          id: existing.id,
+          updated_at: timestamp
         };
-      })
-      .filter(Boolean);
+        for (const field of TELLER_OWNED_FIELDS) {
+          updates[field] = txn[field];
+        }
+        updateRows.push(updates);
+      }
+    }
 
-    // Upsert transactions in batches (Supabase has payload size limits)
+    console.log(
+      `[TELLER] Sync routing: ${insertRows.length} new, ${updateRows.length} updates, ${transactionsData.length - insertRows.length - updateRows.length} skipped`
+    );
+
+    // Batch insert new transactions
     const BATCH_SIZE = 200;
-    for (let i = 0; i < txnRows.length; i += BATCH_SIZE) {
-      const batch = txnRows.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < insertRows.length; i += BATCH_SIZE) {
+      const batch = insertRows.slice(i, i + BATCH_SIZE);
+      const { error: txnError } = await admin.from('transactions').insert(batch);
+      if (txnError) {
+        console.log(
+          `[TELLER] Supabase transactions insert error (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${txnError.message}`
+        );
+      }
+    }
+
+    // Batch update existing active transactions (selective Teller-owned fields)
+    for (let i = 0; i < updateRows.length; i += BATCH_SIZE) {
+      const batch = updateRows.slice(i, i + BATCH_SIZE);
       const { error: txnError } = await admin
         .from('transactions')
         .upsert(batch, { onConflict: 'id' });
       if (txnError) {
         console.log(
-          `[TELLER] Supabase transactions upsert error (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${txnError.message}`
+          `[TELLER] Supabase transactions update error (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${txnError.message}`
         );
       }
     }
@@ -269,14 +344,31 @@ export const POST: RequestHandler = async ({ request }) => {
       .eq('id', localEnrollmentId);
 
     console.log(
-      `[TELLER] Sync persisted to Supabase: ${accountRows.length} accounts, ${txnRows.length} transactions`
+      `[TELLER] Sync persisted to Supabase: ${accountRows.length} accounts, ${insertRows.length} inserted, ${updateRows.length} updated`
     );
 
     // Return data with stable IDs so client can write to IndexedDB
+    // For new transactions: full rows. For updates: only Teller-owned fields + id.
+    const clientTransactions = [
+      ...insertRows,
+      ...updateRows.map((row) => ({
+        id: row.id,
+        amount: row.amount,
+        status: row.status,
+        running_balance: row.running_balance,
+        counterparty_name: row.counterparty_name,
+        counterparty_type: row.counterparty_type,
+        teller_category: row.teller_category,
+        type: row.type,
+        updated_at: row.updated_at,
+        _partial: true
+      }))
+    ];
+
     return json({
       success: true,
       accounts: accountRows,
-      transactions: txnRows,
+      transactions: clientTransactions,
       syncedAt: timestamp
     });
   } catch (err) {

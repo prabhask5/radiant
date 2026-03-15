@@ -52,12 +52,13 @@ export const schema: SchemaDefinition = {
      ACCOUNTS — Bank, credit card, and investment accounts
      ═══════════════════════════════════════════════════════════════════════
 
-     Stores individual financial accounts pulled from Teller.io. Each account
-     belongs to exactly one enrollment and tracks current balances, account
-     type metadata, and visibility state.
+     Stores individual financial accounts. Accounts are either pulled from
+     Teller.io (`source: 'teller'`) or created manually (`source: 'manual'`).
+     Each Teller account belongs to an enrollment; manual accounts have no
+     enrollment. Both track balances, type metadata, and visibility state.
 
      Relationships:
-       - Many accounts → one `teller_enrollments` (via `enrollment_id`)
+       - Many accounts → one `teller_enrollments` (via `enrollment_id`, nullable for manual)
        - One account → many `transactions` (via `transactions.account_id`)
 
      Indexes:
@@ -65,12 +66,13 @@ export const schema: SchemaDefinition = {
        - `type` / `subtype` — filter by depository vs credit, checking vs savings
        - `status` — distinguish open vs closed accounts
        - `institution_name` — group accounts by bank for display
+       - `source` — filter by teller vs manual
      ═══════════════════════════════════════════════════════════════════════ */
   accounts: {
-    indexes: 'enrollment_id, type, subtype, status, institution_name',
+    indexes: 'enrollment_id, type, subtype, status, institution_name, source',
     fields: {
-      enrollment_id: 'uuid',
-      teller_account_id: 'string',
+      enrollment_id: 'uuid?',
+      teller_account_id: 'string?',
       institution_name: 'string',
       name: 'string',
       type: 'string',
@@ -78,6 +80,7 @@ export const schema: SchemaDefinition = {
       currency: 'string',
       last_four: 'string?',
       status: 'string',
+      source: 'string',
       balance_available: 'string?',
       balance_ledger: 'string?',
       balance_updated_at: 'timestamp?',
@@ -106,11 +109,11 @@ export const schema: SchemaDefinition = {
        - `[account_id+date]` — compound index for efficient per-account date queries
      ═══════════════════════════════════════════════════════════════════════ */
   transactions: {
-    indexes: 'account_id, date, category_id, status, [account_id+date]',
+    indexes: 'account_id, date, category_id, status, [account_id+date], csv_import_hash',
     ownership: { parent: 'accounts', fk: 'account_id' },
     fields: {
       account_id: 'uuid',
-      teller_transaction_id: 'string',
+      teller_transaction_id: 'string?',
       amount: 'string',
       date: 'date',
       description: 'string',
@@ -122,7 +125,8 @@ export const schema: SchemaDefinition = {
       type: 'string?',
       running_balance: 'string?',
       is_excluded: 'boolean',
-      notes: 'string?'
+      notes: 'string?',
+      csv_import_hash: 'string?'
     }
   },
 

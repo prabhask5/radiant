@@ -22,8 +22,15 @@
   import { authState } from 'stellar-drive/stores';
   import { getConfig } from 'stellar-drive/config';
   import { formatCurrency } from '$lib/utils/currency';
+  import { remoteChangeAnimation } from 'stellar-drive/actions';
   import type { TellerConnectStatic, TellerConnectEnrollment } from '$lib/teller/types';
   import type { Account, TellerEnrollment } from '$lib/types';
+  import {
+    parseCSV,
+    autoDetectMapping,
+    mapCSVToTransactions,
+    type CSVColumnMapping
+  } from '$lib/utils/csv';
 
   // ==========================================================================
   //                           COMPONENT STATE
@@ -59,6 +66,62 @@
   /** Auto-dismiss timeout reference. */
   let feedbackTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  /** Whether the manual account creation modal is open. */
+  let showManualModal = $state(false);
+
+  /** Manual account form fields. */
+  let manualInstitution = $state('');
+  let manualName = $state('');
+  let manualType = $state<'depository' | 'credit'>('depository');
+  let manualSubtype = $state('checking');
+  let manualLastFour = $state('');
+  let manualBalance = $state('');
+  let creatingManual = $state(false);
+
+  /** Account name editing state. */
+  let editingAccountId = $state<string | null>(null);
+  let editingAccountName = $state('');
+  let savingAccountName = $state(false);
+
+  /** Whether the CSV import modal is open. */
+  let showCSVModal = $state(false);
+
+  /** The account ID receiving the CSV import. */
+  let csvImportAccountId = $state<string | null>(null);
+
+  /** The account type for sign normalisation during CSV import. */
+  let csvImportAccountType = $state('depository');
+
+  /** Current step in the CSV import flow (1=upload, 2=map, 3=review). */
+  let csvStep = $state(1);
+
+  /** Parsed CSV data. */
+  let csvHeaders = $state<string[]>([]);
+  let csvRows = $state<string[][]>([]);
+
+  /** CSV column mapping. */
+  let csvMapping = $state<Partial<CSVColumnMapping>>({});
+  let csvSplitMode = $state(false);
+
+  /** Mapped transactions ready for import. */
+  let csvMappedTransactions = $state<
+    Array<{ date: string; description: string; amount: string; csv_import_hash: string }>
+  >([]);
+
+  /** CSV import result feedback. */
+  let csvImporting = $state(false);
+  let csvImportResult = $state<{ inserted: number; skipped: number } | null>(null);
+
+  /** Institution name pending manual deletion confirmation. */
+  let confirmDeleteManualInst = $state<string | null>(null);
+  let deletingManual = $state(false);
+
+  /** File input reference for CSV upload. */
+  let csvFileInput: HTMLInputElement | undefined = $state(undefined);
+
+  /** Whether the drag-drop zone is actively hovered. */
+  let csvDragOver = $state(false);
+
   // ==========================================================================
   //                         DERIVED STATE
   // ==========================================================================
@@ -78,6 +141,7 @@
   /**
    * Accounts grouped by institution name.
    * Each group includes the enrollment info and its accounts.
+   * Manual accounts (no enrollment) are grouped by institution_name.
    */
   const accountsByInstitution = $derived.by(() => {
     const groups = new Map<
@@ -91,6 +155,7 @@
       }
     >();
 
+    // Teller enrollment groups
     for (const enrollment of enrollments) {
       groups.set(enrollment.id, {
         institutionName: enrollment.institution_name,
@@ -102,9 +167,31 @@
     }
 
     for (const account of accounts) {
-      const group = groups.get(account.enrollment_id);
-      if (group) {
-        group.accounts.push(account);
+      if (account.source === 'manual') {
+        // Group manual accounts by institution_name
+        const groupKey = `manual_${account.institution_name}`;
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, {
+            institutionName: account.institution_name,
+            enrollmentId: groupKey,
+            enrollmentStatus: 'manual',
+            lastSynced: null,
+            accounts: []
+          });
+        }
+        const g = groups.get(groupKey)!;
+        g.accounts.push(account);
+        // Track most recent balance_updated_at as the group's lastSynced
+        if (account.balance_updated_at) {
+          if (!g.lastSynced || account.balance_updated_at > g.lastSynced) {
+            g.lastSynced = account.balance_updated_at;
+          }
+        }
+      } else {
+        const group = groups.get(account.enrollment_id ?? '');
+        if (group) {
+          group.accounts.push(account);
+        }
       }
     }
 
@@ -120,6 +207,12 @@
       a.institutionName.localeCompare(b.institutionName)
     );
   });
+
+  /** Count of Teller-connected accounts. */
+  const connectedCount = $derived(accounts.filter((a) => a.source !== 'manual').length);
+
+  /** Count of manual accounts. */
+  const manualCount = $derived(accounts.filter((a) => a.source === 'manual').length);
 
   /**
    * Total assets: sum of balances from depository accounts (checking, savings, etc).
@@ -417,9 +510,9 @@
   async function toggleAccountHidden(accountId: string, currentlyHidden: boolean) {
     togglingHidden = accountId;
     try {
-      // The accountsStore doesn't have an update method exposed directly,
-      // so we use the engineUpdate pattern through the store refresh
       const { engineUpdate } = await import('stellar-drive');
+      const { remoteChangesStore } = await import('stellar-drive/stores');
+      remoteChangesStore.recordLocalChange(accountId, 'accounts', 'toggle');
       await engineUpdate('accounts', accountId, { is_hidden: !currentlyHidden });
       await accountsStore.refresh();
     } catch (err) {
@@ -523,6 +616,7 @@
    */
   function statusClass(status: string): string {
     if (status === 'connected') return 'status-connected';
+    if (status === 'manual') return 'status-manual';
     if (status === 'error') return 'status-error';
     return 'status-disconnected';
   }
@@ -535,6 +629,278 @@
     if (subtype === 'savings' || subtype === 'money_market' || subtype === 'certificate_of_deposit')
       return 'savings';
     return 'checking';
+  }
+
+  // ==========================================================================
+  //                    MANUAL ACCOUNTS & CSV IMPORT
+  // ==========================================================================
+
+  /** Available subtypes filtered by the selected account type. */
+  const manualSubtypes = $derived(
+    manualType === 'depository'
+      ? [
+          { value: 'checking', label: 'Checking' },
+          { value: 'savings', label: 'Savings' },
+          { value: 'money_market', label: 'Money Market' }
+        ]
+      : [{ value: 'credit_card', label: 'Credit Card' }]
+  );
+
+  // When type changes, reset subtype to first valid option
+  $effect(() => {
+    if (manualType === 'depository' && manualSubtype === 'credit_card') {
+      manualSubtype = 'checking';
+    } else if (manualType === 'credit' && manualSubtype !== 'credit_card') {
+      manualSubtype = 'credit_card';
+    }
+  });
+
+  /** Reset manual form to defaults. */
+  function resetManualForm() {
+    manualInstitution = '';
+    manualName = '';
+    manualType = 'depository';
+    manualSubtype = 'checking';
+    manualLastFour = '';
+    manualBalance = '';
+  }
+
+  /** Create a new manual account. */
+  async function createManualAccount() {
+    if (!manualInstitution.trim() || !manualName.trim()) return;
+    creatingManual = true;
+    try {
+      const id = await accountsStore.createManualAccount({
+        institution_name: manualInstitution.trim(),
+        name: manualName.trim(),
+        type: manualType,
+        subtype: manualSubtype,
+        currency: 'USD',
+        last_four: manualLastFour.trim() ? manualLastFour.trim().slice(-4) : null,
+        status: 'open',
+        balance_available: manualBalance ? parseFloat(manualBalance).toFixed(2) : '0.00',
+        balance_ledger: manualBalance ? parseFloat(manualBalance).toFixed(2) : '0.00',
+        balance_updated_at: new Date().toISOString(),
+        is_hidden: false
+      });
+      showManualModal = false;
+      resetManualForm();
+      showFeedback(
+        'success',
+        `Account "${manualName.trim()}" created. You can now import transactions via CSV.`
+      );
+
+      // Optionally open CSV import for the new account
+      csvImportAccountId = id;
+      csvImportAccountType = manualType;
+      openCSVModal();
+    } catch (err) {
+      console.error('Create manual account error:', err);
+      showFeedback('error', err instanceof Error ? err.message : 'Failed to create account.');
+    } finally {
+      creatingManual = false;
+    }
+  }
+
+  /** Delete all manual accounts for an institution. */
+  async function deleteManualInstitution(institutionName: string) {
+    deletingManual = true;
+    try {
+      const manualAccounts = accounts.filter(
+        (a) => a.source === 'manual' && a.institution_name === institutionName
+      );
+      for (const acct of manualAccounts) {
+        const acctTxns = ($transactionsStore ?? []).filter(
+          (t: { account_id: string }) => t.account_id === acct.id
+        );
+        if (acctTxns.length > 0) {
+          await transactionsStore.bulkDelete(acctTxns.map((t: { id: string }) => t.id));
+        }
+        await accountsStore.deleteAccount(acct.id);
+      }
+      confirmDeleteManualInst = null;
+      showFeedback('success', `"${institutionName}" and all its accounts removed.`);
+    } catch (err) {
+      console.error('Delete manual institution error:', err);
+      showFeedback('error', 'Failed to delete institution. Please try again.');
+    } finally {
+      deletingManual = false;
+    }
+  }
+
+  /** Start editing an account name. */
+  function startEditingName(account: Account) {
+    editingAccountId = account.id;
+    editingAccountName = account.name;
+  }
+
+  /** Save account name edit. */
+  async function saveAccountName(accountId: string) {
+    if (!editingAccountName.trim() || savingAccountName) return;
+    savingAccountName = true;
+    try {
+      const { engineUpdate } = await import('stellar-drive');
+      const { remoteChangesStore } = await import('stellar-drive/stores');
+      remoteChangesStore.recordLocalChange(accountId, 'accounts', 'rename');
+      await engineUpdate('accounts', accountId, { name: editingAccountName.trim() });
+      await accountsStore.refresh();
+      editingAccountId = null;
+    } catch (err) {
+      console.error('Save account name error:', err);
+      showFeedback('error', 'Failed to update account name.');
+    } finally {
+      savingAccountName = false;
+    }
+  }
+
+  /** Open CSV import for a specific account. */
+  function openCSVForAccount(account: Account) {
+    csvImportAccountId = account.id;
+    csvImportAccountType = account.type;
+    openCSVModal();
+  }
+
+  /** Open the CSV import modal. */
+  function openCSVModal() {
+    csvStep = 1;
+    csvHeaders = [];
+    csvRows = [];
+    csvMapping = {};
+    csvSplitMode = false;
+    csvMappedTransactions = [];
+    csvImportResult = null;
+    showCSVModal = true;
+  }
+
+  /** Open CSV import for a specific manual institution group. */
+  function openCSVForGroup(group: (typeof accountsByInstitution)[number]) {
+    // Pick the first account in the group for import
+    if (group.accounts.length > 0) {
+      csvImportAccountId = group.accounts[0].id;
+      csvImportAccountType = group.accounts[0].type;
+    }
+    openCSVModal();
+  }
+
+  /** Handle CSV file selection (from input or drag-drop). */
+  function handleCSVFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+      const result = parseCSV(text);
+      csvHeaders = result.headers;
+      csvRows = result.rows;
+
+      // Auto-detect mapping
+      const detected = autoDetectMapping(result.headers);
+      csvMapping = detected.mapping;
+      csvSplitMode = detected.splitMode;
+    };
+    reader.readAsText(file);
+  }
+
+  /** Handle file input change. */
+  function onCSVFileChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) handleCSVFile(file);
+  }
+
+  /** Handle drag-drop. */
+  function onCSVDrop(e: DragEvent) {
+    e.preventDefault();
+    csvDragOver = false;
+    const file = e.dataTransfer?.files[0];
+    if (file && file.name.endsWith('.csv')) handleCSVFile(file);
+  }
+
+  /** Advance to column mapping step. */
+  function goToMapStep() {
+    csvStep = 2;
+  }
+
+  /** Build mapped transactions and advance to review. */
+  function goToReviewStep() {
+    if (!csvImportAccountId) return;
+    const fullMapping: CSVColumnMapping = {
+      date: csvMapping.date ?? '',
+      description: csvMapping.description ?? '',
+      ...(csvSplitMode
+        ? { credit: csvMapping.credit ?? '', debit: csvMapping.debit ?? '' }
+        : { amount: csvMapping.amount ?? '' })
+    };
+    csvMappedTransactions = mapCSVToTransactions(
+      csvRows,
+      csvHeaders,
+      fullMapping,
+      csvImportAccountId,
+      csvImportAccountType
+    );
+    csvStep = 3;
+  }
+
+  /** Whether the current mapping is complete enough to proceed. */
+  const csvMappingValid = $derived(
+    !!(
+      csvMapping.date &&
+      csvMapping.description &&
+      (csvSplitMode ? csvMapping.credit && csvMapping.debit : csvMapping.amount)
+    )
+  );
+
+  /** Preview rows for the mapping step (up to 3). */
+  const csvPreviewMapped = $derived.by(() => {
+    if (!csvImportAccountId || !csvMappingValid) return [];
+    const fullMapping: CSVColumnMapping = {
+      date: csvMapping.date ?? '',
+      description: csvMapping.description ?? '',
+      ...(csvSplitMode
+        ? { credit: csvMapping.credit ?? '', debit: csvMapping.debit ?? '' }
+        : { amount: csvMapping.amount ?? '' })
+    };
+    return mapCSVToTransactions(
+      csvRows.slice(0, 3),
+      csvHeaders,
+      fullMapping,
+      csvImportAccountId,
+      csvImportAccountType
+    );
+  });
+
+  /** Run the CSV import. */
+  async function importCSV() {
+    if (!csvImportAccountId || csvMappedTransactions.length === 0) return;
+    csvImporting = true;
+    try {
+      const result = await transactionsStore.bulkCreateFromCSV(
+        csvMappedTransactions,
+        csvImportAccountId
+      );
+      csvImportResult = result;
+
+      // Recompute balance from all transactions for this account
+      await transactionsStore.refresh();
+      const allTxns = ($transactionsStore ?? []).filter(
+        (t: { account_id: string; is_excluded?: boolean }) =>
+          t.account_id === csvImportAccountId && !t.is_excluded
+      );
+      const balance = allTxns.reduce(
+        (sum: number, t: { amount: string }) => sum + (parseFloat(t.amount) || 0),
+        0
+      );
+      await accountsStore.updateBalance(csvImportAccountId!, balance.toFixed(2));
+
+      showFeedback(
+        'success',
+        `Imported ${result.inserted} transactions${result.skipped > 0 ? ` (${result.skipped} duplicates skipped)` : ''}.`
+      );
+    } catch (err) {
+      console.error('CSV import error:', err);
+      showFeedback('error', err instanceof Error ? err.message : 'Import failed.');
+    } finally {
+      csvImporting = false;
+    }
   }
 
   // ==========================================================================
@@ -568,14 +934,38 @@
     <div class="header-left">
       <h1 class="page-title">Accounts</h1>
       <p class="page-subtitle">
-        {accounts.length} account{accounts.length !== 1 ? 's' : ''} connected
+        {#if connectedCount > 0 && manualCount > 0}
+          {connectedCount} connected, {manualCount} manual
+        {:else if manualCount > 0}
+          {manualCount} manual account{manualCount !== 1 ? 's' : ''}
+        {:else}
+          {connectedCount} account{connectedCount !== 1 ? 's' : ''} connected
+        {/if}
       </p>
     </div>
-    <button class="connect-btn" onclick={openTellerConnect} disabled={tellerLoading || syncing}>
-      {#if tellerLoading || syncing}
-        <div class="btn-spinner"></div>
-        {syncing ? 'Syncing...' : 'Connecting...'}
-      {:else}
+    <div class="header-actions">
+      <button class="connect-btn" onclick={openTellerConnect} disabled={tellerLoading || syncing}>
+        {#if tellerLoading || syncing}
+          <div class="btn-spinner"></div>
+          {syncing ? 'Syncing...' : 'Connecting...'}
+        {:else}
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path
+              d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
+            /></svg
+          >
+          Link Bank
+        {/if}
+      </button>
+      <button class="manual-btn" onclick={() => (showManualModal = true)}>
         <svg
           width="18"
           height="18"
@@ -585,13 +975,11 @@
           stroke-width="2.5"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path
-            d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
-          /></svg
+          ><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
         >
-        Connect Account
-      {/if}
-    </button>
+        Add Manual
+      </button>
+    </div>
   </header>
 
   <!-- ── Feedback Toast ──────────────────────────────────────────── -->
@@ -823,14 +1211,79 @@
               </div>
               <div class="inst-text">
                 <h2 class="inst-name">{group.institutionName}</h2>
-                <span class="inst-sync">{formatLastSync(group.lastSynced)}</span>
+                <span class="inst-sync"
+                  >{group.enrollmentStatus === 'manual'
+                    ? group.lastSynced
+                      ? `Last import ${formatLastSync(group.lastSynced)}`
+                      : 'No imports yet'
+                    : formatLastSync(group.lastSynced)}</span
+                >
               </div>
             </div>
             <div class="inst-actions">
               <span class="status-badge {statusClass(group.enrollmentStatus)}">
-                {group.enrollmentStatus}
+                {group.enrollmentStatus === 'manual' ? 'Manual' : group.enrollmentStatus}
               </span>
-              {#if confirmDisconnectId === group.enrollmentId}
+              {#if group.enrollmentStatus === 'manual'}
+                <!-- Manual institution actions -->
+                {#if confirmDeleteManualInst === group.institutionName}
+                  <div class="disconnect-confirm">
+                    <button
+                      class="btn-danger-sm"
+                      onclick={() => deleteManualInstitution(group.institutionName)}
+                      disabled={deletingManual}
+                    >
+                      {deletingManual ? 'Removing...' : 'Confirm'}
+                    </button>
+                    <button class="btn-ghost-sm" onclick={() => (confirmDeleteManualInst = null)}>
+                      Cancel
+                    </button>
+                  </div>
+                {:else}
+                  <button
+                    class="sync-btn"
+                    onclick={() => openCSVForGroup(group)}
+                    aria-label="Import CSV for {group.institutionName}"
+                    title="Import CSV"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
+                        points="17 8 12 3 7 8"
+                      /><line x1="12" y1="3" x2="12" y2="15" /></svg
+                    >
+                  </button>
+                  <button
+                    class="disconnect-btn"
+                    onclick={() => (confirmDeleteManualInst = group.institutionName)}
+                    aria-label="Delete {group.institutionName}"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><line x1="18" y1="6" x2="6" y2="18" /><line
+                        x1="6"
+                        y1="6"
+                        x2="18"
+                        y2="18"
+                      /></svg
+                    >
+                  </button>
+                {/if}
+              {:else if confirmDisconnectId === group.enrollmentId}
                 <div class="disconnect-confirm">
                   <button
                     class="btn-danger-sm"
@@ -898,6 +1351,7 @@
                 class="account-card"
                 class:hidden-account={account.is_hidden}
                 style="--acct-delay: {gi * 80 + ai * 50}ms"
+                use:remoteChangeAnimation={{ entityId: account.id, entityType: 'accounts' }}
               >
                 <!-- Account type icon -->
                 <div class="acct-icon acct-icon-{iconType}">
@@ -960,12 +1414,34 @@
                 <!-- Account info -->
                 <div class="acct-info">
                   <div class="acct-top">
-                    <span class="acct-name" class:muted={account.is_hidden}>
-                      {account.name}
-                      {#if account.last_four}
-                        <span class="acct-last4">{account.last_four}</span>
-                      {/if}
-                    </span>
+                    {#if editingAccountId === account.id}
+                      <input
+                        class="acct-name-input"
+                        type="text"
+                        bind:value={editingAccountName}
+                        onblur={() => saveAccountName(account.id)}
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter') saveAccountName(account.id);
+                          if (e.key === 'Escape') editingAccountId = null;
+                        }}
+                        onclick={(e) => e.stopPropagation()}
+                      />
+                    {:else}
+                      <button
+                        class="acct-name"
+                        class:muted={account.is_hidden}
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          startEditingName(account);
+                        }}
+                        title="Click to rename"
+                      >
+                        {account.name}
+                        {#if account.last_four}
+                          <span class="acct-last4">{account.last_four}</span>
+                        {/if}
+                      </button>
+                    {/if}
                     <span class="acct-type-badge type-{account.type}">
                       {subtypeLabel(account.subtype)}
                     </span>
@@ -982,6 +1458,33 @@
                     {/if}
                   </div>
                 </div>
+
+                <!-- Manual account: import CSV button -->
+                {#if account.source === 'manual'}
+                  <button
+                    class="acct-import-btn"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      openCSVForAccount(account);
+                    }}
+                    aria-label="Import CSV for {account.name}"
+                    title="Import CSV"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
+                        points="17 8 12 3 7 8"
+                      /><line x1="12" y1="3" x2="12" y2="15" /></svg
+                    >
+                  </button>
+                {/if}
 
                 <!-- Hide toggle -->
                 <button
@@ -1036,6 +1539,451 @@
     </div>
   {/if}
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MANUAL ACCOUNT CREATION MODAL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+{#if showManualModal}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-backdrop"
+    onclick={() => (showManualModal = false)}
+    onkeydown={(e) => e.key === 'Escape' && (showManualModal = false)}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="modal-panel" onclick={(e) => e.stopPropagation()}>
+      <div class="modal-header">
+        <h2 class="modal-title">Add Manual Account</h2>
+        <button class="modal-close" onclick={() => (showManualModal = false)} aria-label="Close">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+          >
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <label class="form-label">
+          Institution Name
+          <input
+            class="form-input"
+            type="text"
+            bind:value={manualInstitution}
+            placeholder="e.g. Chase, Fidelity"
+          />
+        </label>
+
+        <label class="form-label">
+          Account Name
+          <input
+            class="form-input"
+            type="text"
+            bind:value={manualName}
+            placeholder="e.g. Personal Checking"
+          />
+        </label>
+
+        <label class="form-label">
+          Account Number
+          <input
+            class="form-input"
+            type="text"
+            bind:value={manualLastFour}
+            placeholder="Last 4 digits (optional)"
+            maxlength="4"
+          />
+          <span class="form-hint">Only the last 4 digits are stored</span>
+        </label>
+
+        <div class="form-row">
+          <label class="form-label form-half">
+            Type
+            <select class="form-input" bind:value={manualType}>
+              <option value="depository">Depository</option>
+              <option value="credit">Credit</option>
+            </select>
+          </label>
+
+          <label class="form-label form-half">
+            Subtype
+            <select class="form-input" bind:value={manualSubtype}>
+              {#each manualSubtypes as st (st.value)}
+                <option value={st.value}>{st.label}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+
+        <label class="form-label">
+          Current Balance
+          <input
+            class="form-input"
+            type="number"
+            step="0.01"
+            bind:value={manualBalance}
+            placeholder="0.00"
+          />
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-ghost-sm" onclick={() => (showManualModal = false)}>Cancel</button>
+        <button
+          class="btn-primary"
+          onclick={createManualAccount}
+          disabled={creatingManual || !manualInstitution.trim() || !manualName.trim()}
+        >
+          {#if creatingManual}
+            <div class="btn-spinner"></div>
+            Creating...
+          {:else}
+            Create Account
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     CSV IMPORT MODAL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+{#if showCSVModal}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-backdrop"
+    onclick={() => (showCSVModal = false)}
+    onkeydown={(e) => e.key === 'Escape' && (showCSVModal = false)}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="modal-panel modal-csv" onclick={(e) => e.stopPropagation()}>
+      <div class="modal-header">
+        <h2 class="modal-title">Import CSV Transactions</h2>
+        <button class="modal-close" onclick={() => (showCSVModal = false)} aria-label="Close">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+          >
+        </button>
+      </div>
+
+      <!-- Step Indicators -->
+      <div class="csv-steps">
+        <div class="csv-step" class:step-active={csvStep === 1} class:step-done={csvStep > 1}>
+          <div class="step-circle">{csvStep > 1 ? '\u2713' : '1'}</div>
+          <span class="step-label">Upload</span>
+        </div>
+        <div class="step-line" class:line-done={csvStep > 1}></div>
+        <div class="csv-step" class:step-active={csvStep === 2} class:step-done={csvStep > 2}>
+          <div class="step-circle">{csvStep > 2 ? '\u2713' : '2'}</div>
+          <span class="step-label">Map</span>
+        </div>
+        <div class="step-line" class:line-done={csvStep > 2}></div>
+        <div
+          class="csv-step"
+          class:step-active={csvStep === 3}
+          class:step-done={csvImportResult !== null}
+        >
+          <div class="step-circle">{csvImportResult ? '\u2713' : '3'}</div>
+          <span class="step-label">Import</span>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        {#if csvStep === 1}
+          <!-- Step 1: Upload -->
+          <div
+            class="csv-dropzone"
+            class:dropzone-active={csvDragOver}
+            ondragover={(e) => {
+              e.preventDefault();
+              csvDragOver = true;
+            }}
+            ondragleave={() => (csvDragOver = false)}
+            ondrop={onCSVDrop}
+            role="button"
+            tabindex="0"
+            onkeydown={(e) => e.key === 'Enter' && csvFileInput?.click()}
+            onclick={() => csvFileInput?.click()}
+          >
+            <svg
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="dropzone-icon"
+              ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
+                points="17 8 12 3 7 8"
+              /><line x1="12" y1="3" x2="12" y2="15" /></svg
+            >
+            <p class="dropzone-text">Drop a .csv file here or click to browse</p>
+            <input
+              bind:this={csvFileInput}
+              type="file"
+              accept=".csv"
+              class="sr-only"
+              onchange={onCSVFileChange}
+            />
+          </div>
+
+          {#if csvHeaders.length > 0}
+            <div class="csv-preview-section">
+              <h3 class="csv-preview-title">Preview ({csvRows.length} rows detected)</h3>
+              <div class="csv-table-wrap">
+                <table class="csv-table">
+                  <thead>
+                    <tr>
+                      {#each csvHeaders as h}
+                        <th>{h}</th>
+                      {/each}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each csvRows.slice(0, 5) as row, ri}
+                      <tr style="animation-delay: {ri * 60}ms">
+                        {#each row as cell}
+                          <td>{cell}</td>
+                        {/each}
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button class="btn-ghost-sm" onclick={() => (showCSVModal = false)}>Cancel</button>
+              <button class="btn-primary" onclick={goToMapStep}> Continue to Mapping </button>
+            </div>
+          {/if}
+        {:else if csvStep === 2}
+          <!-- Step 2: Map Columns -->
+          <div class="csv-map-section">
+            <div class="csv-split-toggle">
+              <label class="form-label toggle-label">
+                <input type="checkbox" bind:checked={csvSplitMode} class="toggle-check" />
+                <span>Split debit/credit columns</span>
+              </label>
+            </div>
+
+            <label class="form-label">
+              Date Column
+              <select class="form-input" bind:value={csvMapping.date}>
+                <option value="">-- Select --</option>
+                {#each csvHeaders as h}
+                  <option value={h}>{h}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="form-label">
+              Description Column
+              <select class="form-input" bind:value={csvMapping.description}>
+                <option value="">-- Select --</option>
+                {#each csvHeaders as h}
+                  <option value={h}>{h}</option>
+                {/each}
+              </select>
+            </label>
+
+            {#if csvSplitMode}
+              <div class="form-row">
+                <label class="form-label form-half">
+                  Credit Column
+                  <select class="form-input" bind:value={csvMapping.credit}>
+                    <option value="">-- Select --</option>
+                    {#each csvHeaders as h}
+                      <option value={h}>{h}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label class="form-label form-half">
+                  Debit Column
+                  <select class="form-input" bind:value={csvMapping.debit}>
+                    <option value="">-- Select --</option>
+                    {#each csvHeaders as h}
+                      <option value={h}>{h}</option>
+                    {/each}
+                  </select>
+                </label>
+              </div>
+            {:else}
+              <label class="form-label">
+                Amount Column
+                <select class="form-input" bind:value={csvMapping.amount}>
+                  <option value="">-- Select --</option>
+                  {#each csvHeaders as h}
+                    <option value={h}>{h}</option>
+                  {/each}
+                </select>
+              </label>
+            {/if}
+
+            {#if csvPreviewMapped.length > 0}
+              <div class="csv-preview-section">
+                <h3 class="csv-preview-title">Mapped Preview</h3>
+                <div class="csv-table-wrap">
+                  <table class="csv-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each csvPreviewMapped as row, ri}
+                        <tr style="animation-delay: {ri * 60}ms">
+                          <td>{row.date}</td>
+                          <td>{row.description}</td>
+                          <td
+                            class:csv-positive={parseFloat(row.amount) >= 0}
+                            class:csv-negative={parseFloat(row.amount) < 0}
+                          >
+                            {formatCurrency(parseFloat(row.amount))}
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            {/if}
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn-ghost-sm" onclick={() => (csvStep = 1)}>Back</button>
+            <button class="btn-primary" onclick={goToReviewStep} disabled={!csvMappingValid}>
+              Review Import
+            </button>
+          </div>
+        {:else if csvStep === 3}
+          <!-- Step 3: Review & Import -->
+          {#if csvImportResult}
+            <div class="csv-success">
+              <div class="success-icon">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline
+                    points="22 4 12 14.01 9 11.01"
+                  /></svg
+                >
+              </div>
+              <h3 class="success-title">Import Complete</h3>
+              <p class="success-detail">
+                {csvImportResult.inserted} transaction{csvImportResult.inserted !== 1 ? 's' : ''} imported
+                {#if csvImportResult.skipped > 0}
+                  <br /><span class="success-skipped"
+                    >{csvImportResult.skipped} duplicate{csvImportResult.skipped !== 1 ? 's' : ''} skipped</span
+                  >
+                {/if}
+              </p>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-primary" onclick={() => (showCSVModal = false)}>Done</button>
+            </div>
+          {:else}
+            <div class="csv-review">
+              <div class="review-stats">
+                <div class="review-stat">
+                  <span class="review-stat-value">{csvRows.length}</span>
+                  <span class="review-stat-label">Total Rows</span>
+                </div>
+                <div class="review-stat">
+                  <span class="review-stat-value">{csvMappedTransactions.length}</span>
+                  <span class="review-stat-label">Valid Transactions</span>
+                </div>
+                <div class="review-stat">
+                  <span class="review-stat-value"
+                    >{csvRows.length - csvMappedTransactions.length}</span
+                  >
+                  <span class="review-stat-label">Skipped / Invalid</span>
+                </div>
+              </div>
+
+              {#if csvMappedTransactions.length > 0}
+                <div class="csv-preview-section">
+                  <h3 class="csv-preview-title">Sample Transactions</h3>
+                  <div class="csv-table-wrap">
+                    <table class="csv-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Description</th>
+                          <th>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {#each csvMappedTransactions.slice(0, 5) as row, ri}
+                          <tr style="animation-delay: {ri * 60}ms">
+                            <td>{row.date}</td>
+                            <td>{row.description}</td>
+                            <td
+                              class:csv-positive={parseFloat(row.amount) >= 0}
+                              class:csv-negative={parseFloat(row.amount) < 0}
+                            >
+                              {formatCurrency(parseFloat(row.amount))}
+                            </td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              {/if}
+            </div>
+            <div class="modal-footer">
+              <button class="btn-ghost-sm" onclick={() => (csvStep = 2)}>Back</button>
+              <button
+                class="btn-primary btn-import"
+                class:importing={csvImporting}
+                onclick={importCSV}
+                disabled={csvImporting || csvMappedTransactions.length === 0}
+              >
+                {#if csvImporting}
+                  <div class="btn-spinner"></div>
+                  Importing...
+                {:else}
+                  Import {csvMappedTransactions.length} Transaction{csvMappedTransactions.length !==
+                  1
+                    ? 's'
+                    : ''}
+                {/if}
+              </button>
+            </div>
+          {/if}
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      SCOPED STYLES
@@ -1117,6 +2065,13 @@
     letter-spacing: 0.04em;
   }
 
+  /* ── Header Actions ────────────────────────────────────────────────────── */
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   /* ── Connect Button ─────────────────────────────────────────────────────── */
   .connect-btn {
     display: flex;
@@ -1153,6 +2108,38 @@
   .connect-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .manual-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.15rem;
+    background: rgba(232, 185, 74, 0.08);
+    border: 1px solid rgba(232, 185, 74, 0.2);
+    border-radius: 10px;
+    color: var(--amethyst);
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s;
+    letter-spacing: 0.02em;
+  }
+
+  .manual-btn:hover {
+    background: rgba(232, 185, 74, 0.14);
+    border-color: rgba(232, 185, 74, 0.4);
+    box-shadow: 0 0 24px rgba(232, 185, 74, 0.15);
+    transform: translateY(-1px);
   }
 
   .btn-spinner {
@@ -1552,6 +2539,12 @@
     border: 1px solid rgba(248, 113, 113, 0.2);
   }
 
+  .status-badge.status-manual {
+    color: #5c8ce8;
+    background: rgba(92, 140, 232, 0.1);
+    border-color: rgba(92, 140, 232, 0.2);
+  }
+
   /* ── Disconnect Button ──────────────────────────────────────────────────── */
   .sync-btn {
     display: flex;
@@ -1768,16 +2761,80 @@
   }
 
   .acct-name {
+    all: unset;
     font-weight: 600;
     font-size: 0.9rem;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: text;
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin: -1px -4px;
+    transition:
+      background 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .acct-name:hover {
+    background: rgba(180, 150, 80, 0.06);
+  }
+
+  .acct-name:focus-visible {
+    background: rgba(180, 150, 80, 0.08);
+    box-shadow: 0 0 0 1px rgba(232, 185, 74, 0.2);
   }
 
   .acct-name.muted {
     color: var(--text-muted);
+  }
+
+  .acct-name-input {
+    all: unset;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    background: var(--surface-raised);
+    border: 1px solid var(--amethyst);
+    border-radius: 6px;
+    padding: 2px 8px;
+    box-shadow: 0 0 0 2px rgba(232, 185, 74, 0.15);
+    animation: nameEditGlow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    min-width: 0;
+    width: 100%;
+  }
+
+  @keyframes nameEditGlow {
+    from {
+      box-shadow: 0 0 0 0 rgba(232, 185, 74, 0);
+      transform: scale(0.98);
+    }
+    to {
+      box-shadow: 0 0 0 2px rgba(232, 185, 74, 0.15);
+      transform: scale(1);
+    }
+  }
+
+  .acct-import-btn {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .acct-import-btn:hover {
+    color: var(--amethyst);
+    background: rgba(232, 185, 74, 0.08);
   }
 
   .acct-last4 {
@@ -1980,6 +3037,697 @@
 
     .disconnect-confirm {
       flex-direction: column;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     REAL-TIME ANIMATION KEYFRAMES
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  :global(.syncable-item) {
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease,
+      background 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  :global(.item-created) {
+    animation: acctSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes acctSlideIn {
+    0% {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+      box-shadow: 0 0 0 0 rgba(232, 185, 74, 0);
+    }
+    40% {
+      box-shadow:
+        0 0 20px 4px rgba(232, 185, 74, 0.2),
+        inset 0 0 16px rgba(232, 200, 122, 0.06);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      box-shadow: 0 0 0 0 rgba(232, 185, 74, 0);
+    }
+  }
+
+  :global(.item-changed) {
+    animation: acctShimmer 1.6s ease-out forwards;
+  }
+
+  @keyframes acctShimmer {
+    0% {
+      background: linear-gradient(110deg, transparent 0%, transparent 100%) no-repeat;
+      background-size: 250% 100%;
+      background-position: 200% 0;
+    }
+    15% {
+      background: linear-gradient(
+          110deg,
+          transparent 0%,
+          rgba(200, 160, 60, 0.06) 35%,
+          rgba(232, 200, 122, 0.1) 50%,
+          rgba(46, 196, 166, 0.04) 65%,
+          transparent 100%
+        )
+        no-repeat;
+      background-size: 250% 100%;
+      background-position: 200% 0;
+    }
+    100% {
+      background: linear-gradient(
+          110deg,
+          transparent 0%,
+          rgba(200, 160, 60, 0.06) 35%,
+          rgba(232, 200, 122, 0.1) 50%,
+          rgba(46, 196, 166, 0.04) 65%,
+          transparent 100%
+        )
+        no-repeat;
+      background-size: 250% 100%;
+      background-position: -100% 0;
+    }
+  }
+
+  :global(.item-deleting) {
+    animation: acctFadeOut 0.5s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+    pointer-events: none;
+  }
+
+  @keyframes acctFadeOut {
+    0% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+  }
+
+  :global(.text-changed) {
+    animation: acctTextFlash 0.7s ease-out forwards;
+  }
+
+  @keyframes acctTextFlash {
+    0% {
+      background-color: rgba(232, 185, 74, 0.15);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  :global(.item-toggled) {
+    animation: acctPulse 0.6s ease-out forwards;
+  }
+
+  @keyframes acctPulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    25% {
+      transform: scale(1.01);
+      box-shadow: 0 0 12px rgba(232, 185, 74, 0.15);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     MODAL STYLES
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(12px);
+    animation: backdrop-in 0.25s ease-out;
+    padding: 1rem;
+  }
+
+  @keyframes backdrop-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  .modal-panel {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    box-shadow:
+      0 24px 48px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(180, 150, 80, 0.08);
+    animation: modal-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .modal-csv {
+    max-width: 580px;
+  }
+
+  @keyframes modal-enter {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.96);
+    }
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem 0.75rem;
+  }
+
+  .modal-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: 0.04em;
+  }
+
+  .modal-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .modal-close:hover {
+    background: var(--surface-raised);
+    border-color: var(--border-interactive);
+    color: var(--text-secondary);
+  }
+
+  .modal-body {
+    padding: 0.75rem 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem 1.25rem;
+  }
+
+  /* ── Form Elements ───────────────────────────────────────────────────────── */
+
+  .form-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.03em;
+  }
+
+  .form-input {
+    height: 44px;
+    padding: 0 14px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.88rem;
+    transition: all 0.2s ease;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .form-input:focus {
+    border-color: var(--amethyst);
+    box-shadow: 0 0 0 2px rgba(232, 185, 74, 0.15);
+  }
+
+  .form-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  select.form-input {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a09478' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .form-half {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .form-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    font-weight: 400;
+  }
+
+  .btn-primary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.15rem;
+    background: rgba(232, 185, 74, 0.08);
+    border: 1px solid rgba(232, 185, 74, 0.2);
+    border-radius: 10px;
+    color: var(--amethyst);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: rgba(232, 185, 74, 0.14);
+    border-color: rgba(232, 185, 74, 0.4);
+    box-shadow: 0 0 24px rgba(232, 185, 74, 0.15);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-import {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-import.importing::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 0%,
+      rgba(232, 185, 74, 0.12) 40%,
+      rgba(232, 200, 122, 0.18) 50%,
+      rgba(232, 185, 74, 0.12) 60%,
+      transparent 100%
+    );
+    background-size: 250% 100%;
+    animation: shimmer-sweep 1.5s ease-in-out infinite;
+  }
+
+  @keyframes shimmer-sweep {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+
+  /* ── CSV Step Indicators ─────────────────────────────────────────────────── */
+
+  .csv-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0 1.5rem 0.5rem;
+  }
+
+  .csv-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .step-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: var(--surface-overlay);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .step-active .step-circle {
+    background: rgba(232, 185, 74, 0.15);
+    border-color: var(--amethyst);
+    color: var(--amethyst);
+    box-shadow: 0 0 12px rgba(232, 185, 74, 0.2);
+  }
+
+  .step-done .step-circle {
+    background: rgba(52, 211, 153, 0.15);
+    border-color: var(--emerald);
+    color: var(--emerald);
+  }
+
+  .step-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 500;
+    transition: color 0.3s;
+  }
+
+  .step-active .step-label {
+    color: var(--amethyst);
+  }
+
+  .step-done .step-label {
+    color: var(--emerald);
+  }
+
+  .step-line {
+    width: 40px;
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 0 0.5rem;
+    margin-bottom: 1.2rem;
+    transition: background 0.3s;
+  }
+
+  .step-line.line-done {
+    background: var(--emerald);
+  }
+
+  /* ── CSV Dropzone ────────────────────────────────────────────────────────── */
+
+  .csv-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    min-height: 160px;
+    padding: 2rem;
+    border: 2px dashed var(--border-interactive);
+    border-radius: 12px;
+    background: var(--surface-raised);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .csv-dropzone:hover,
+  .dropzone-active {
+    border-color: var(--amethyst);
+    box-shadow: 0 0 20px rgba(232, 185, 74, 0.1);
+    background: rgba(232, 185, 74, 0.03);
+  }
+
+  .dropzone-icon {
+    color: var(--text-muted);
+    transition: color 0.3s;
+  }
+
+  .csv-dropzone:hover .dropzone-icon,
+  .dropzone-active .dropzone-icon {
+    color: var(--amethyst);
+  }
+
+  .dropzone-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+    margin: 0;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ── CSV Preview Table ───────────────────────────────────────────────────── */
+
+  .csv-preview-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .csv-preview-title {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin: 0;
+    letter-spacing: 0.04em;
+  }
+
+  .csv-table-wrap {
+    position: relative;
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .csv-table-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 32px;
+    background: linear-gradient(90deg, transparent, var(--surface-card));
+    pointer-events: none;
+    border-radius: 0 10px 10px 0;
+  }
+
+  .csv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .csv-table thead tr {
+    background: var(--surface-overlay);
+  }
+
+  .csv-table th {
+    padding: 0.5rem 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: left;
+  }
+
+  .csv-table tbody tr {
+    animation: csv-row-in 0.3s ease-out both;
+  }
+
+  .csv-table tbody tr:nth-child(even) {
+    background: rgba(180, 150, 80, 0.02);
+  }
+
+  @keyframes csv-row-in {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+  }
+
+  .csv-table td {
+    padding: 0.45rem 0.75rem;
+    color: var(--text-primary);
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .csv-positive {
+    color: var(--emerald);
+  }
+
+  .csv-negative {
+    color: var(--ruby);
+  }
+
+  /* ── CSV Map Section ─────────────────────────────────────────────────────── */
+
+  .csv-map-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .csv-split-toggle {
+    display: flex;
+    align-items: center;
+  }
+
+  .toggle-label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .toggle-check {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--amethyst);
+  }
+
+  /* ── CSV Review & Success ────────────────────────────────────────────────── */
+
+  .csv-review {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .review-stats {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+  }
+
+  .review-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .review-stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .review-stat-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .csv-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+    padding: 2rem 1rem;
+  }
+
+  .success-icon {
+    color: var(--emerald);
+    animation: success-scale-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes success-scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+
+  .success-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .success-detail {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  .success-skipped {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+
+  /* ── Responsive for modals ───────────────────────────────────────────────── */
+
+  @media (max-width: 640px) {
+    .header-actions {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.4rem;
+    }
+
+    .modal-panel {
+      max-height: 90vh;
+    }
+
+    .modal-header {
+      padding: 1rem 1rem 0.5rem;
+    }
+
+    .modal-body {
+      padding: 0.5rem 1rem 0.75rem;
+    }
+
+    .modal-footer {
+      padding: 0.5rem 1rem 1rem;
+    }
+
+    .review-stats {
+      gap: 1rem;
+    }
+
+    .step-line {
+      width: 24px;
     }
   }
 </style>

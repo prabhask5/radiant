@@ -27,12 +27,13 @@
   import type { Account, Category } from '$lib/types';
   import {
     formatCurrency,
-    formatDate,
     formatDateGroup,
     amountClass,
+    isInflow,
     getCurrentMonth,
     formatMonth
   } from '$lib/utils/currency';
+  import { remoteChangeAnimation } from 'stellar-drive/actions';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -62,6 +63,10 @@
   let editingNotes = $state<Record<string, string>>({});
   let editingCategory = $state<Record<string, string>>({});
   let savingField = $state<string | null>(null);
+
+  /* ── Multi-select ── */
+  let selectionMode = $state(false);
+  let selectedIds = $state<Set<string>>(new Set());
 
   /* ── Page entrance ── */
   let mounted = $state(false);
@@ -202,12 +207,15 @@
     for (const t of filteredTransactions) {
       if (t.is_excluded) continue;
       const amt = parseFloat(t.amount) || 0;
-      if (amt < 0) {
-        // Credits: deposits, refunds, CC payments
+      if (amt === 0) {
+        count++;
+        continue;
+      }
+      const acctType = accountsById[t.account_id]?.type ?? 'credit';
+      if (isInflow(amt, acctType)) {
         inflow += Math.abs(amt);
-      } else if (amt > 0) {
-        // Debits: charges, withdrawals
-        outflow += amt;
+      } else {
+        outflow += Math.abs(amt);
       }
       count++;
     }
@@ -286,6 +294,33 @@
     }
   }
 
+  /** Toggle selection of a transaction. */
+  function toggleSelect(id: string, e?: Event) {
+    e?.stopPropagation();
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selectedIds = next;
+  }
+
+  /** Select all visible transactions. */
+  function selectAllVisible() {
+    selectedIds = new Set(visibleTransactions.map((t) => t.id));
+  }
+
+  /** Clear selection and exit selection mode. */
+  function clearSelection() {
+    selectedIds = new Set();
+    selectionMode = false;
+  }
+
+  /** Bulk delete all selected transactions. */
+  async function bulkDeleteSelected() {
+    const ids = [...selectedIds];
+    clearSelection();
+    await transactionsStore.bulkDelete(ids);
+  }
+
   /** Load more transactions. */
   function loadMore() {
     visibleCount += PAGE_SIZE;
@@ -333,6 +368,38 @@
     } finally {
       savingField = null;
     }
+  }
+
+  /** Save an edited description. */
+  async function saveDescription(transactionId: string, value: string) {
+    const trimmed = value.trim();
+    const t = allTransactions.find((tx) => tx.id === transactionId);
+    if (!trimmed || trimmed === t?.description) return;
+    savingField = `desc-${transactionId}`;
+    try {
+      await transactionsStore.updateDescription(transactionId, trimmed);
+    } finally {
+      savingField = null;
+    }
+  }
+
+  /** Save an edited date. */
+  async function saveDate(transactionId: string, value: string) {
+    if (!value) return;
+    const t = allTransactions.find((tx) => tx.id === transactionId);
+    if (value === t?.date) return;
+    savingField = `date-${transactionId}`;
+    try {
+      await transactionsStore.updateDate(transactionId, value);
+    } finally {
+      savingField = null;
+    }
+  }
+
+  /** Delete a single transaction from the expanded detail panel. */
+  async function deleteSingle(transactionId: string) {
+    expandedId = null;
+    await transactionsStore.deleteTransaction(transactionId);
   }
 
   /** Toggle the excluded flag on a transaction. */
@@ -413,6 +480,33 @@
         </svg>
       </button>
     </div>
+    <button
+      class="select-mode-btn"
+      class:active={selectionMode}
+      onclick={() => {
+        if (selectionMode) clearSelection();
+        else selectionMode = true;
+      }}
+      aria-label={selectionMode ? 'Exit selection' : 'Select transactions'}
+    >
+      {#if selectionMode}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path
+            d="M4 4L12 12M12 4L4 12"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </svg>
+      {:else}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" />
+          <rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" />
+          <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" />
+          <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" />
+        </svg>
+      {/if}
+    </button>
   </header>
 
   <!-- ─── Search & Filter Bar ─── -->
@@ -593,7 +687,8 @@
         {#each group.transactions as txn, ti (txn.id)}
           {@const cat = getCategoryForTransaction(txn.category_id)}
           {@const amt = parseFloat(txn.amount) || 0}
-          {@const cls = amountClass(amt)}
+          {@const acctType = accountsById[txn.account_id]?.type ?? 'credit'}
+          {@const cls = amountClass(amt, acctType)}
           {@const isPending = txn.status === 'pending'}
           {@const isExpanded = expandedId === txn.id}
 
@@ -603,9 +698,31 @@
             class:pending={isPending}
             class:excluded={txn.is_excluded}
             style="animation-delay: {(gi * 3 + ti) * 0.03}s"
-            onclick={() => toggleExpand(txn.id)}
+            onclick={() => (selectionMode ? toggleSelect(txn.id) : toggleExpand(txn.id))}
             aria-expanded={isExpanded}
+            use:remoteChangeAnimation={{ entityId: txn.id, entityType: 'transactions' }}
           >
+            {#if selectionMode}
+              <span
+                class="select-check"
+                class:checked={selectedIds.has(txn.id)}
+                role="checkbox"
+                aria-checked={selectedIds.has(txn.id)}
+              >
+                {#if selectedIds.has(txn.id)}
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M2.5 6L5 8.5L9.5 3.5"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                {/if}
+              </span>
+            {/if}
+
             <!-- Category Dot -->
             <div class="txn-dot" style="--dot-color: {cat?.color ?? '#555'}">
               {#if cat?.icon}
@@ -646,15 +763,37 @@
             <div class="txn-detail">
               <div class="detail-grid">
                 <!-- Full Description -->
-                <div class="detail-row">
+                <div class="detail-row detail-row-interactive">
                   <span class="detail-label">Description</span>
-                  <span class="detail-value">{txn.description}</span>
+                  <div class="detail-control">
+                    <input
+                      type="text"
+                      class="detail-input"
+                      value={txn.description}
+                      onblur={(e) => saveDescription(txn.id, (e.target as HTMLInputElement).value)}
+                      onclick={(e) => e.stopPropagation()}
+                    />
+                    {#if savingField === `desc-${txn.id}`}
+                      <span class="saving-indicator"></span>
+                    {/if}
+                  </div>
                 </div>
 
                 <!-- Date -->
-                <div class="detail-row">
+                <div class="detail-row detail-row-interactive">
                   <span class="detail-label">Date</span>
-                  <span class="detail-value">{formatDate(txn.date)}</span>
+                  <div class="detail-control">
+                    <input
+                      type="date"
+                      class="detail-input"
+                      value={txn.date}
+                      onchange={(e) => saveDate(txn.id, (e.target as HTMLInputElement).value)}
+                      onclick={(e) => e.stopPropagation()}
+                    />
+                    {#if savingField === `date-${txn.id}`}
+                      <span class="saving-indicator"></span>
+                    {/if}
+                  </div>
                 </div>
 
                 <!-- Account -->
@@ -744,6 +883,28 @@
                     </button>
                   </div>
                 </div>
+
+                <!-- Delete Transaction -->
+                <div class="detail-row detail-row-delete">
+                  <button
+                    class="delete-txn-btn"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      deleteSingle(txn.id);
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path
+                        d="M2.5 3.5H11.5M5 3.5V2.5C5 2.224 5.224 2 5.5 2H8.5C8.776 2 9 2.224 9 2.5V3.5M5.5 6V10.5M8.5 6V10.5M3.5 3.5L4 11.5C4 11.776 4.224 12 4.5 12H9.5C9.776 12 10 11.776 10 11.5L10.5 3.5"
+                        stroke="currentColor"
+                        stroke-width="1.1"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    Delete transaction
+                  </button>
+                </div>
               </div>
             </div>
           {/if}
@@ -761,6 +922,32 @@
           </button>
         </div>
       {/if}
+    </div>
+  {/if}
+
+  <!-- ─── Floating Selection Bar ─── -->
+  {#if selectionMode && selectedIds.size > 0}
+    <div class="selection-bar">
+      <div class="selection-bar-inner">
+        <span class="selection-count">{selectedIds.size}</span>
+        <button class="selection-select-all" onclick={selectAllVisible}>
+          {selectedIds.size === visibleTransactions.length ? 'Deselect all' : 'Select all'}
+        </button>
+        <div class="selection-spacer"></div>
+        <button class="selection-delete" onclick={bulkDeleteSelected}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M2.5 3.5H11.5M5 3.5V2.5C5 2.224 5.224 2 5.5 2H8.5C8.776 2 9 2.224 9 2.5V3.5M5.5 6V10.5M8.5 6V10.5M3.5 3.5L4 11.5C4 11.776 4.224 12 4.5 12H9.5C9.776 12 10 11.776 10 11.5L10.5 3.5"
+              stroke="currentColor"
+              stroke-width="1.1"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          Delete
+        </button>
+        <button class="selection-cancel" onclick={clearSelection}>Cancel</button>
+      </div>
     </div>
   {/if}
 </div>
@@ -2003,6 +2190,390 @@
 
     .search-input {
       font-size: 16px;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     MULTI-SELECT
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .select-mode-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--txn-border);
+    background: var(--txn-frost);
+    color: var(--txn-text-muted);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      color 0.2s,
+      border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    margin-left: 0.5rem;
+  }
+
+  .select-mode-btn:hover,
+  .select-mode-btn.active {
+    background: var(--txn-frost-hover);
+    color: var(--txn-citrine);
+    border-color: rgba(219, 176, 68, 0.3);
+  }
+
+  .select-check {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--txn-radius-sm);
+    border: 1.5px solid var(--txn-border);
+    background: var(--txn-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition:
+      background 0.25s cubic-bezier(0.68, -0.15, 0.27, 1.15),
+      border-color 0.25s,
+      transform 0.25s cubic-bezier(0.68, -0.15, 0.27, 1.15),
+      box-shadow 0.25s;
+    color: #fff;
+  }
+
+  .select-check.checked {
+    background: var(--txn-citrine);
+    border-color: var(--txn-citrine);
+    transform: scale(1.08);
+    box-shadow: 0 0 10px rgba(219, 176, 68, 0.35);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     FLOATING SELECTION BAR
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .selection-bar {
+    position: fixed;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px) * 0.6 + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    animation: selectionBarSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes selectionBarSlideUp {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+  }
+
+  .selection-bar-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--txn-glass-bg);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid var(--txn-glass-border);
+    border-radius: var(--txn-radius);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(180, 150, 80, 0.06);
+  }
+
+  .selection-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 0.4rem;
+    border-radius: 12px;
+    background: var(--txn-citrine);
+    color: var(--txn-void);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .selection-select-all {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--txn-citrine);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: var(--txn-radius-sm);
+    transition: background 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .selection-select-all:hover {
+    background: rgba(200, 160, 60, 0.1);
+  }
+
+  .selection-spacer {
+    width: 1px;
+    height: 20px;
+    background: var(--txn-border);
+    flex-shrink: 0;
+  }
+
+  .selection-delete {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(232, 84, 112, 0.85);
+    border: 1px solid rgba(232, 84, 112, 0.4);
+    border-radius: var(--txn-radius-sm);
+    padding: 0.35rem 0.65rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition:
+      background 0.2s,
+      box-shadow 0.3s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .selection-delete:hover {
+    background: rgba(232, 84, 112, 1);
+    box-shadow: 0 0 16px rgba(232, 84, 112, 0.3);
+  }
+
+  .selection-cancel {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--txn-text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s;
+  }
+
+  .selection-cancel:hover {
+    color: var(--txn-text);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     INLINE EDIT — Detail input
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .detail-input {
+    width: 100%;
+    height: 32px;
+    border-radius: var(--txn-radius-sm);
+    border: 1px solid var(--txn-border);
+    background: var(--txn-surface);
+    color: var(--txn-text);
+    font-size: 0.78rem;
+    font-family: inherit;
+    padding: 0 0.5rem;
+    outline: none;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.3s;
+  }
+
+  .detail-input:focus {
+    border-color: var(--txn-citrine);
+    box-shadow:
+      0 0 0 2px rgba(219, 176, 68, 0.12),
+      0 0 12px rgba(219, 176, 68, 0.08);
+  }
+
+  .detail-input[type='date'] {
+    color-scheme: dark;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     DELETE BUTTON
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  .detail-row-delete {
+    margin-top: 0.4rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--txn-border-subtle);
+  }
+
+  .delete-txn-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--txn-radius-sm);
+    border: 1px solid rgba(232, 84, 112, 0.25);
+    background: rgba(232, 84, 112, 0.12);
+    color: var(--txn-ruby);
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      border-color 0.2s,
+      box-shadow 0.3s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .delete-txn-btn:hover {
+    background: rgba(232, 84, 112, 0.22);
+    border-color: rgba(232, 84, 112, 0.4);
+    box-shadow: 0 0 16px rgba(232, 84, 112, 0.12);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     REAL-TIME ANIMATION KEYFRAMES
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  /* Base transition for all syncable items */
+  :global(.syncable-item) {
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease,
+      background 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  /* New transaction — golden slide-in with burst glow */
+  :global(.item-created) {
+    animation: txnSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes txnSlideIn {
+    0% {
+      opacity: 0;
+      transform: translateX(-24px) scale(0.94);
+      box-shadow: 0 0 0 0 rgba(232, 185, 74, 0);
+      background: rgba(232, 185, 74, 0.12);
+    }
+    40% {
+      box-shadow:
+        0 0 24px 6px rgba(232, 185, 74, 0.25),
+        inset 0 0 20px rgba(232, 200, 122, 0.08);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+      box-shadow: 0 0 0 0 rgba(232, 185, 74, 0);
+      background: transparent;
+    }
+  }
+
+  /* Delete — ruby flash + slide-out + collapse */
+  :global(.item-deleting) {
+    animation: txnSlideOut 0.5s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+    pointer-events: none;
+  }
+
+  @keyframes txnSlideOut {
+    0% {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+      max-height: 80px;
+      background: rgba(232, 84, 112, 0.08);
+    }
+    30% {
+      background: rgba(232, 84, 112, 0.15);
+      box-shadow: inset 0 0 16px rgba(232, 84, 112, 0.1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(40px) scale(0.88);
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+  }
+
+  /* Field update — prismatic shimmer sweep */
+  :global(.item-changed) {
+    animation: txnPrismaticSweep 1.6s ease-out forwards;
+  }
+
+  @keyframes txnPrismaticSweep {
+    0% {
+      background: linear-gradient(110deg, transparent 0%, transparent 100%) no-repeat;
+      background-size: 250% 100%;
+      background-position: 200% 0;
+    }
+    15% {
+      background: linear-gradient(
+          110deg,
+          transparent 0%,
+          rgba(200, 160, 60, 0.08) 35%,
+          rgba(232, 200, 122, 0.12) 50%,
+          rgba(46, 196, 166, 0.06) 65%,
+          transparent 100%
+        )
+        no-repeat;
+      background-size: 250% 100%;
+      background-position: 200% 0;
+    }
+    100% {
+      background: linear-gradient(
+          110deg,
+          transparent 0%,
+          rgba(200, 160, 60, 0.08) 35%,
+          rgba(232, 200, 122, 0.12) 50%,
+          rgba(46, 196, 166, 0.06) 65%,
+          transparent 100%
+        )
+        no-repeat;
+      background-size: 250% 100%;
+      background-position: -100% 0;
+    }
+  }
+
+  /* Description/rename — golden highlight flash */
+  :global(.text-changed) {
+    animation: txnTextFlash 0.7s ease-out forwards;
+  }
+
+  @keyframes txnTextFlash {
+    0% {
+      background-color: rgba(232, 185, 74, 0.18);
+      box-shadow: inset 0 0 12px rgba(232, 200, 122, 0.1);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: none;
+    }
+  }
+
+  /* Toggle (excluded) — scale pulse with glow */
+  :global(.item-toggled) {
+    animation: txnTogglePulse 0.6s ease-out forwards;
+  }
+
+  @keyframes txnTogglePulse {
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow: none;
+    }
+    25% {
+      transform: scale(1.015);
+      box-shadow:
+        0 0 16px rgba(232, 185, 74, 0.18),
+        inset 0 0 8px rgba(232, 200, 122, 0.04);
     }
   }
 </style>

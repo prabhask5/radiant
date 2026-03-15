@@ -150,7 +150,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
   // Look up enrollment to get access_token and user_id
   const { data: enrollments, error: lookupError } = await admin
     .from('teller_enrollments')
-    .select('id, user_id, access_token, institution_name')
+    .select('id, user_id, access_token, institution_name, last_synced_at')
     .eq('enrollment_id', payload.enrollment_id)
     .eq('status', 'connected')
     .eq('deleted', false)
@@ -217,6 +217,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
         balance_available: balances.available,
         balance_ledger: balances.ledger,
         balance_updated_at: timestamp,
+        source: 'teller',
         is_hidden: false,
         created_at: timestamp,
         updated_at: timestamp,
@@ -235,23 +236,61 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       }
     }
 
-    // Look up existing transactions for stable IDs
-    const { data: existingTxns } = await admin
-      .from('transactions')
-      .select('id, teller_transaction_id')
-      .eq('user_id', userId);
-    const txnIdMap = new Map(
-      (existingTxns ?? []).map((t: { id: string; teller_transaction_id: string }) => [
-        t.teller_transaction_id,
-        t.id
-      ])
-    );
+    // Compute incremental fetch window: 7-day buffer before last_synced_at
+    // for pending→posted transitions, or full fetch if never synced
+    const lastSyncedAt = enrollment.last_synced_at as string | null;
+    let fetchOptions: { count: number } | { start_date: string };
+    let bufferDate: string | null = null;
 
-    // Fetch transactions for each account
-    const txnRows = [];
+    if (lastSyncedAt) {
+      const syncDate = new Date(lastSyncedAt);
+      syncDate.setDate(syncDate.getDate() - 7);
+      bufferDate = syncDate.toISOString().slice(0, 10); // YYYY-MM-DD
+      fetchOptions = { start_date: bufferDate };
+      console.log(`[TELLER] Incremental fetch from ${bufferDate} (last synced ${lastSyncedAt})`);
+    } else {
+      fetchOptions = { count: 500 };
+      console.log('[TELLER] Initial fetch: no last_synced_at — fetching up to 500 per account');
+    }
+
+    // Look up existing transactions scoped to the fetch window
+    let txnIdMap: Map<string, { id: string; deleted: boolean }>;
+    if (bufferDate) {
+      const { data: existingTxns } = await admin
+        .from('transactions')
+        .select('id, teller_transaction_id, deleted')
+        .eq('user_id', userId)
+        .gte('date', bufferDate);
+      txnIdMap = new Map(
+        (existingTxns ?? []).map(
+          (t: { id: string; teller_transaction_id: string; deleted: boolean }) => [
+            t.teller_transaction_id,
+            { id: t.id, deleted: t.deleted }
+          ]
+        )
+      );
+    } else {
+      const { data: existingTxns } = await admin
+        .from('transactions')
+        .select('id, teller_transaction_id, deleted')
+        .eq('user_id', userId);
+      txnIdMap = new Map(
+        (existingTxns ?? []).map(
+          (t: { id: string; teller_transaction_id: string; deleted: boolean }) => [
+            t.teller_transaction_id,
+            { id: t.id, deleted: t.deleted }
+          ]
+        )
+      );
+    }
+
+    // Fetch transactions for each account and route into insert/update batches
+    const insertRows: Record<string, unknown>[] = [];
+    const updateRows: Record<string, unknown>[] = [];
+
     for (const account of tellerAccounts) {
       try {
-        const transactions = await listTransactions(accessToken, account.id, { count: 500 });
+        const transactions = await listTransactions(accessToken, account.id, fetchOptions);
         console.log(
           `[TELLER] Webhook: fetched ${transactions.length} transactions for ${account.id}`
         );
@@ -260,28 +299,50 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
         if (!accountId) continue;
 
         for (const txn of transactions) {
-          const id = txnIdMap.get(txn.id) ?? crypto.randomUUID();
-          txnRows.push({
-            id,
-            user_id: userId,
-            account_id: accountId,
-            teller_transaction_id: txn.id,
-            amount: txn.amount,
-            date: txn.date,
-            description: txn.description,
-            counterparty_name: txn.details?.counterparty?.name || null,
-            counterparty_type: txn.details?.counterparty?.type || null,
-            teller_category: txn.details?.category || null,
-            status: txn.status,
-            type: txn.type,
-            running_balance: txn.running_balance,
-            is_excluded: false,
-            notes: null,
-            created_at: timestamp,
-            updated_at: timestamp,
-            deleted: false,
-            _version: 1
-          });
+          const existing = txnIdMap.get(txn.id);
+
+          if (existing?.deleted) {
+            // User-deleted transaction — skip entirely, don't re-add
+            continue;
+          }
+
+          if (existing) {
+            // Existing active transaction — only refresh Teller-owned fields
+            updateRows.push({
+              id: existing.id,
+              amount: txn.amount,
+              status: txn.status,
+              running_balance: txn.running_balance,
+              counterparty_name: txn.details?.counterparty?.name || null,
+              counterparty_type: txn.details?.counterparty?.type || null,
+              teller_category: txn.details?.category || null,
+              type: txn.type,
+              updated_at: timestamp
+            });
+          } else {
+            // New transaction — full insert
+            insertRows.push({
+              id: crypto.randomUUID(),
+              user_id: userId,
+              account_id: accountId,
+              teller_transaction_id: txn.id,
+              amount: txn.amount,
+              date: txn.date,
+              description: txn.description,
+              counterparty_name: txn.details?.counterparty?.name || null,
+              counterparty_type: txn.details?.counterparty?.type || null,
+              teller_category: txn.details?.category || null,
+              status: txn.status,
+              type: txn.type,
+              running_balance: txn.running_balance,
+              is_excluded: false,
+              notes: null,
+              created_at: timestamp,
+              updated_at: timestamp,
+              deleted: false,
+              _version: 1
+            });
+          }
         }
       } catch (err) {
         console.log(
@@ -290,16 +351,29 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       }
     }
 
-    // Upsert transactions in batches
+    // Insert new transactions in batches
     const BATCH_SIZE = 200;
-    for (let i = 0; i < txnRows.length; i += BATCH_SIZE) {
-      const batch = txnRows.slice(i, i + BATCH_SIZE);
-      const { error: txnError } = await admin
+    for (let i = 0; i < insertRows.length; i += BATCH_SIZE) {
+      const batch = insertRows.slice(i, i + BATCH_SIZE);
+      const { error: insertError } = await admin
         .from('transactions')
         .upsert(batch, { onConflict: 'id' });
-      if (txnError) {
+      if (insertError) {
         console.log(
-          `[TELLER] Webhook transactions upsert error (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${txnError.message}`
+          `[TELLER] Webhook transactions insert error (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${insertError.message}`
+        );
+      }
+    }
+
+    // Update existing active transactions in batches (Teller-owned fields only)
+    for (let i = 0; i < updateRows.length; i += BATCH_SIZE) {
+      const batch = updateRows.slice(i, i + BATCH_SIZE);
+      const { error: updateError } = await admin
+        .from('transactions')
+        .upsert(batch, { onConflict: 'id' });
+      if (updateError) {
+        console.log(
+          `[TELLER] Webhook transactions update error (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${updateError.message}`
         );
       }
     }
@@ -311,7 +385,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       .eq('id', localEnrollmentId);
 
     console.log(
-      `[TELLER] Webhook sync complete: ${accountRows.length} accounts, ${txnRows.length} transactions`
+      `[TELLER] Webhook sync complete: ${accountRows.length} accounts, ${insertRows.length} new transactions, ${updateRows.length} updated transactions`
     );
   } catch (err) {
     if (err instanceof TellerApiError && err.status === 401) {

@@ -148,18 +148,39 @@ export function formatPercent(value: number, decimals = 1): string {
 /**
  * Determine the CSS class for a transaction amount.
  *
- * Negative amounts (credits: deposits, refunds, CC payments) are highlighted
- * as `'credit'` (green). Positive amounts (debits: charges, withdrawals)
- * are `'debit'` (neutral). Zero is `'zero'`.
+ * Sign conventions differ by account type:
+ * - **Depository (bank)**: positive = deposit (money in), negative = withdrawal (money out)
+ * - **Credit card**: positive = charge (money out), negative = payment/refund (money in)
  *
  * @param amount - The amount to classify (number or decimal string)
+ * @param accountType - The account type (`'depository'` or `'credit'`); defaults to `'credit'`
  * @returns `'credit'`, `'debit'`, or `'zero'`
  */
-export function amountClass(amount: number | string): 'credit' | 'debit' | 'zero' {
+export function amountClass(
+  amount: number | string,
+  accountType: string = 'credit'
+): 'credit' | 'debit' | 'zero' {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  if (num < 0) return 'credit';
-  if (num > 0) return 'debit';
-  return 'zero';
+  if (num === 0 || isNaN(num)) return 'zero';
+
+  const isMoneyIn = accountType === 'depository' ? num > 0 : num < 0;
+
+  return isMoneyIn ? 'credit' : 'debit';
+}
+
+/**
+ * Determine if a transaction amount represents money coming in.
+ *
+ * Sign conventions differ by account type:
+ * - **Depository (bank)**: positive = money in
+ * - **Credit card**: negative = money in (payment/refund)
+ *
+ * @param amount - The parsed numeric amount
+ * @param accountType - The account type (`'depository'` or `'credit'`)
+ * @returns `true` if the amount represents inflow
+ */
+export function isInflow(amount: number, accountType: string): boolean {
+  return accountType === 'depository' ? amount > 0 : amount < 0;
 }
 
 /**
