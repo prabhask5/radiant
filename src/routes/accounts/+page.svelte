@@ -18,7 +18,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { accountsStore, enrollmentsStore, transactionsStore } from '$lib/stores/data';
-  import { engineCreate, engineUpdate, engineGetAll, generateId } from 'stellar-drive';
+  import { getDb, generateId } from 'stellar-drive';
   import { isDemoMode } from 'stellar-drive';
   import { getConfig } from 'stellar-drive/config';
   import { formatCurrency } from '$lib/utils/currency';
@@ -158,10 +158,15 @@
 
   /**
    * Persist accounts and transactions returned from the sync endpoint
-   * into local IndexedDB via stellar-drive.
+   * directly into IndexedDB (Dexie), bypassing the sync queue.
    *
-   * For accounts: looks up existing by teller_account_id to update, or creates new.
-   * For transactions: looks up existing by teller_transaction_id to update, or creates new.
+   * The data comes from the Teller API via our server proxy — it does NOT
+   * need to be pushed back to Supabase via the sync engine. Writing through
+   * engineCreate/engineUpdate would queue hundreds of sync operations that
+   * time out waiting to push.
+   *
+   * Uses `put` (upsert) semantics: existing records are overwritten, new
+   * records are inserted.
    */
   async function persistSyncData(
     syncData: {
@@ -170,68 +175,63 @@
     },
     localEnrollmentId: string
   ) {
+    const db = getDb();
+    const timestamp = new Date().toISOString();
+
     // Build a map of existing accounts by teller_account_id for dedup
-    const existingAccounts = (await engineGetAll('accounts')) as unknown as Account[];
+    const existingAccounts = (await db.table('accounts').toArray()) as Account[];
     const acctByTellerId = new Map(existingAccounts.map((a) => [a.teller_account_id, a]));
 
     // Map from teller_account_id -> local account id (for transaction FK resolution)
     const tellerToLocalId = new Map<string, string>();
+    const accountRows: Record<string, unknown>[] = [];
 
     for (const acctData of syncData.accounts) {
       const tellerAcctId = acctData.teller_account_id as string;
       const existing = acctByTellerId.get(tellerAcctId);
-
-      if (existing) {
-        // Update existing account with fresh data
-        await engineUpdate('accounts', existing.id, {
-          ...acctData,
-          enrollment_id: localEnrollmentId
-        });
-        tellerToLocalId.set(tellerAcctId, existing.id);
-      } else {
-        // Create new account
-        const id = generateId();
-        await engineCreate('accounts', {
-          id,
-          ...acctData,
-          enrollment_id: localEnrollmentId
-        });
-        tellerToLocalId.set(tellerAcctId, id);
-      }
+      const id = existing?.id ?? generateId();
+      tellerToLocalId.set(tellerAcctId, id);
+      accountRows.push({
+        created_at: existing?.created_at ?? timestamp,
+        ...acctData,
+        id,
+        enrollment_id: localEnrollmentId,
+        updated_at: timestamp
+      });
     }
 
     // Build a set of existing transaction teller IDs for dedup
-    const existingTxns = (await engineGetAll('transactions')) as Array<{
+    const existingTxns = (await db.table('transactions').toArray()) as Array<{
       id: string;
       teller_transaction_id: string;
+      created_at?: string;
     }>;
-    const txnByTellerId = new Map(existingTxns.map((t) => [t.teller_transaction_id, t.id]));
+    const txnByTellerId = new Map(existingTxns.map((t) => [t.teller_transaction_id, t]));
+    const txnRows: Record<string, unknown>[] = [];
 
     for (const txnData of syncData.transactions) {
       const tellerTxnId = txnData.teller_transaction_id as string;
       const tellerAcctId = txnData.teller_account_id as string;
       const localAccountId = tellerToLocalId.get(tellerAcctId);
-
       if (!localAccountId) continue;
 
-      // Remove teller_account_id from the data (not a schema field)
       const { teller_account_id: _, ...txnFields } = txnData;
-
-      const existingId = txnByTellerId.get(tellerTxnId);
-      if (existingId) {
-        await engineUpdate('transactions', existingId, {
-          ...txnFields,
-          account_id: localAccountId
-        });
-      } else {
-        const id = generateId();
-        await engineCreate('transactions', {
-          id,
-          ...txnFields,
-          account_id: localAccountId
-        });
-      }
+      const existing = txnByTellerId.get(tellerTxnId);
+      const id = existing?.id ?? generateId();
+      txnRows.push({
+        created_at: existing?.created_at ?? timestamp,
+        ...txnFields,
+        id,
+        account_id: localAccountId,
+        updated_at: timestamp
+      });
     }
+
+    // Bulk upsert in a single transaction — no sync queue entries
+    await db.transaction('rw', [db.table('accounts'), db.table('transactions')], async () => {
+      await db.table('accounts').bulkPut(accountRows);
+      await db.table('transactions').bulkPut(txnRows);
+    });
   }
 
   // ==========================================================================
@@ -1084,7 +1084,6 @@
     --border-interactive: rgba(180, 150, 80, 0.2);
 
     position: relative;
-    min-height: 100dvh;
     padding: 1rem 1rem 6rem;
     background: transparent;
     font-family: var(
