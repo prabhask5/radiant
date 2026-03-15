@@ -67,7 +67,6 @@
   let containerW = $state(0);
   let hoverX: number | null = $state(null);
   let mounted = $state(false);
-  let animKey = $state(0);
 
   // Unique ID prefix for SVG defs (multiple charts on same page)
   const uid = Math.random().toString(36).slice(2, 8);
@@ -85,17 +84,10 @@
     return () => ro.disconnect();
   });
 
-  $effect(() => {
-    requestAnimationFrame(() => {
-      mounted = true;
-    });
-  });
-
-  // Re-trigger draw animation when range changes
+  // Trigger entrance animation on mount and re-trigger on range change
   $effect(() => {
     void selectedRange;
     mounted = false;
-    animKey++;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         mounted = true;
@@ -432,167 +424,165 @@
         <span>No data for this period</span>
       </div>
     {:else if containerW > 0}
-      {#key animKey}
-        <svg
-          bind:this={svgEl}
-          width="100%"
-          height={chartH}
-          viewBox="0 0 {containerW} {chartH}"
-          preserveAspectRatio="none"
-          onpointermove={onPointerMove}
-          onpointerleave={onPointerLeave}
-          role="img"
-          aria-label={title || 'Line chart'}
-        >
-          <defs>
-            <!-- Area gradients -->
-            {#each lines as line, i (line.label)}
-              <linearGradient id="{uid}-ag{i}" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color={line.color} stop-opacity="0.2" />
-                <stop offset="85%" stop-color={line.color} stop-opacity="0.02" />
-                <stop offset="100%" stop-color={line.color} stop-opacity="0" />
-              </linearGradient>
-              <filter id="{uid}-gl{i}" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
-              </filter>
-            {/each}
-
-            <!-- Crosshair gradient -->
-            <linearGradient id="{uid}-cross" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="rgba(219,176,68,0)" />
-              <stop offset="20%" stop-color="rgba(219,176,68,0.35)" />
-              <stop offset="80%" stop-color="rgba(219,176,68,0.35)" />
-              <stop offset="100%" stop-color="rgba(219,176,68,0)" />
+      <svg
+        bind:this={svgEl}
+        width="100%"
+        height={chartH}
+        viewBox="0 0 {containerW} {chartH}"
+        preserveAspectRatio="none"
+        onpointermove={onPointerMove}
+        onpointerleave={onPointerLeave}
+        role="img"
+        aria-label={title || 'Line chart'}
+      >
+        <defs>
+          <!-- Area gradients -->
+          {#each lines as line, i (line.label)}
+            <linearGradient id="{uid}-ag{i}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color={line.color} stop-opacity="0.2" />
+              <stop offset="85%" stop-color={line.color} stop-opacity="0.02" />
+              <stop offset="100%" stop-color={line.color} stop-opacity="0" />
             </linearGradient>
-          </defs>
-
-          <!-- Grid lines -->
-          {#each yTicks as tick, i (i)}
-            <line
-              x1={margin.left}
-              y1={sy(tick)}
-              x2={margin.left + plotW}
-              y2={sy(tick)}
-              class="grid"
-              class:grid-on={mounted}
-              style="transition-delay: {i * 40}ms;"
-            />
+            <filter id="{uid}-gl{i}" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
+            </filter>
           {/each}
 
-          <!-- Y-axis labels -->
-          {#each yTicks as tick, i (i)}
-            {#if containerW >= 360 || i === 0 || i === yTicks.length - 1}
-              <text
-                x={margin.left - 10}
-                y={sy(tick)}
-                class="y-label"
-                text-anchor="end"
-                dominant-baseline="middle"
-              >
-                {formatValue(tick)}
-              </text>
-            {/if}
-          {/each}
+          <!-- Crosshair gradient -->
+          <linearGradient id="{uid}-cross" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(219,176,68,0)" />
+            <stop offset="20%" stop-color="rgba(219,176,68,0.35)" />
+            <stop offset="80%" stop-color="rgba(219,176,68,0.35)" />
+            <stop offset="100%" stop-color="rgba(219,176,68,0)" />
+          </linearGradient>
+        </defs>
 
-          <!-- X-axis labels -->
-          {#each xLabels as lbl, i (i)}
-            <text x={lbl.x} y={chartH - 6} class="x-label" text-anchor="middle">
-              {lbl.text}
+        <!-- Grid lines -->
+        {#each yTicks as tick, i (i)}
+          <line
+            x1={margin.left}
+            y1={sy(tick)}
+            x2={margin.left + plotW}
+            y2={sy(tick)}
+            class="grid"
+            class:grid-on={mounted}
+            style="transition-delay: {i * 40}ms;"
+          />
+        {/each}
+
+        <!-- Y-axis labels -->
+        {#each yTicks as tick, i (i)}
+          {#if containerW >= 360 || i === 0 || i === yTicks.length - 1}
+            <text
+              x={margin.left - 10}
+              y={sy(tick)}
+              class="y-label"
+              text-anchor="end"
+              dominant-baseline="middle"
+            >
+              {formatValue(tick)}
             </text>
-          {/each}
+          {/if}
+        {/each}
 
-          <!-- Lines: glow → area → stroke → endpoint -->
-          {#each lineRender as lr (lr.i)}
-            {#if lr.pts.length > 0}
-              <!-- Soft glow behind the line -->
-              <path
-                d={lr.linePath}
-                fill="none"
-                stroke={lr.color}
-                stroke-width="5"
-                filter="url(#{uid}-gl{lr.i})"
-                class="line-glow"
-                class:glow-on={mounted}
-                style="transition-delay: {lr.i * 120 + 400}ms;"
-              />
+        <!-- X-axis labels -->
+        {#each xLabels as lbl, i (i)}
+          <text x={lbl.x} y={chartH - 6} class="x-label" text-anchor="middle">
+            {lbl.text}
+          </text>
+        {/each}
 
-              <!-- Area fill -->
-              <path
-                d={lr.areaPath}
-                fill="url(#{uid}-ag{lr.i})"
-                class="area"
-                class:area-on={mounted}
-                style="transition-delay: {lr.i * 120 + 300}ms;"
-              />
-
-              <!-- Main stroke — animated draw-in -->
-              <path
-                d={lr.linePath}
-                fill="none"
-                stroke={lr.color}
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="line-stroke"
-                class:stroke-on={mounted}
-                style="--len: {lr.len}; transition-delay: {lr.i * 120}ms;"
-              />
-
-              <!-- Glowing endpoint dot -->
-              {#if lr.lastPt}
-                <circle
-                  cx={lr.lastPt.x}
-                  cy={lr.lastPt.y}
-                  r="3.5"
-                  fill={lr.color}
-                  class="endpoint"
-                  class:ep-on={mounted}
-                  style="transition-delay: {lr.i * 120 + 900}ms;"
-                />
-                <circle
-                  cx={lr.lastPt.x}
-                  cy={lr.lastPt.y}
-                  r="7"
-                  fill="none"
-                  stroke={lr.color}
-                  stroke-width="1.5"
-                  class="endpoint-ring"
-                  class:ep-on={mounted}
-                  style="transition-delay: {lr.i * 120 + 900}ms;"
-                />
-              {/if}
-            {/if}
-          {/each}
-
-          <!-- Hover crosshair -->
-          {#if hover}
-            <line
-              x1={hover.crossX}
-              y1={margin.top}
-              x2={hover.crossX}
-              y2={margin.top + plotH}
-              stroke="url(#{uid}-cross)"
-              stroke-width="1"
-              class="crosshair-line"
+        <!-- Lines: glow → area → stroke → endpoint -->
+        {#each lineRender as lr (lr.i)}
+          {#if lr.pts.length > 0}
+            <!-- Soft glow behind the line -->
+            <path
+              d={lr.linePath}
+              fill="none"
+              stroke={lr.color}
+              stroke-width="5"
+              filter="url(#{uid}-gl{lr.i})"
+              class="line-glow"
+              class:glow-on={mounted}
+              style="transition-delay: {lr.i * 120 + 400}ms;"
             />
 
-            <!-- Hover dots on each line -->
-            {#each hover.items as item (item.label)}
-              {#if item.y !== null}
-                <circle
-                  cx={hover.crossX}
-                  cy={item.y}
-                  r="4"
-                  fill={item.color}
-                  stroke="#161310"
-                  stroke-width="2"
-                  class="hover-dot"
-                />
-              {/if}
-            {/each}
+            <!-- Area fill -->
+            <path
+              d={lr.areaPath}
+              fill="url(#{uid}-ag{lr.i})"
+              class="area"
+              class:area-on={mounted}
+              style="transition-delay: {lr.i * 120 + 300}ms;"
+            />
+
+            <!-- Main stroke — animated draw-in -->
+            <path
+              d={lr.linePath}
+              fill="none"
+              stroke={lr.color}
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="line-stroke"
+              class:stroke-on={mounted}
+              style="--len: {lr.len}; transition-delay: {lr.i * 120}ms;"
+            />
+
+            <!-- Glowing endpoint dot -->
+            {#if lr.lastPt}
+              <circle
+                cx={lr.lastPt.x}
+                cy={lr.lastPt.y}
+                r="3.5"
+                fill={lr.color}
+                class="endpoint"
+                class:ep-on={mounted}
+                style="transition-delay: {lr.i * 120 + 900}ms;"
+              />
+              <circle
+                cx={lr.lastPt.x}
+                cy={lr.lastPt.y}
+                r="7"
+                fill="none"
+                stroke={lr.color}
+                stroke-width="1.5"
+                class="endpoint-ring"
+                class:ep-on={mounted}
+                style="transition-delay: {lr.i * 120 + 900}ms;"
+              />
+            {/if}
           {/if}
-        </svg>
-      {/key}
+        {/each}
+
+        <!-- Hover crosshair -->
+        {#if hover}
+          <line
+            x1={hover.crossX}
+            y1={margin.top}
+            x2={hover.crossX}
+            y2={margin.top + plotH}
+            stroke="url(#{uid}-cross)"
+            stroke-width="1"
+            class="crosshair-line"
+          />
+
+          <!-- Hover dots on each line -->
+          {#each hover.items as item (item.label)}
+            {#if item.y !== null}
+              <circle
+                cx={hover.crossX}
+                cy={item.y}
+                r="4"
+                fill={item.color}
+                stroke="#161310"
+                stroke-width="2"
+                class="hover-dot"
+              />
+            {/if}
+          {/each}
+        {/if}
+      </svg>
 
       <!-- Tooltip (HTML, outside SVG for backdrop-filter) -->
       {#if hover}
