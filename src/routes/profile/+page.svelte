@@ -1425,7 +1425,13 @@
         Controls
       </h2>
       <div class="toggle-row">
-        <span class="toggle-label">Debug Mode</span>
+        <div class="toggle-info">
+          <span class="toggle-label">Debug Mode</span>
+          <span class="toggle-hint"
+            >Enable console logging for troubleshooting. Refresh the page after toggling for changes
+            to take effect.</span
+          >
+        </div>
         <button
           class="toggle-switch"
           class:on={debugMode}
@@ -2282,6 +2288,12 @@
     justify-content: space-between;
   }
 
+  .toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
   .toggle-label {
     font-family: var(
       --font-body,
@@ -2294,6 +2306,12 @@
     );
     font-size: 0.875rem;
     color: var(--prof-text);
+  }
+
+  .toggle-hint {
+    font-size: 0.72rem;
+    color: var(--prof-text-dim);
+    line-height: 1.3;
   }
 
   .toggle-switch {

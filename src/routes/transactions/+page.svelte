@@ -34,6 +34,7 @@
     formatMonth
   } from '$lib/utils/currency';
   import { remoteChangeAnimation } from 'stellar-drive/actions';
+  import { debug } from 'stellar-drive/utils';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -317,6 +318,7 @@
   /** Bulk delete all selected transactions. */
   async function bulkDeleteSelected() {
     const ids = [...selectedIds];
+    debug('log', '[TRANSACTIONS] bulkDeleteSelected —', ids.length, 'transactions');
     clearSelection();
     await transactionsStore.bulkDelete(ids);
   }
@@ -350,8 +352,9 @@
   /** Save a category change for a transaction. */
   async function saveCategory(transactionId: string) {
     savingField = `cat-${transactionId}`;
+    const newCat = editingCategory[transactionId] || null;
+    debug('log', '[TRANSACTIONS] saveCategory —', transactionId, '→', newCat);
     try {
-      const newCat = editingCategory[transactionId] || null;
       await transactionsStore.updateCategory(transactionId, newCat);
       await transactionsStore.refresh();
     } finally {
@@ -362,6 +365,7 @@
   /** Save notes for a transaction. */
   async function saveNotes(transactionId: string) {
     savingField = `notes-${transactionId}`;
+    debug('log', '[TRANSACTIONS] saveNotes —', transactionId);
     try {
       await transactionsStore.updateNotes(transactionId, editingNotes[transactionId] ?? '');
       await transactionsStore.refresh();
@@ -376,6 +380,7 @@
     const t = allTransactions.find((tx) => tx.id === transactionId);
     if (!trimmed || trimmed === t?.description) return;
     savingField = `desc-${transactionId}`;
+    debug('log', '[TRANSACTIONS] saveDescription —', transactionId, '→', trimmed);
     try {
       await transactionsStore.updateDescription(transactionId, trimmed);
     } finally {
@@ -389,6 +394,7 @@
     const t = allTransactions.find((tx) => tx.id === transactionId);
     if (value === t?.date) return;
     savingField = `date-${transactionId}`;
+    debug('log', '[TRANSACTIONS] saveDate —', transactionId, '→', value);
     try {
       await transactionsStore.updateDate(transactionId, value);
     } finally {
@@ -398,6 +404,7 @@
 
   /** Delete a single transaction from the expanded detail panel. */
   async function deleteSingle(transactionId: string) {
+    debug('log', '[TRANSACTIONS] deleteSingle —', transactionId);
     expandedId = null;
     await transactionsStore.deleteTransaction(transactionId);
   }
@@ -405,6 +412,7 @@
   /** Toggle the excluded flag on a transaction. */
   async function toggleExcluded(transactionId: string, currentValue: boolean) {
     savingField = `excl-${transactionId}`;
+    debug('log', '[TRANSACTIONS] toggleExcluded —', transactionId, '→', !currentValue);
     try {
       await transactionsStore.toggleExcluded(transactionId, !currentValue);
       await transactionsStore.refresh();

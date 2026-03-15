@@ -24,6 +24,7 @@
   import { generateId, now } from 'stellar-drive/utils';
   import { remoteChangesStore } from 'stellar-drive/stores';
   import { getConfig } from 'stellar-drive/config';
+  import { debug } from 'stellar-drive/utils';
   import { formatCurrency } from '$lib/utils/currency';
   import { remoteChangeAnimation } from 'stellar-drive/actions';
   import type { TellerConnectStatic, TellerConnectEnrollment } from '$lib/teller/types';
@@ -265,6 +266,8 @@
     },
     localEnrollmentId: string
   ) {
+    debug('log', '[ACCOUNTS] processTellerSyncData — enrollmentId:', localEnrollmentId);
+
     // Build local lookup maps from IndexedDB
     const allLocalAccounts = (await engineGetAll('accounts')) as unknown as Account[];
     const localAccountMap = new Map(
@@ -413,8 +416,16 @@
     }
 
     // Single atomic batch write → IndexedDB + sync queue
+    const createOps = ops.filter((o) => o.type === 'create');
+    const updateOps = ops.filter((o) => o.type === 'update');
+    debug('log', '[ACCOUNTS] processTellerSyncData — batch ops:', {
+      creates: createOps.length,
+      updates: updateOps.length,
+      total: ops.length
+    });
     if (ops.length > 0) {
       await engineBatchWrite(ops);
+      debug('log', '[ACCOUNTS] processTellerSyncData — batch write complete');
     }
   }
 
@@ -501,6 +512,11 @@
    * writes everything to IndexedDB via engine functions (offline-first).
    */
   async function handleEnrollmentSuccess(enrollment: TellerConnectEnrollment) {
+    debug(
+      'log',
+      '[ACCOUNTS] handleEnrollmentSuccess — institution:',
+      enrollment.enrollment.institution.name
+    );
     syncing = true;
     showFeedback(
       'success',
@@ -509,6 +525,7 @@
 
     try {
       // Save the enrollment locally first (IndexedDB → sync queue → Supabase)
+      debug('log', '[ACCOUNTS] Creating enrollment in IndexedDB...');
       const localEnrollmentId = await enrollmentsStore.create({
         enrollment_id: enrollment.enrollment.id,
         institution_name: enrollment.enrollment.institution.name,
@@ -520,6 +537,7 @@
       });
 
       // Fetch raw Teller data via mTLS proxy (server is just a proxy, no DB writes)
+      debug('log', '[ACCOUNTS] Fetching Teller data via /api/teller/sync...');
       const response = await fetch('/api/teller/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -530,10 +548,15 @@
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
+        debug('error', '[ACCOUNTS] Sync proxy failed:', response.status, errData);
         throw new Error(errData.error || `Sync failed with status ${response.status}`);
       }
 
       const rawData = await response.json();
+      debug('log', '[ACCOUNTS] Teller data received:', {
+        accounts: rawData.accounts?.length ?? 0,
+        transactions: rawData.transactions?.length ?? 0
+      });
 
       // Process data client-side: IndexedDB + sync queue (offline-first)
       await processTellerSyncData(rawData, localEnrollmentId);
@@ -548,11 +571,13 @@
         enrollmentsStore.refresh()
       ]);
 
+      debug('log', '[ACCOUNTS] Enrollment sync complete');
       showFeedback(
         'success',
         `${enrollment.enrollment.institution.name} accounts synced successfully.`
       );
     } catch (err) {
+      debug('error', '[ACCOUNTS] Enrollment sync error:', err);
       console.error('Enrollment sync error:', err);
       showFeedback('error', err instanceof Error ? err.message : 'Sync failed. Please try again.');
     } finally {
@@ -565,12 +590,14 @@
    * Fetches fresh data via mTLS proxy and writes to IndexedDB (offline-first).
    */
   async function retrySyncEnrollment(enrollmentId: string) {
+    debug('log', '[ACCOUNTS] retrySyncEnrollment —', enrollmentId);
     if (isDemoMode()) {
       showFeedback('error', 'Syncing with banks is not available in demo mode.');
       return;
     }
     const enrollment = enrollments.find((e) => e.id === enrollmentId);
     if (!enrollment?.access_token) {
+      debug('warn', '[ACCOUNTS] No access token for enrollment', enrollmentId);
       showFeedback('error', 'No access token stored for this enrollment.');
       return;
     }
@@ -580,6 +607,7 @@
 
     try {
       // Fetch raw Teller data via mTLS proxy
+      debug('log', '[ACCOUNTS] Fetching Teller data for retry sync...');
       const response = await fetch('/api/teller/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -606,8 +634,10 @@
         transactionsStore.refresh(),
         enrollmentsStore.refresh()
       ]);
+      debug('log', '[ACCOUNTS] retrySyncEnrollment complete —', enrollment.institution_name);
       showFeedback('success', `${enrollment.institution_name} accounts synced successfully.`);
     } catch (err) {
+      debug('error', '[ACCOUNTS] retrySyncEnrollment failed:', err);
       console.error('Retry sync error:', err);
       showFeedback('error', err instanceof Error ? err.message : 'Sync failed. Please try again.');
     } finally {
@@ -620,6 +650,7 @@
    */
   async function disconnectEnrollment(enrollmentId: string) {
     disconnecting = true;
+    debug('log', '[ACCOUNTS] disconnectEnrollment —', enrollmentId);
     try {
       await enrollmentsStore.remove(enrollmentId);
       await Promise.all([accountsStore.refresh(), enrollmentsStore.refresh()]);
@@ -638,6 +669,7 @@
    */
   async function toggleAccountHidden(accountId: string, currentlyHidden: boolean) {
     togglingHidden = accountId;
+    debug('log', '[ACCOUNTS] toggleAccountHidden —', accountId, 'hidden:', !currentlyHidden);
     try {
       const { engineUpdate } = await import('stellar-drive');
       remoteChangesStore.recordLocalChange(accountId, 'accounts', 'toggle');
@@ -797,6 +829,12 @@
   async function createManualAccount() {
     if (!manualInstitution.trim() || !manualName.trim()) return;
     creatingManual = true;
+    debug('log', '[ACCOUNTS] createManualAccount —', {
+      institution: manualInstitution.trim(),
+      name: manualName.trim(),
+      type: manualType,
+      subtype: manualSubtype
+    });
     try {
       const id = await accountsStore.createManualAccount({
         institution_name: manualInstitution.trim(),
@@ -811,6 +849,7 @@
         balance_updated_at: new Date().toISOString(),
         is_hidden: false
       });
+      debug('log', '[ACCOUNTS] Manual account created — id:', id);
       showManualModal = false;
       resetManualForm();
       showFeedback(
@@ -823,6 +862,7 @@
       csvImportAccountType = manualType;
       openCSVModal();
     } catch (err) {
+      debug('error', '[ACCOUNTS] createManualAccount failed:', err);
       console.error('Create manual account error:', err);
       showFeedback('error', err instanceof Error ? err.message : 'Failed to create account.');
     } finally {
@@ -833,22 +873,33 @@
   /** Delete all manual accounts for an institution. */
   async function deleteManualInstitution(institutionName: string) {
     deletingManual = true;
+    debug('log', '[ACCOUNTS] deleteManualInstitution —', institutionName);
     try {
       const manualAccounts = accounts.filter(
         (a) => a.source === 'manual' && a.institution_name === institutionName
       );
+      debug('log', '[ACCOUNTS] Deleting', manualAccounts.length, 'accounts for', institutionName);
       for (const acct of manualAccounts) {
         const acctTxns = ($transactionsStore ?? []).filter(
           (t: { account_id: string }) => t.account_id === acct.id
         );
         if (acctTxns.length > 0) {
+          debug(
+            'log',
+            '[ACCOUNTS] Bulk deleting',
+            acctTxns.length,
+            'transactions for account',
+            acct.id
+          );
           await transactionsStore.bulkDelete(acctTxns.map((t: { id: string }) => t.id));
         }
+        debug('log', '[ACCOUNTS] Deleting account', acct.id);
         await accountsStore.deleteAccount(acct.id);
       }
       confirmDeleteManualInst = null;
       showFeedback('success', `"${institutionName}" and all its accounts removed.`);
     } catch (err) {
+      debug('error', '[ACCOUNTS] deleteManualInstitution failed:', err);
       console.error('Delete manual institution error:', err);
       showFeedback('error', 'Failed to delete institution. Please try again.');
     } finally {
@@ -866,6 +917,7 @@
   async function saveAccountName(accountId: string) {
     if (!editingAccountName.trim() || savingAccountName) return;
     savingAccountName = true;
+    debug('log', '[ACCOUNTS] saveAccountName —', accountId, '→', editingAccountName.trim());
     try {
       const { engineUpdate } = await import('stellar-drive');
       remoteChangesStore.recordLocalChange(accountId, 'accounts', 'rename');
@@ -999,11 +1051,19 @@
   async function importCSV() {
     if (!csvImportAccountId || csvMappedTransactions.length === 0) return;
     csvImporting = true;
+    debug(
+      'log',
+      '[ACCOUNTS] importCSV — accountId:',
+      csvImportAccountId,
+      'transactions:',
+      csvMappedTransactions.length
+    );
     try {
       const result = await transactionsStore.bulkCreateFromCSV(
         csvMappedTransactions,
         csvImportAccountId
       );
+      debug('log', '[ACCOUNTS] CSV import result:', result);
       csvImportResult = result;
 
       // Recompute balance from all transactions for this account
@@ -1016,6 +1076,16 @@
         (sum: number, t: { amount: string }) => sum + (parseFloat(t.amount) || 0),
         0
       );
+      debug(
+        'log',
+        '[ACCOUNTS] Recomputed balance for account:',
+        csvImportAccountId,
+        '=',
+        balance.toFixed(2),
+        '(from',
+        allTxns.length,
+        'txns)'
+      );
       await accountsStore.updateBalance(csvImportAccountId!, balance.toFixed(2));
 
       showFeedback(
@@ -1023,6 +1093,7 @@
         `Imported ${result.inserted} transactions${result.skipped > 0 ? ` (${result.skipped} duplicates skipped)` : ''}.`
       );
     } catch (err) {
+      debug('error', '[ACCOUNTS] importCSV failed:', err);
       console.error('CSV import error:', err);
       showFeedback('error', err instanceof Error ? err.message : 'Import failed.');
     } finally {
