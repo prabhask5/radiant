@@ -1656,10 +1656,13 @@
     display: flex;
     gap: 8px;
     justify-content: center;
+    width: 100%;
   }
 
   .pin-digit {
-    width: 44px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 44px;
     height: 52px;
     text-align: center;
     font-family: var(--font-mono);
@@ -2193,7 +2196,7 @@
     }
 
     .pin-digit {
-      width: 40px;
+      max-width: 40px;
       height: 48px;
       font-size: 1.125rem;
     }
@@ -2241,7 +2244,7 @@
       font-size: 1.75rem;
     }
     .pin-digit {
-      width: 40px;
+      max-width: 40px;
       height: 48px;
       font-size: 1.25rem;
     }
@@ -2269,7 +2272,7 @@
       font-size: 2rem;
     }
     .pin-digit {
-      width: 44px;
+      max-width: 44px;
       height: 52px;
       font-size: 1.375rem;
     }
@@ -2307,7 +2310,7 @@
       font-size: 1.5rem;
     }
     .pin-digit {
-      width: 36px;
+      max-width: 36px;
       height: 44px;
       font-size: 1.125rem;
     }
