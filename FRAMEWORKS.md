@@ -34,7 +34,7 @@ SvelteKit is a full-stack web framework built on top of Svelte. It provides file
 
 ### How Radiant uses SvelteKit
 
-Radiant uses SvelteKit as its application shell. File-system routing defines all pages (dashboard, transactions, budgets, accounts, login), route groups organize authenticated routes, and `+server.ts` endpoints handle Teller.io API calls and webhook processing. Universal load functions in `+layout.ts` initialize the stellar-drive engine and provide auth state to the entire app.
+Radiant uses SvelteKit as its application shell. File-system routing defines all pages (dashboard, transactions, accounts, login), route groups organize authenticated routes, and `+server.ts` endpoints handle Teller.io API calls and webhook processing. Universal load functions in `+layout.ts` initialize the stellar-drive engine and provide auth state to the entire app.
 
 #### Routing Structure
 
@@ -47,8 +47,6 @@ src/routes/
     +page.svelte          --> / (dashboard, inside app layout)
     transactions/
       +page.svelte        --> /transactions
-    budgets/
-      +page.svelte        --> /budgets
     accounts/
       +page.svelte        --> /accounts
   login/
@@ -117,7 +115,7 @@ Svelte is a compiler-based UI framework that converts components into efficient 
 
 ### How Radiant uses Svelte 5
 
-Every component in Radiant uses Svelte 5 runes for state management. Transaction lists, budget progress bars, account summaries, and form inputs all rely on `$state`, `$derived`, `$effect`, and `$props` for reactivity.
+Every component in Radiant uses Svelte 5 runes for state management. Transaction lists, account summaries, and form inputs all rely on `$state`, `$derived`, `$effect`, and `$props` for reactivity.
 
 #### `$state` -- Reactive State
 
@@ -231,7 +229,7 @@ stellar-drive (`@prabhask5/stellar-engine`) is an offline-first sync engine that
 
 ### How Radiant uses stellar-drive
 
-Radiant initializes stellar-drive once in the root `+layout.ts`. All data operations -- creating transactions, updating budgets, deleting accounts -- go through stellar-drive's CRUD functions. Data is written to IndexedDB first (instant, offline-capable), then queued for background sync to Supabase.
+Radiant initializes stellar-drive once in the root `+layout.ts`. All data operations -- creating transactions, managing accounts -- go through stellar-drive's CRUD functions. Data is written to IndexedDB first (instant, offline-capable), then queued for background sync to Supabase.
 
 #### Engine Initialization
 
@@ -340,36 +338,72 @@ Stores integrate with Svelte 5 runes for derived computations:
 The schema file is the single source of truth for the entire database. It drives TypeScript type generation, Supabase SQL DDL, and IndexedDB (Dexie) versioning simultaneously.
 
 ```ts
-import { defineSchema } from '@prabhask5/stellar-engine';
+import type { SchemaDefinition } from 'stellar-drive/types';
 
-export const schema = defineSchema({
-  accounts: {
+export const schema: SchemaDefinition = {
+  teller_enrollments: {
+    indexes: 'institution_name, status',
     fields: {
+      enrollment_id: 'string',
+      institution_name: 'string',
+      institution_id: 'string',
+      access_token: 'string',
+      status: 'string',
+      last_synced_at: 'timestamp?',
+      error_message: 'string?'
+    }
+  },
+  accounts: {
+    indexes: 'enrollment_id, type, subtype, status, institution_name',
+    fields: {
+      enrollment_id: 'uuid',
+      teller_account_id: 'string',
+      institution_name: 'string',
       name: 'string',
-      institution: 'string',
-      type: ['checking', 'savings', 'credit', 'investment'],
-      balance: 'number',
+      type: 'string',
+      subtype: 'string',
       currency: 'string',
-      teller_account_id: 'string?',
-      enrollment_id: 'string?',
-    },
-    indexes: ['type', 'enrollment_id'],
+      last_four: 'string?',
+      status: 'string',
+      balance_available: 'string?',
+      balance_ledger: 'string?',
+      balance_updated_at: 'timestamp?',
+      is_hidden: 'boolean'
+    }
   },
   transactions: {
+    indexes: 'account_id, date, category_id, status, [account_id+date]',
+    ownership: { parent: 'accounts', fk: 'account_id' },
     fields: {
-      description: 'string',
-      amount: 'number',
-      date: 'date',
       account_id: 'uuid',
+      teller_transaction_id: 'string',
+      amount: 'string',
+      date: 'date',
+      description: 'string',
+      counterparty_name: 'string?',
+      counterparty_type: 'string?',
+      teller_category: 'string?',
       category_id: 'uuid?',
-      teller_transaction_id: 'string?',
-      is_recurring: 'boolean',
-      notes: 'string?',
-    },
-    indexes: ['account_id', 'category_id', 'date'],
+      status: 'string',
+      type: 'string?',
+      running_balance: 'string?',
+      is_excluded: 'boolean',
+      notes: 'string?'
+    }
   },
-  // ... additional tables
-});
+  categories: {
+    indexes: 'parent_id, type, order',
+    fields: {
+      name: 'string',
+      icon: 'string',
+      color: 'string',
+      type: 'string',
+      parent_id: 'uuid?',
+      teller_categories: 'json?',
+      order: 'number'
+    }
+  }
+};
 ```
 
 #### Field Type Mapping
@@ -605,14 +639,34 @@ App-specific types compose generated types with domain logic:
 
 ```ts
 // src/lib/types.ts
-export interface TransactionWithCategory extends Transaction {
-  category?: Category;
+export interface TransactionWithCategory {
+  id: string;
+  account_id: string;
+  amount: string;
+  date: string;
+  description: string;
+  counterparty_name: string | null;
+  status: TransactionStatus;
+  type: string | null;
+  category_name: string | null;
+  category_icon: string | null;
+  category_color: string | null;
+  is_excluded: boolean;
+  notes: string | null;
 }
 
-export interface BudgetWithProgress extends Budget {
-  spent: number;
-  remaining: number;
-  percentUsed: number;
+export interface AccountWithDetails {
+  id: string;
+  institution_name: string;
+  name: string;
+  type: AccountType;
+  subtype: AccountSubtype;
+  last_four: string | null;
+  status: AccountStatus;
+  balance_available: string | null;
+  balance_ledger: string | null;
+  transaction_count: number;
+  is_hidden: boolean;
 }
 ```
 
@@ -878,7 +932,9 @@ Radiant runs Knip via the `dead-code` npm script as part of the `validate` pipel
     "config": "svelte.config.js"
   },
   "ignoreDependencies": [
-    "dexie"
+    "dexie",
+    "postgres",
+    "stellar-drive"
   ]
 }
 ```

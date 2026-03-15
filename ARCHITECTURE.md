@@ -32,8 +32,8 @@ This document provides a comprehensive deep dive into Radiant's system architect
 |  |              |  |  (collection |  |  | Cache-first assets |  |     |
 |  |  Dashboard   |  |   + detail)  |  |  | Network-first nav  |  |     |
 |  |  Transactions|  |              |  |  | Background precache|  |     |
-|  |  Budgets     |  +------+-------+  |  +--------------------+  |     |
-|  |  Accounts    |         |          |                           |     |
+|  |  Accounts    |  +------+-------+  |  +--------------------+  |     |
+|  |              |         |          |                           |     |
 |  +--------------+         |          +--------------------------+     |
 |                           |                                           |
 |  +------------------------v--------------------------------------+    |
@@ -42,7 +42,7 @@ This document provides a comprehensive deep dive into Radiant's system architect
 |  |  | IndexedDB|  |  Sync    |  |  Auth    |  |  Real-time |    |    |
 |  |  |  (Dexie) |  |  Queue   |  |  Manager |  |  Listener  |    |    |
 |  |  |          |  |          |  |          |  |            |    |    |
-|  |  | 11 tables|  | Pending  |  | PIN gate |  | WebSocket  |    |    |
+|  |  | 5 tables|  | Pending  |  | PIN gate |  | WebSocket  |    |    |
 |  |  | + indexes|  | changes  |  | + device |  | subscript. |    |    |
 |  |  +----------+  +----+-----+  +----+-----+  +-----+------+    |    |
 |  +-----------------------|------------|---------------|------------+    |
@@ -57,7 +57,7 @@ This document provides a comprehensive deep dive into Radiant's system architect
 |  |                    PostgreSQL                               |      |
 |  |  +----------+  +----------+  +----------+  +-----------+   |      |
 |  |  |  Tables  |  |  RLS     |  |  Auth    |  |  Realtime |   |      |
-|  |  | 11 + sys |  | Policies |  | (GoTrue) |  | (WebSocket|   |      |
+|  |  | 5 + sys |  | Policies |  | (GoTrue) |  | (WebSocket|   |      |
 |  |  +----------+  +----------+  +----------+  +-----------+   |      |
 |  +-------------------------------------------------------------+      |
 +-----------------------------------------------------------------------+
@@ -84,10 +84,10 @@ This document provides a comprehensive deep dive into Radiant's system architect
 
 | Path | Purpose |
 |------|---------|
-| `src/lib/schema.ts` | Single source of truth for all 11 tables, indexes, and types |
+| `src/lib/schema.ts` | Single source of truth for all 5 tables, indexes, and types |
 | `src/lib/types.generated.ts` | Auto-generated TypeScript types from schema |
 | `src/lib/stores/` | Reactive Svelte 5 stores backed by IndexedDB |
-| `src/routes/` | SvelteKit routes (dashboard, transactions, budgets, accounts, login, setup) |
+| `src/routes/` | SvelteKit routes (dashboard, transactions, accounts, login, setup) |
 | `src/routes/api/teller/` | Server-side mTLS proxy for Teller.io API |
 | `src/routes/api/setup/` | Setup wizard endpoints (validate, deploy) |
 | `src/routes/api/config/` | Public config endpoint for client-side env vars |
@@ -107,7 +107,7 @@ This document provides a comprehensive deep dive into Radiant's system architect
 
 ### Why Local-First?
 
-Traditional client-server architectures fail when the network is unavailable -- the app becomes unusable. For a personal finance tracker, this is unacceptable. Users need to check balances, review transactions, and update budgets regardless of connectivity.
+Traditional client-server architectures fail when the network is unavailable -- the app becomes unusable. For a personal finance tracker, this is unacceptable. Users need to check balances, review transactions, and manage accounts regardless of connectivity.
 
 Radiant's local-first architecture inverts the dependency:
 
@@ -120,7 +120,7 @@ Local-first:    Client reads/writes IndexedDB --async--> Server (eventually)
 
 1. **IndexedDB is the source of truth for the UI**. Every read operation queries Dexie directly. The UI never waits for a network response to display data.
 
-2. **Writes are optimistic**. When a user categorizes a transaction or updates a budget, the change is written to IndexedDB immediately. The UI reflects the change within milliseconds.
+2. **Writes are optimistic**. When a user categorizes a transaction or updates an account, the change is written to IndexedDB immediately. The UI reflects the change within milliseconds.
 
 3. **Sync is asynchronous**. A background sync queue processes pending changes and pushes them to Supabase. If the network is unavailable, changes accumulate in the queue and process when connectivity returns.
 
@@ -341,65 +341,30 @@ The version increments on every local write. During sync, if the remote version 
          | 1:N
          v
 +------------------+       +------------------+
-|    accounts      |       |  category_rules  |
+|    accounts      |       |   categories     |
 |------------------|       |------------------|
-| name             |       | pattern          |
-| institution      |       | category_id  ----+--+
-| type (enum)      |       | priority         |  |
-| balance          |       +------------------+  |
-| currency         |                              |
-| teller_account_id|       +------------------+  |
-+--------+---------+       |   categories     |<-+
-         |                 |------------------|
-         | 1:N             | name             |
-         v                 | color            |
-+------------------+       | icon             |
-|  transactions    |       | budget_default   |
-|------------------|       +--------+---------+
-| description      |                |
-| amount           |                | 1:N
-| date             |                v
-| account_id   ----+---->  +------------------+
-| category_id  ----+---->  |    budgets       |
-| teller_txn_id    |       |------------------|
-| is_recurring     |       | category_id      |
-| notes            |       | amount           |
-+--------+---------+       | rollover_enabled |
-         |                 +--------+---------+
+| name             |       | name             |
+| institution      |       | color            |
+| type (enum)      |       | icon             |
+| balance          |       +------------------+
+| currency         |                |
+| teller_account_id|                |
++--------+---------+                |
          |                          |
-         |                          | 1:N
-         |                          v
-         |                 +------------------+
-         |                 | budget_periods   |
-         |                 |------------------|
-         |                 | budget_id        |
-         |                 | month            |
-         |                 | spent            |
-         |                 | rollover_amount  |
-         |                 +------------------+
-         |
-         v
-+------------------+       +------------------+
-|recurring_transac-|       | net_worth_       |
-|  tions           |       |   snapshots      |
-|------------------|       |------------------|
-| description      |       | date             |
-| amount           |       | total_assets     |
-| frequency        |       | total_liabilities|
-| next_due_date    |       | net_worth        |
-| account_id       |       | breakdown (json) |
-+------------------+       +------------------+
-
-                           +------------------+
-                           | spending_insights|
-                           |------------------|
-                           | period           |
-                           | category_id      |
-                           | total_spent      |
-                           | transaction_count|
-                           | avg_transaction  |
-                           | trend            |
-                           +------------------+
+         | 1:N                      |
+         v                          |
++------------------+                |
+|  transactions    |                |
+|------------------|                |
+| description      |                |
+| amount           |                |
+| date             |                |
+| account_id   ----+----> accounts  |
+| category_id  ----+----> categories
+| teller_txn_id    |
+| is_recurring     |
+| notes            |
++------------------+
 ```
 
 ### Schema Design Decisions
@@ -412,10 +377,8 @@ The version increments on every local write. During sync, if the remote version 
 | **`device_id` on all records** | Tiebreaking for concurrent edits within grace period |
 | **`_version` counter** | Detects stale writes and triggers conflict resolution |
 | **Denormalized `balance` on accounts** | Avoids summing all transactions for display; updated on sync |
-| **`spending_insights` table** | Pre-computed analytics avoid expensive aggregation queries on read |
-| **`budget_periods` separate from `budgets`** | Monthly snapshots enable historical tracking and rollover |
 | **`user_settings` as singleton** | Single-user app -- one row, always present, no joins needed |
-| **JSON fields for flexible data** | `breakdown` in net_worth_snapshots, `teller_config` in settings -- avoids schema rigidity for nested data |
+| **JSON fields for flexible data** | `teller_config` in settings -- avoids schema rigidity for nested data |
 
 ### Indexing Strategy
 
@@ -425,11 +388,6 @@ Indexes are declared in `schema.ts` and auto-created in both IndexedDB and Postg
 |-------|---------------|---------------|
 | `transactions` | `account_id`, `category_id`, `date` | Filter by account, category; sort by date |
 | `accounts` | `type`, `enrollment_id` | Filter by account type; join to enrollments |
-| `budgets` | `category_id` | Look up budget for a category |
-| `budget_periods` | `budget_id`, `month` | Look up period for a budget+month |
-| `category_rules` | `category_id` | Find rules for a category |
-| `recurring_transactions` | `account_id` | Find recurring items for an account |
-| `spending_insights` | `period`, `category_id` | Time-range analytics queries |
 
 ---
 
@@ -753,9 +711,8 @@ Client connects to Supabase Realtime (WSS)
   |
   +-- Subscribe: postgres_changes, table=transactions, event=*
   +-- Subscribe: postgres_changes, table=accounts, event=*
-  +-- Subscribe: postgres_changes, table=budgets, event=*
   +-- Subscribe: postgres_changes, table=categories, event=*
-  +-- Subscribe: postgres_changes, table=* (all 11 tables)
+  +-- Subscribe: postgres_changes, table=* (all synced tables)
 ```
 
 ### Remote Change Processing
@@ -935,9 +892,6 @@ Dashboard route (/):
 
 Transactions route (/transactions):
   +-- _app/immutable/nodes/3.js          (~30KB)  Transaction list
-
-Budget route (/budgets):
-  +-- _app/immutable/nodes/4.js          (~25KB)  Budget components
 ```
 
 Each route loads only its required chunks. Shared code is extracted into common chunks that are cached across routes.
@@ -1006,7 +960,6 @@ Svelte 5 `$effect` calls that trigger expensive operations are debounced:
 |  |  SSR Functions                            |   |
 |  |  +-- / (dashboard)                        |   |
 |  |  +-- /transactions                        |   |
-|  |  +-- /budgets                             |   |
 |  |  +-- /accounts                            |   |
 |  |  +-- /login                               |   |
 |  |  +-- /setup                               |   |
@@ -1031,7 +984,7 @@ stellarPWA plugin reads src/lib/schema.ts
   |
   +-- Connect to DATABASE_URL (Postgres)
       |
-      +-- CREATE TABLE IF NOT EXISTS (11 tables)
+      +-- CREATE TABLE IF NOT EXISTS (5 tables)
       +-- ALTER TABLE ADD COLUMN IF NOT EXISTS (new fields)
       +-- CREATE INDEX IF NOT EXISTS (declared indexes)
       +-- ENABLE ROW LEVEL SECURITY (all tables)

@@ -1,6 +1,6 @@
 # Radiant Finance
 
-A self-hosted, offline-first personal finance PWA for tracking spending, budgets, and net worth. Built with SvelteKit, Dexie.js, and Supabase, Radiant connects to your bank accounts via Teller.io, syncs transactions in real-time, and provides budgeting and spending insights -- all while keeping your financial data under your control. Works offline, syncs across devices, and runs entirely on your own infrastructure.
+A self-hosted, offline-first personal finance PWA for tracking transactions and managing bank accounts. Built with SvelteKit, Dexie.js, and Supabase, Radiant connects to your bank accounts via Teller.io and syncs transactions in real-time -- all while keeping your financial data under your control. Works offline, syncs across devices, and runs entirely on your own infrastructure.
 
 Try it at: [https://finance.prabhas.io/demo](https://finance.prabhas.io/demo)
 
@@ -40,14 +40,6 @@ Try it at: [https://finance.prabhas.io/demo](https://finance.prabhas.io/demo)
 - **Automatic account balance updates**: Supports checking, savings, credit cards, and investment accounts.
 - **Webhook-driven sync**: New transactions arrive automatically without polling.
 - **Secure mTLS authentication**: Bank credentials never touch your server.
-
-### Budgeting and Analytics
-- **Monthly budgets**: Per-category spending limits with progress tracking.
-- **Auto-categorization**: Transactions categorized automatically with customizable rules.
-- **Spending insights**: Pre-computed analytics on where your money goes.
-- **Net worth tracking**: Historical snapshots charting your financial trajectory.
-- **Recurring transaction detection**: Identifies bills and subscriptions automatically.
-- **Budget rollover**: Unused budget carries forward to the next month.
 
 ### Privacy and Security
 - **Self-hosted**: Your financial data lives on your own infrastructure.
@@ -169,8 +161,6 @@ Radiant includes a full demo mode for evaluating the app without any backend con
 
 - Multiple bank accounts with realistic balances
 - Months of transaction history across categories
-- Pre-configured budgets with progress tracking
-- Spending insights and net worth snapshots
 
 **For developers:**
 
@@ -194,11 +184,11 @@ Radiant includes a full demo mode for evaluating the app without any backend con
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `TELLER_APP_ID` | Teller application ID | Yes (for bank connections) |
-| `TELLER_CERTIFICATE` | mTLS certificate (PEM or base64) | Yes (for bank connections) |
-| `TELLER_PRIVATE_KEY` | mTLS private key (PEM or base64) | Yes (for bank connections) |
+| `PUBLIC_TELLER_APP_ID` | Teller application ID | Yes (for bank connections) |
+| `PUBLIC_TELLER_ENVIRONMENT` | Teller API environment (`sandbox` or `production`) | No (defaults to `sandbox`) |
+| `TELLER_CERT` | mTLS certificate (PEM or base64) | Yes (for bank connections) |
+| `TELLER_KEY` | mTLS private key (PEM or base64) | Yes (for bank connections) |
 | `TELLER_WEBHOOK_SECRET` | Webhook HMAC signing secret | Yes (for webhooks) |
-| `TELLER_ENVIRONMENT` | Teller API environment (`sandbox` or `production`) | No (defaults to `sandbox`) |
 
 ### Optional Variables
 
@@ -241,9 +231,8 @@ src/
     +layout.ts             --> Root load function (engine init, auth)
     +layout.svelte         --> App shell
     (app)/                 --> Authenticated routes
-      +page.svelte         --> Dashboard (net worth, balances, budgets)
+      +page.svelte         --> Dashboard (greeting)
       transactions/        --> Filterable transaction list
-      budgets/             --> Budget management + progress
       accounts/            --> Connected accounts + Teller Connect
       profile/             --> Settings, PIN, devices, diagnostics
     login/                 --> PIN auth (setup/unlock/link modes)

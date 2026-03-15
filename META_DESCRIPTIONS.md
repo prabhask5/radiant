@@ -14,25 +14,24 @@
 
 ## Keywords for Discoverability
 **Radiant:**
-personal-finance, finance-tracker, budgeting, net-worth, bank-sync, teller-io,
+personal-finance, finance-tracker, bank-sync, teller-io, transaction-viewer,
 offline-first, local-first, pwa, progressive-web-app, sveltekit, svelte-5,
 supabase, indexeddb, typescript, self-hosted, privacy, open-source,
-real-time-sync, conflict-resolution, spending-analytics, transaction-categorization,
-money-management, financial-dashboard, crdt, schema-driven, mtls, webhook
+real-time-sync, conflict-resolution, crdt, schema-driven, mtls, webhook
 
 ---
 
 ## A) GitHub "About" - Summary
 ```
-Self-hosted, offline-first personal finance tracker PWA. Bank sync via Teller.io, budgets, net worth tracking, spending insights. Built with SvelteKit 2, Svelte 5, Supabase, IndexedDB.
+Self-hosted, offline-first personal finance tracker PWA. Connect bank and credit card accounts via Teller.io, view transactions, organize by category. Built with SvelteKit 2, Svelte 5, Supabase, IndexedDB.
 ```
-(183 characters)
+(203 characters)
 
 ## B) Social Sharing - Summary
 ```
-Radiant is a self-hosted personal finance tracker that syncs with your bank, tracks spending and net worth, and works entirely offline. Your financial data stays under your control.
+Radiant is a self-hosted personal finance tracker that syncs with your bank and credit card accounts, lets you view and categorize transactions, and works entirely offline. Your financial data stays under your control.
 ```
-(181 characters)
+(217 characters)
 
 ## C) README Tagline
 ```
@@ -43,22 +42,17 @@ Self-hosted, offline-first personal finance tracker with real-time bank sync and
 ## D) GitHub - Full Description
 ```
 Radiant is a self-hosted personal finance tracker that connects to your bank
-accounts via Teller.io, providing real-time transaction sync, budgeting,
-spending analytics, and net worth tracking. Built offline-first with
-SvelteKit 2 and Svelte 5, it works without internet and syncs seamlessly
-across devices -- all while keeping your financial data entirely under
-your control.
+and credit card accounts via Teller.io, providing real-time transaction sync
+and category-based organization. Built offline-first with SvelteKit 2 and
+Svelte 5, it works without internet and syncs seamlessly across devices --
+all while keeping your financial data entirely under your control.
 
 KEY FEATURES:
 - Real-time bank sync via Teller.io with mTLS authentication and webhook
   processing
 - Offline-first architecture with all reads from IndexedDB, optimistic
   writes, and a background sync queue
-- Budgeting tools with category-level spending limits and tracking
-- Net worth dashboard with historical snapshots and trend visualization
-- Auto-categorization engine with rule-based transaction classification
-  and priority ordering
-- Pre-computed analytics for instant dashboard loads and spending insights
+- Transaction viewer with category-based organization
 - Multi-device sync with field-level conflict resolution using
   CRDT-inspired merging, grace periods, and device-ID tiebreaking
 - PWA with smart caching -- cache-first for immutable assets,
@@ -69,8 +63,8 @@ HOW TO USE:
 2. Build and deploy the SvelteKit application to your hosting platform
 3. Create an account and set up PIN-based authentication
 4. Connect your bank accounts through the Teller.io integration
-5. Transactions sync automatically -- categorize, budget, and track
-   spending from any device
+5. Transactions sync automatically -- view and organize them by category
+   from any device
 6. Install as a PWA for native-like access with full offline support
 
 PRIVACY:
