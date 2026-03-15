@@ -289,8 +289,11 @@
   });
 
   /**
-   * Reconstruct daily balance history by working backwards from current
-   * balances using transaction amounts. Produces two series: assets and debts.
+   * Reconstruct daily balance history from current balances + transactions.
+   *
+   * Strategy: Build per-account sparse balance timelines, collect all unique
+   * dates, then for each date sum every account's balance (carrying forward
+   * the last known balance for accounts without a transaction that day).
    */
   const chartLines = $derived.by(() => {
     const txns = $transactionsStore ?? [];
@@ -300,10 +303,16 @@
     const cutoffStr = chartCutoff.toISOString().slice(0, 10);
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    // Compute end-of-day balances forward from starting balance.
-    // For each account, derive starting balance (current - all txns),
-    // then walk forward accumulating transactions day by day.
-    const dailyMap = new Map<string, { assets: number; debts: number }>();
+    // Step 1: Build per-account sparse balance snapshots
+    const accountTimelines: {
+      isDebt: boolean;
+      snapshots: Map<string, number>;
+      balanceAtCutoff: number;
+    }[] = [];
+
+    const allDates = new Set<string>();
+    allDates.add(cutoffStr);
+    allDates.add(todayStr);
 
     for (const acct of accts) {
       const currentBal =
@@ -312,107 +321,73 @@
             ? (acct.balance_ledger ?? acct.balance_available ?? '0')
             : (acct.balance_available ?? acct.balance_ledger ?? '0')
         ) || 0;
-      const isDebt = acct.type === 'credit';
 
-      // Get all transactions sorted ascending by date
       const acctTxns = txns
         .filter((t) => t.account_id === acct.id && !t.is_excluded)
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      // Sum all transactions to get the starting balance (before any transactions)
+      // Starting balance = current balance minus all transactions ever
       const totalTxnSum = acctTxns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
-      const startingBal = currentBal - totalTxnSum;
+      let running = currentBal - totalTxnSum;
 
-      // Walk forward, accumulating transactions day by day
-      let running = startingBal;
-
-      // Apply transactions before cutoff silently
+      // Fast-forward through pre-cutoff transactions
       let i = 0;
       while (i < acctTxns.length && acctTxns[i].date < cutoffStr) {
         running += parseFloat(acctTxns[i].amount) || 0;
         i++;
       }
 
-      // Record cutoff date balance
-      const addToDay = (dateStr: string, balance: number) => {
-        const day = dailyMap.get(dateStr) ?? { assets: 0, debts: 0 };
-        if (isDebt) {
-          day.debts += Math.abs(balance);
-        } else {
-          day.assets += balance;
-        }
-        dailyMap.set(dateStr, day);
-      };
+      const balanceAtCutoff = running;
+      const snapshots = new Map<string, number>();
+      snapshots.set(cutoffStr, running);
 
-      // Record the starting balance at cutoff
-      addToDay(cutoffStr, running);
-
-      // Walk through transactions in range
-      let lastDate = cutoffStr;
-      while (i < acctTxns.length) {
+      // Walk through in-range transactions
+      while (i < acctTxns.length && acctTxns[i].date <= todayStr) {
         const txnDate = acctTxns[i].date;
-        if (txnDate > todayStr) break;
-
-        // If we jumped dates, fill the gap with previous balance
-        if (txnDate !== lastDate) {
-          // Record balance at end of each skipped day is handled by interpolation
-          lastDate = txnDate;
-        }
-
         running += parseFloat(acctTxns[i].amount) || 0;
         i++;
-
-        // Check if next txn is same day
+        // Record after processing all txns for this day
         if (i >= acctTxns.length || acctTxns[i].date !== txnDate) {
-          addToDay(txnDate, running);
+          snapshots.set(txnDate, running);
+          allDates.add(txnDate);
         }
       }
 
-      // Record today's balance
-      addToDay(todayStr, currentBal);
+      snapshots.set(todayStr, currentBal);
+      accountTimelines.push({ isDebt: acct.type === 'credit', snapshots, balanceAtCutoff });
     }
 
-    // Convert to sorted arrays
-    const sortedDays = Array.from(dailyMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-
-    if (sortedDays.length === 0) return [];
-
+    // Step 2: For each date, sum all accounts (carry forward last known balance)
+    const sortedDates = Array.from(allDates).sort();
     const assetsData: ChartDataPoint[] = [];
     const debtsData: ChartDataPoint[] = [];
+    const lastKnown = accountTimelines.map((tl) => tl.balanceAtCutoff);
 
-    // Accumulate — each day's map entry has partial sums per account.
-    // Since multiple accounts contribute, we need cumulative sums.
-    // The addToDay above sums all accounts for each day, but only days
-    // with transactions. We need to carry forward balances.
+    for (const date of sortedDates) {
+      let assetSum = 0;
+      let debtSum = 0;
 
-    // Actually the issue is that dailyMap only has entries for days where
-    // a transaction occurred or cutoff/today. We need to carry forward.
-    // For the chart, we just use the data points we have — the chart
-    // component interpolates between them with smooth curves.
+      for (let a = 0; a < accountTimelines.length; a++) {
+        const snapshot = accountTimelines[a].snapshots.get(date);
+        if (snapshot !== undefined) lastKnown[a] = snapshot;
 
-    for (const [date, vals] of sortedDays) {
-      if (vals.assets > 0 || assetsData.length > 0) {
-        assetsData.push({ date, value: vals.assets });
+        if (accountTimelines[a].isDebt) {
+          debtSum += Math.abs(lastKnown[a]);
+        } else {
+          assetSum += lastKnown[a];
+        }
       }
-      if (vals.debts > 0 || debtsData.length > 0) {
-        debtsData.push({ date, value: vals.debts });
-      }
+
+      assetsData.push({ date, value: assetSum });
+      debtsData.push({ date, value: debtSum });
     }
 
     const result = [];
-    if (assetsData.length > 0) {
-      result.push({
-        label: 'Assets',
-        color: '#3dd68c',
-        data: assetsData
-      });
+    if (assetsData.some((d) => d.value !== 0)) {
+      result.push({ label: 'Assets', color: '#3dd68c', data: assetsData });
     }
-    if (debtsData.length > 0) {
-      result.push({
-        label: 'Debts',
-        color: '#e85470',
-        data: debtsData
-      });
+    if (debtsData.some((d) => d.value !== 0)) {
+      result.push({ label: 'Debts', color: '#e85470', data: debtsData });
     }
     return result;
   });

@@ -91,7 +91,13 @@
 
   /**
    * Compute daily net worth (assets - liabilities) over time.
-   * Works backwards from current balances using transaction history.
+   *
+   * Same carry-forward approach as accounts page: build per-account sparse
+   * timelines, then sum all accounts for each date with carry-forward.
+   *
+   * Sign conventions:
+   * - Depository: positive txn = money in, balance is asset
+   * - Credit: positive txn = charge (money out), balance is liability
    */
   const netWorthLines = $derived.by(() => {
     const txns = $transactionsStore ?? [];
@@ -101,8 +107,16 @@
     const cutoffStr = chartCutoff.toISOString().slice(0, 10);
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    // For each account, compute running balance from start
-    const dailyNet = new Map<string, number>();
+    // Build per-account sparse timelines
+    const timelines: {
+      isDebt: boolean;
+      snapshots: Map<string, number>;
+      balAtCutoff: number;
+    }[] = [];
+
+    const allDates = new Set<string>();
+    allDates.add(cutoffStr);
+    allDates.add(todayStr);
 
     for (const acct of accts) {
       const currentBal =
@@ -111,7 +125,6 @@
             ? (acct.balance_ledger ?? acct.balance_available ?? '0')
             : (acct.balance_available ?? acct.balance_ledger ?? '0')
         ) || 0;
-      const isDebt = acct.type === 'credit';
 
       const acctTxns = txns
         .filter((t) => t.account_id === acct.id && !t.is_excluded)
@@ -120,37 +133,47 @@
       const totalTxnSum = acctTxns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
       let running = currentBal - totalTxnSum;
 
-      // Apply transactions before cutoff
       let i = 0;
       while (i < acctTxns.length && acctTxns[i].date < cutoffStr) {
         running += parseFloat(acctTxns[i].amount) || 0;
         i++;
       }
 
-      const addToDay = (dateStr: string, bal: number) => {
-        const netVal = isDebt ? -Math.abs(bal) : bal;
-        dailyNet.set(dateStr, (dailyNet.get(dateStr) ?? 0) + netVal);
-      };
-
-      addToDay(cutoffStr, running);
+      const balAtCutoff = running;
+      const snapshots = new Map<string, number>();
+      snapshots.set(cutoffStr, running);
 
       while (i < acctTxns.length && acctTxns[i].date <= todayStr) {
         const txnDate = acctTxns[i].date;
         running += parseFloat(acctTxns[i].amount) || 0;
         i++;
         if (i >= acctTxns.length || acctTxns[i]?.date !== txnDate) {
-          addToDay(txnDate, running);
+          snapshots.set(txnDate, running);
+          allDates.add(txnDate);
         }
       }
 
-      addToDay(todayStr, currentBal);
+      snapshots.set(todayStr, currentBal);
+      timelines.push({ isDebt: acct.type === 'credit', snapshots, balAtCutoff });
     }
 
-    const sorted = Array.from(dailyNet.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    // Sum all accounts per date with carry-forward
+    const sortedDates = Array.from(allDates).sort();
+    const lastKnown = timelines.map((tl) => tl.balAtCutoff);
+    const data: ChartDataPoint[] = [];
 
-    if (sorted.length === 0) return [];
+    for (const date of sortedDates) {
+      let netWorth = 0;
+      for (let a = 0; a < timelines.length; a++) {
+        const snapshot = timelines[a].snapshots.get(date);
+        if (snapshot !== undefined) lastKnown[a] = snapshot;
+        // Assets add, debts subtract
+        netWorth += timelines[a].isDebt ? -Math.abs(lastKnown[a]) : lastKnown[a];
+      }
+      data.push({ date, value: netWorth });
+    }
 
-    const data: ChartDataPoint[] = sorted.map(([date, value]) => ({ date, value }));
+    if (data.length === 0) return [];
 
     return [
       {
