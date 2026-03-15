@@ -283,8 +283,17 @@
         return new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
       case '1y':
         return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-      default:
-        return new Date(2000, 0, 1); // ALL
+      default: {
+        // ALL — go back to earliest transaction date
+        const txns = $transactionsStore ?? [];
+        if (txns.length === 0)
+          return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        let earliest = txns[0].date;
+        for (const t of txns) {
+          if (t.date < earliest) earliest = t.date;
+        }
+        return new Date(earliest + 'T00:00:00');
+      }
     }
   });
 
@@ -302,6 +311,38 @@
 
     const cutoffStr = chartCutoff.toISOString().slice(0, 10);
     const todayStr = new Date().toISOString().slice(0, 10);
+
+    // Pre-cancel credit card payment transfers: when a credit card payment
+    // (negative on credit) matches a bank withdrawal (negative on depository)
+    // of the same amount within 3 days, align both to the earlier date so
+    // they don't create a temporary net-worth hump.
+    const acctTypeMap = new Map(accts.map((a) => [a.id, a.type]));
+    const dateOverrides = new Map<string, string>();
+    const creditPayments = txns.filter(
+      (t) =>
+        acctTypeMap.get(t.account_id) === 'credit' && parseFloat(t.amount) < 0 && !t.is_excluded
+    );
+    const bankWithdrawals = txns.filter(
+      (t) =>
+        acctTypeMap.get(t.account_id) !== 'credit' && parseFloat(t.amount) < 0 && !t.is_excluded
+    );
+    const usedBankIds = new Set<string>();
+    for (const cp of creditPayments) {
+      const cpAmt = parseFloat(cp.amount);
+      for (const bw of bankWithdrawals) {
+        if (usedBankIds.has(bw.id)) continue;
+        if (Math.abs(cpAmt - parseFloat(bw.amount)) > 0.01) continue;
+        const dayDiff =
+          Math.abs(new Date(cp.date).getTime() - new Date(bw.date).getTime()) / 86_400_000;
+        if (dayDiff <= 3) {
+          const earlier = cp.date < bw.date ? cp.date : bw.date;
+          dateOverrides.set(cp.id, earlier);
+          dateOverrides.set(bw.id, earlier);
+          usedBankIds.add(bw.id);
+          break;
+        }
+      }
+    }
 
     // Step 1: Build per-account sparse balance snapshots
     const accountTimelines: {
@@ -324,6 +365,7 @@
 
       const acctTxns = txns
         .filter((t) => t.account_id === acct.id && !t.is_excluded)
+        .map((t) => ({ ...t, date: dateOverrides.get(t.id) ?? t.date }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
       // Starting balance = current balance minus all transactions ever
