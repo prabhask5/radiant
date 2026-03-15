@@ -21,10 +21,11 @@
     getSingleUserInfo,
     changeSingleUserEmail,
     completeSingleUserEmailChange,
-    resolveUserId
+    resolveUserId,
+    resolveAvatarInitial
   } from 'stellar-drive/auth';
   import { authState } from 'stellar-drive/stores';
-  import { isDebugMode, setDebugMode } from 'stellar-drive/utils';
+  import { isDebugMode, setDebugMode, getDiagnostics } from 'stellar-drive/utils';
   import {
     resetDatabase,
     getTrustedDevices,
@@ -32,9 +33,9 @@
     getCurrentDeviceId,
     isDemoMode
   } from 'stellar-drive';
-  import type { TrustedDevice } from 'stellar-drive';
+  import type { TrustedDevice, DiagnosticsSnapshot } from 'stellar-drive';
   import { getDemoConfig } from 'stellar-drive';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
 
   /** Whether the app is in demo mode — shows a simplified read-only profile. */
   const inDemoMode = $derived(isDemoMode());
@@ -111,9 +112,29 @@
   /** ID of the device currently being removed — shows spinner on that row */
   let removingDeviceId = $state<string | null>(null);
 
+  /* ── Diagnostics ──── */
+  let diagnostics = $state<DiagnosticsSnapshot | null>(null);
+  let diagnosticsLoading = $state(true);
+  let diagnosticsInterval: ReturnType<typeof setInterval> | null = null;
+
+  /** Avatar initial derived from auth state */
+  const avatarInitial = $derived(
+    resolveAvatarInitial($authState?.session, $authState?.offlineProfile, '?')
+  );
+
   // =============================================================================
   //                           LIFECYCLE
   // =============================================================================
+
+  /** Poll diagnostics and update state. */
+  async function pollDiagnostics() {
+    try {
+      diagnostics = await getDiagnostics();
+    } catch {
+      // Ignore polling errors — stale data is fine
+    }
+    diagnosticsLoading = false;
+  }
 
   /** Populate form fields from the engine and load trusted devices on mount. */
   onMount(async () => {
@@ -126,6 +147,7 @@
         currentEmail = demoConfig.mockProfile.email;
       }
       devicesLoading = false;
+      diagnosticsLoading = false;
       return;
     }
 
@@ -147,6 +169,17 @@
       // Ignore errors loading devices
     }
     devicesLoading = false;
+
+    // Start diagnostics polling
+    pollDiagnostics();
+    diagnosticsInterval = setInterval(pollDiagnostics, 3000);
+  });
+
+  onDestroy(() => {
+    if (diagnosticsInterval) {
+      clearInterval(diagnosticsInterval);
+      diagnosticsInterval = null;
+    }
   });
 
   // =============================================================================
@@ -611,6 +644,50 @@
     cleaningTombstones = false;
   }
 
+  // =============================================================================
+  //                     DIAGNOSTICS HELPERS
+  // =============================================================================
+
+  /** Map sync status to a human-readable label. */
+  function formatSyncStatus(status: string): string {
+    const map: Record<string, string> = {
+      idle: 'Idle',
+      syncing: 'Syncing',
+      error: 'Error',
+      offline: 'Offline'
+    };
+    return map[status] || status;
+  }
+
+  /** Map sync status to a CSS color class suffix. */
+  function getStatusColor(status: string): string {
+    const map: Record<string, string> = {
+      idle: 'green',
+      syncing: 'gold',
+      error: 'red',
+      offline: 'yellow'
+    };
+    return map[status] || 'gray';
+  }
+
+  /** Format an ISO timestamp to a relative "X ago" string. */
+  function formatTimestamp(iso: string | null | undefined): string {
+    if (!iso) return 'never';
+    const diff = Date.now() - new Date(iso).getTime();
+    if (diff < 5000) return 'just now';
+    if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return `${Math.floor(diff / 86400000)}d ago`;
+  }
+
+  /** Format milliseconds to a compact duration string. */
+  function formatDuration(ms: number | null | undefined): string {
+    if (!ms) return '\u2014';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
   /** Dispatch a custom event that the app shell listens for to sign out on mobile. */
   function handleMobileSignOut() {
     if (inDemoMode) {
@@ -652,11 +729,7 @@
   <!-- ── Avatar ── -->
   <div class="avatar-section">
     <div class="avatar-circle">
-      {#if firstName}
-        {firstName.charAt(0).toUpperCase()}{lastName ? lastName.charAt(0).toUpperCase() : ''}
-      {:else}
-        ?
-      {/if}
+      {avatarInitial}
     </div>
     <p class="avatar-name">{firstName}{lastName ? ` ${lastName}` : ''}</p>
     <p class="avatar-email">{currentEmail}</p>
@@ -786,11 +859,11 @@
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
-        Change PIN
+        Change Code
       </h2>
       <form onsubmit={handleCodeSubmit}>
         <div class="pin-group">
-          <span class="pin-group-label" id="pin-label-current">Current PIN</span>
+          <span class="pin-group-label" id="pin-label-current">Current Code</span>
           <div class="pin-row" role="group" aria-labelledby="pin-label-current">
             {#each oldCodeDigits as _, i (i)}
               <input
@@ -798,7 +871,7 @@
                 inputmode="numeric"
                 maxlength="1"
                 class="pin-digit"
-                aria-label={`Current PIN digit ${i + 1}`}
+                aria-label={`Current Code digit ${i + 1}`}
                 bind:this={oldCodeInputs[i]}
                 oninput={(e) => handleDigitInput(oldCodeDigits, i, e, oldCodeInputs)}
                 onkeydown={(e) => handleDigitKeydown(oldCodeDigits, i, e, oldCodeInputs)}
@@ -810,7 +883,7 @@
         </div>
 
         <div class="pin-group">
-          <span class="pin-group-label" id="pin-label-new">New PIN</span>
+          <span class="pin-group-label" id="pin-label-new">New Code</span>
           <div class="pin-row" role="group" aria-labelledby="pin-label-new">
             {#each newCodeDigits as _, i (i)}
               <input
@@ -818,7 +891,7 @@
                 inputmode="numeric"
                 maxlength="1"
                 class="pin-digit"
-                aria-label={`New PIN digit ${i + 1}`}
+                aria-label={`New Code digit ${i + 1}`}
                 bind:this={newCodeInputs[i]}
                 oninput={(e) => handleDigitInput(newCodeDigits, i, e, newCodeInputs)}
                 onkeydown={(e) => handleDigitKeydown(newCodeDigits, i, e, newCodeInputs)}
@@ -830,7 +903,7 @@
         </div>
 
         <div class="pin-group">
-          <span class="pin-group-label" id="pin-label-confirm">Confirm New PIN</span>
+          <span class="pin-group-label" id="pin-label-confirm">Confirm New Code</span>
           <div class="pin-row" role="group" aria-labelledby="pin-label-confirm">
             {#each confirmCodeDigits as _, i (i)}
               <input
@@ -838,7 +911,7 @@
                 inputmode="numeric"
                 maxlength="1"
                 class="pin-digit"
-                aria-label={`Confirm PIN digit ${i + 1}`}
+                aria-label={`Confirm Code digit ${i + 1}`}
                 bind:this={confirmCodeInputs[i]}
                 oninput={(e) => handleDigitInput(confirmCodeDigits, i, e, confirmCodeInputs)}
                 onkeydown={(e) => handleDigitKeydown(confirmCodeDigits, i, e, confirmCodeInputs)}
@@ -857,7 +930,7 @@
         {/if}
         <button class="btn-action" type="submit" disabled={codeLoading}>
           {#if codeLoading}<span class="spinner"></span>{/if}
-          Update PIN
+          Update Code
         </button>
       </form>
     </section>
@@ -939,7 +1012,7 @@
     {/if}
 
     <!-- ================================================================= -->
-    <!--                   DIAGNOSTICS SECTION                             -->
+    <!--                   SETTINGS CARD                                   -->
     <!-- ================================================================= -->
     <section class="settings-card compact">
       <h2 class="card-heading">
@@ -958,7 +1031,277 @@
             d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
           />
         </svg>
+        Settings
+      </h2>
+      <a href="/setup" class="btn-action setup-link">Update Configuration</a>
+    </section>
+
+    <!-- ================================================================= -->
+    <!--                   DIAGNOSTICS DASHBOARD                           -->
+    <!-- ================================================================= -->
+    <section class="settings-card">
+      <h2 class="card-heading">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
         Diagnostics
+      </h2>
+
+      {#if diagnosticsLoading}
+        <div class="devices-loading">
+          <span class="spinner"></span>
+          <span>Loading diagnostics...</span>
+        </div>
+      {:else if diagnostics}
+        <!-- 1. Status Banner -->
+        <div class="diag-status-banner">
+          <span class="diag-status-dot diag-status-dot--{getStatusColor(diagnostics.sync.status)}"
+          ></span>
+          <div class="diag-status-info">
+            <span class="diag-status-label">{formatSyncStatus(diagnostics.sync.status)}</span>
+            <span class="diag-status-meta">
+              {diagnostics.network.online ? 'Online' : 'Offline'} &middot; {diagnostics.deviceId.slice(
+                0,
+                8
+              )}
+            </span>
+          </div>
+        </div>
+
+        <!-- 2. Sync Engine -->
+        <div class="diag-section-title">Sync Engine</div>
+        <div class="diag-grid">
+          <div class="diag-stat">
+            <span class="diag-stat-value">{diagnostics.sync.totalCycles}</span>
+            <span class="diag-stat-label">Total Cycles</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-value">{diagnostics.sync.cyclesLastMinute}</span>
+            <span class="diag-stat-label">Last Minute</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-value">{diagnostics.sync.pendingCount}</span>
+            <span class="diag-stat-label">Pending Ops</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-value">{formatTimestamp(diagnostics.sync.lastSyncTime)}</span>
+            <span class="diag-stat-label">Last Sync</span>
+          </div>
+        </div>
+        <div class="diag-badges">
+          <span class="diag-badge-{diagnostics.sync.hasHydrated ? 'ok' : 'warn'}">
+            {diagnostics.sync.hasHydrated ? 'Hydrated' : 'Not Hydrated'}
+          </span>
+          <span class="diag-badge-{diagnostics.sync.schemaValidated ? 'ok' : 'warn'}">
+            {diagnostics.sync.schemaValidated ? 'Schema OK' : 'Schema Pending'}
+          </span>
+        </div>
+
+        <!-- 3. Realtime -->
+        <div class="diag-section-title">Realtime</div>
+        <div class="diag-row">
+          <span class="diag-row-label">Connection</span>
+          <span class="diag-row-value">
+            <span
+              class="diag-inline-dot diag-inline-dot--{diagnostics.realtime.connectionState ===
+              'connected'
+                ? 'green'
+                : diagnostics.realtime.connectionState === 'connecting'
+                  ? 'yellow'
+                  : 'red'}"
+            ></span>
+            {diagnostics.realtime.connectionState}
+          </span>
+        </div>
+        <div class="diag-row">
+          <span class="diag-row-label">Healthy</span>
+          <span class="diag-row-value">{diagnostics.realtime.healthy ? 'Yes' : 'No'}</span>
+        </div>
+        <div class="diag-row">
+          <span class="diag-row-label">Reconnects</span>
+          <span class="diag-row-value">{diagnostics.realtime.reconnectAttempts}</span>
+        </div>
+        <div class="diag-row">
+          <span class="diag-row-label">Events Processed</span>
+          <span class="diag-row-value">{diagnostics.realtime.recentlyProcessedCount}</span>
+        </div>
+
+        <!-- 4. Data Transfer -->
+        <div class="diag-section-title">Data Transfer</div>
+        <div class="diag-grid-2">
+          <div class="diag-stat">
+            <span class="diag-stat-value">{diagnostics.egress.totalFormatted}</span>
+            <span class="diag-stat-label">Total Egress</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-value">{diagnostics.egress.totalRecords.toLocaleString()}</span>
+            <span class="diag-stat-label">Records</span>
+          </div>
+        </div>
+        {#if Object.keys(diagnostics.egress.byTable).length > 0}
+          <div class="diag-table-bars">
+            {#each Object.entries(diagnostics.egress.byTable) as [table, data] (table)}
+              <div class="diag-table-row">
+                <div class="diag-table-header">
+                  <span class="diag-table-name">{table}</span>
+                  <span class="diag-table-pct">{data.percentage}</span>
+                </div>
+                <div class="diag-progress-bar">
+                  <div class="diag-progress-fill" style="width: {data.percentage}"></div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        <!-- 5. Sync Queue -->
+        <div class="diag-section-title">Sync Queue</div>
+        <div class="diag-grid-2">
+          <div class="diag-stat">
+            <span class="diag-stat-value">{diagnostics.queue.pendingOperations}</span>
+            <span class="diag-stat-label">Pending</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-value">{diagnostics.queue.itemsInBackoff}</span>
+            <span class="diag-stat-label">In Backoff</span>
+          </div>
+        </div>
+        {#if diagnostics.queue.oldestPendingTimestamp}
+          <div class="diag-row">
+            <span class="diag-row-label">Oldest Pending</span>
+            <span class="diag-row-value"
+              >{formatTimestamp(diagnostics.queue.oldestPendingTimestamp)}</span
+            >
+          </div>
+        {/if}
+
+        <!-- 6. Engine -->
+        <div class="diag-section-title">Engine</div>
+        <div class="diag-row">
+          <span class="diag-row-label">Tab Visible</span>
+          <span class="diag-row-value">{diagnostics.engine.isTabVisible ? 'Yes' : 'No'}</span>
+        </div>
+        <div class="diag-row">
+          <span class="diag-row-label">Lock Held</span>
+          <span class="diag-row-value">
+            {diagnostics.engine.lockHeld ? 'Yes' : 'No'}
+            {#if diagnostics.engine.lockHeld && diagnostics.engine.lockHeldForMs}
+              <span class="diag-lock-duration"
+                >({formatDuration(diagnostics.engine.lockHeldForMs)})</span
+              >
+            {/if}
+          </span>
+        </div>
+        <div class="diag-row">
+          <span class="diag-row-label">Recently Modified</span>
+          <span class="diag-row-value">{diagnostics.engine.recentlyModifiedCount}</span>
+        </div>
+
+        <!-- 7. Recent Cycles -->
+        {#if diagnostics.sync.recentCycles.length > 0}
+          <div class="diag-section-title">Recent Cycles</div>
+          <div class="diag-cycles">
+            {#each diagnostics.sync.recentCycles.slice(0, 5) as cycle (cycle.timestamp)}
+              <div class="diag-cycle-item">
+                <div class="diag-cycle-header">
+                  <span class="diag-cycle-trigger">{cycle.trigger}</span>
+                  <span class="diag-cycle-time">{formatTimestamp(cycle.timestamp)}</span>
+                </div>
+                <div class="diag-cycle-stats">
+                  <span>{cycle.pushedItems} pushed</span>
+                  <span>{cycle.pulledRecords} pulled</span>
+                  <span>{formatDuration(cycle.durationMs)}</span>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        <!-- 8. Conflicts -->
+        {#if diagnostics.conflicts.totalCount > 0}
+          <div class="diag-section-title">Conflicts</div>
+          <div class="diag-row">
+            <span class="diag-row-label">Total</span>
+            <span class="diag-row-value">{diagnostics.conflicts.totalCount}</span>
+          </div>
+        {/if}
+
+        <!-- 9. Errors -->
+        {#if diagnostics.errors.lastError || diagnostics.errors.recentErrors.length > 0}
+          <div class="diag-section-title">Errors</div>
+          {#if diagnostics.errors.lastError}
+            <div class="diag-error-banner">
+              {diagnostics.errors.lastError}
+            </div>
+          {/if}
+          {#each diagnostics.errors.recentErrors.slice(0, 3) as err (err.entityId)}
+            <div class="diag-error-item">
+              <span class="diag-error-table">{err.table}.{err.operation}</span>
+              <span class="diag-error-msg">{err.message}</span>
+            </div>
+          {/each}
+        {/if}
+
+        <!-- 10. Configuration -->
+        <div class="diag-section-title">Configuration</div>
+        <div class="diag-config-tables">
+          <div class="diag-config-tables-header">
+            <span class="diag-row-label">Tables</span>
+            <span class="diag-row-value">{diagnostics.config.tableCount}</span>
+          </div>
+          <div class="diag-config-table-names">
+            {#each diagnostics.config.tableNames as name (name)}
+              <span class="diag-table-tag">{name}</span>
+            {/each}
+          </div>
+        </div>
+        <div class="diag-row">
+          <span class="diag-row-label">Sync Interval</span>
+          <span class="diag-row-value">{formatDuration(diagnostics.config.syncIntervalMs)}</span>
+        </div>
+        <div class="diag-row">
+          <span class="diag-row-label">Debounce</span>
+          <span class="diag-row-value">{formatDuration(diagnostics.config.syncDebounceMs)}</span>
+        </div>
+
+        <!-- 11. Footer -->
+        <div class="diag-footer">
+          <span class="diag-footer-dot"></span>
+          Updated {formatTimestamp(diagnostics.timestamp)}
+        </div>
+      {/if}
+    </section>
+
+    <!-- ================================================================= -->
+    <!--                   DIAGNOSTICS CONTROLS                            -->
+    <!-- ================================================================= -->
+    <section class="settings-card compact">
+      <h2 class="card-heading">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+          />
+        </svg>
+        Controls
       </h2>
       <div class="toggle-row">
         <span class="toggle-label">Debug Mode</span>
@@ -1040,6 +1383,13 @@
       </svg>
       Sign Out
     </button>
+
+    <!-- ================================================================= -->
+    <!--                   FOOTER                                          -->
+    <!-- ================================================================= -->
+    <footer class="profile-footer">
+      <a href="/policy" class="footer-link">Privacy Policy</a>
+    </footer>
   </div>
 </div>
 
@@ -2393,6 +2743,627 @@
   }
 
   /* ================================================================= */
+  /*                     SETUP LINK                                    */
+  /* ================================================================= */
+
+  .setup-link {
+    text-decoration: none;
+    text-align: center;
+  }
+
+  /* ================================================================= */
+  /*                     DIAGNOSTICS DASHBOARD                         */
+  /* ================================================================= */
+
+  /* ── Status Banner ── */
+  .diag-status-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 1rem 1.25rem;
+    background: rgba(14, 12, 8, 0.6);
+    border: 1px solid rgba(180, 140, 50, 0.15);
+    border-radius: var(--prof-radius-sm);
+    margin-bottom: 1.25rem;
+  }
+
+  .diag-status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .diag-status-dot--green {
+    background: #26de81;
+    box-shadow: 0 0 12px rgba(38, 222, 129, 0.5);
+    animation: statusPulse 3s ease-in-out infinite;
+  }
+
+  .diag-status-dot--gold {
+    background: var(--prof-gem);
+    box-shadow: 0 0 12px rgba(212, 160, 57, 0.5);
+    animation: statusPulse 1s ease-in-out infinite;
+  }
+
+  .diag-status-dot--yellow {
+    background: #ffd43b;
+    box-shadow: 0 0 12px rgba(255, 212, 59, 0.5);
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+
+  .diag-status-dot--red {
+    background: #ff6b6b;
+    box-shadow: 0 0 12px rgba(255, 107, 107, 0.5);
+    animation: statusPulse 0.8s ease-in-out infinite;
+  }
+
+  @keyframes statusPulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(0.85);
+    }
+  }
+
+  .diag-status-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .diag-status-label {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--prof-text);
+  }
+
+  .diag-status-meta {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.75rem;
+    color: var(--prof-text-muted);
+  }
+
+  /* ── Section Titles ── */
+  .diag-section-title {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--prof-text-muted);
+    margin: 1.25rem 0 0.625rem;
+  }
+
+  /* ── Stat Grids ── */
+  .diag-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.625rem;
+  }
+
+  .diag-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.625rem;
+  }
+
+  .diag-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 0.5rem;
+    background: rgba(14, 12, 8, 0.4);
+    border: 1px solid rgba(180, 140, 50, 0.1);
+    border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .diag-stat-value {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--prof-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .diag-stat-label {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--prof-text-muted);
+  }
+
+  @media (max-width: 640px) {
+    .diag-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  /* ── Badges ── */
+  .diag-badges {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.625rem;
+    flex-wrap: wrap;
+  }
+
+  .diag-badge-ok {
+    display: inline-flex;
+    padding: 0.2rem 0.625rem;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+    color: #26de81;
+    background: rgba(38, 222, 129, 0.12);
+    border: 1px solid rgba(38, 222, 129, 0.25);
+  }
+
+  .diag-badge-warn {
+    display: inline-flex;
+    padding: 0.2rem 0.625rem;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+    color: #ffd43b;
+    background: rgba(255, 212, 59, 0.12);
+    border: 1px solid rgba(255, 212, 59, 0.25);
+  }
+
+  /* ── Key-Value Rows ── */
+  .diag-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(180, 140, 50, 0.08);
+    font-variant-numeric: tabular-nums;
+    gap: 0.75rem;
+  }
+
+  .diag-row:last-of-type {
+    border-bottom: none;
+  }
+
+  .diag-row-label {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    color: var(--prof-text-muted);
+    flex-shrink: 0;
+  }
+
+  .diag-row-value {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--prof-text);
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    text-align: right;
+  }
+
+  .diag-lock-duration {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--prof-text-muted);
+  }
+
+  /* ── Inline Status Dot ── */
+  .diag-inline-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .diag-inline-dot--green {
+    background: #26de81;
+    box-shadow: 0 0 6px rgba(38, 222, 129, 0.4);
+  }
+
+  .diag-inline-dot--yellow {
+    background: #ffd43b;
+    box-shadow: 0 0 6px rgba(255, 212, 59, 0.4);
+  }
+
+  .diag-inline-dot--red {
+    background: #ff6b6b;
+    box-shadow: 0 0 6px rgba(255, 107, 107, 0.4);
+  }
+
+  /* ── Progress Bars ── */
+  .diag-table-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin-top: 0.75rem;
+  }
+
+  .diag-table-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .diag-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .diag-table-name {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--prof-text);
+  }
+
+  .diag-table-pct {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--prof-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .diag-progress-bar {
+    height: 6px;
+    background: rgba(212, 160, 57, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .diag-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--prof-gem-accent), var(--prof-gem));
+    border-radius: 3px;
+    transition: width 600ms ease-out;
+  }
+
+  /* ── Configuration Tables ── */
+  .diag-config-tables {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(180, 140, 50, 0.08);
+  }
+
+  .diag-config-tables-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+
+  .diag-config-table-names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .diag-table-tag {
+    display: inline-flex;
+    padding: 0.1875rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    color: var(--prof-gem-light);
+    background: rgba(212, 160, 57, 0.1);
+    border: 1px solid rgba(212, 160, 57, 0.2);
+    border-radius: 4px;
+  }
+
+  /* ── Recent Cycles Timeline ── */
+  .diag-cycles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .diag-cycle-item {
+    padding: 0.625rem 0.875rem;
+    background: rgba(14, 12, 8, 0.3);
+    border-left: 3px solid rgba(212, 160, 57, 0.4);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .diag-cycle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .diag-cycle-trigger {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--prof-gem-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .diag-cycle-time {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.6875rem;
+    color: var(--prof-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .diag-cycle-stats {
+    display: flex;
+    gap: 0.75rem;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.6875rem;
+    color: var(--prof-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Errors ── */
+  .diag-error-banner {
+    padding: 0.75rem 1rem;
+    background: rgba(255, 107, 107, 0.08);
+    border: 1px solid rgba(255, 107, 107, 0.2);
+    border-radius: 8px;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--prof-error);
+    margin-bottom: 0.5rem;
+  }
+
+  .diag-error-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 107, 107, 0.1);
+  }
+
+  .diag-error-item:last-child {
+    border-bottom: none;
+  }
+
+  .diag-error-table {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--prof-error);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .diag-error-msg {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.75rem;
+    color: var(--prof-text-muted);
+  }
+
+  /* ── Footer ── */
+  .diag-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(180, 140, 50, 0.1);
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.6875rem;
+    color: var(--prof-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .diag-footer-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(212, 160, 57, 0.5);
+    animation: footerTick 2.5s ease-in-out infinite;
+  }
+
+  @keyframes footerTick {
+    0%,
+    100% {
+      opacity: 0.4;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* ================================================================= */
+  /*                     PROFILE FOOTER                                */
+  /* ================================================================= */
+
+  .profile-footer {
+    display: flex;
+    justify-content: center;
+    padding-top: 20px;
+    padding-bottom: 8px;
+  }
+
+  .footer-link {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--prof-text-dim);
+    text-decoration: none;
+    transition: color 0.2s ease;
+    opacity: 0.7;
+  }
+
+  .footer-link:hover {
+    color: var(--prof-gem-light);
+    opacity: 1;
+  }
+
+  /* ================================================================= */
   /*                     REDUCED MOTION                                */
   /* ================================================================= */
 
@@ -2410,6 +3381,73 @@
     .avatar-circle::after {
       animation: none;
       background-position: 50% 50%;
+    }
+    .diag-status-dot,
+    .diag-footer-dot,
+    .spinner {
+      animation: none;
+    }
+    .diag-progress-fill {
+      transition: none;
+    }
+  }
+
+  /* ── Diagnostics responsive (mobile) ── */
+  @media (max-width: 640px) {
+    .diag-status-banner {
+      padding: 0.75rem 1rem;
+      gap: 0.625rem;
+    }
+    .diag-status-label {
+      font-size: 0.875rem;
+    }
+    .diag-stat {
+      padding: 0.625rem 0.375rem;
+    }
+    .diag-stat-value {
+      font-size: 0.9375rem;
+    }
+    .diag-stat-label {
+      font-size: 0.5625rem;
+    }
+    .diag-row {
+      padding: 0.4375rem 0;
+    }
+    .diag-row-label {
+      font-size: 0.75rem;
+    }
+    .diag-row-value {
+      font-size: 0.75rem;
+    }
+    .diag-cycle-stats {
+      flex-wrap: wrap;
+      gap: 0.375rem 0.625rem;
+    }
+    .diag-cycle-item {
+      padding: 0.5rem 0.625rem;
+    }
+    .diag-table-tag {
+      font-size: 0.625rem;
+      padding: 0.125rem 0.375rem;
+    }
+    .diag-error-banner {
+      font-size: 0.75rem;
+      padding: 0.625rem 0.75rem;
+    }
+  }
+
+  @media (max-width: 375px) {
+    .diag-stat-value {
+      font-size: 0.875rem;
+    }
+    .diag-grid-2 {
+      gap: 0.5rem;
+    }
+    .diag-cycle-stats {
+      font-size: 0.625rem;
+    }
+    .diag-table-tag {
+      font-size: 0.5625rem;
     }
   }
 </style>

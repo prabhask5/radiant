@@ -2,6 +2,8 @@
 
 A self-hosted, offline-first personal finance PWA for tracking spending, budgets, and net worth. Built with SvelteKit, Dexie.js, and Supabase, Radiant connects to your bank accounts via Teller.io, syncs transactions in real-time, and provides budgeting and spending insights -- all while keeping your financial data under your control. Works offline, syncs across devices, and runs entirely on your own infrastructure.
 
+Try it at: [https://finance.prabhas.io/demo](https://finance.prabhas.io/demo)
+
 ---
 
 ## Documentation

@@ -29,7 +29,7 @@
   import { browser } from '$app/environment';
 
   /* ── Stellar Engine — Auth & Stores ── */
-  import { lockSingleUser } from 'stellar-drive/auth';
+  import { lockSingleUser, resolveFirstName, resolveAvatarInitial } from 'stellar-drive/auth';
   import { authState } from 'stellar-drive/stores';
   import { debug } from 'stellar-drive/utils';
   import { hydrateAuthState } from 'stellar-drive/kit';
@@ -99,6 +99,12 @@
     data.authMode !== 'none' && !isAuthPage && !$authState.isLoading
   );
 
+  /** User's first name for the greeting. */
+  const greeting = $derived(resolveFirstName(data.session, data.offlineProfile, 'there'));
+
+  /** Single uppercase initial for avatar circles. */
+  const avatarInitial = $derived(resolveAvatarInitial(data.session, data.offlineProfile, '?'));
+
   /**
    * Derive the current page title from the URL path for the mobile header.
    */
@@ -119,8 +125,7 @@
     { href: '/', label: 'Dashboard', icon: 'grid' },
     { href: '/transactions', label: 'Transactions', icon: 'list' },
     { href: '/budgets', label: 'Budgets', icon: 'pie-chart' },
-    { href: '/accounts', label: 'Accounts', icon: 'credit-card' },
-    { href: '/profile', label: 'Profile', icon: 'user' }
+    { href: '/accounts', label: 'Accounts', icon: 'credit-card' }
   ];
 
   // =============================================================================
@@ -272,6 +277,17 @@
 
     // Lock the single-user session (stops engine, resets auth state, does NOT destroy data)
     await lockSingleUser();
+
+    // Inject a raw DOM overlay that survives the full-page navigation.
+    // The Svelte overlay gets destroyed when the page unloads, causing a
+    // brief flash of the blank background. This raw element persists in
+    // the DOM until the browser replaces it with the login page's paint.
+    const persistentOverlay = document.createElement('div');
+    persistentOverlay.style.cssText =
+      'position:fixed;inset:0;z-index:99999;background:#0a0806;display:flex;align-items:center;justify-content:center;';
+    persistentOverlay.innerHTML =
+      '<p style="color:rgba(255,255,255,0.4);font-size:1.1rem;letter-spacing:0.1em;">Locking...</p>';
+    document.body.appendChild(persistentOverlay);
 
     // Navigate to login
     window.location.href = '/login';
@@ -452,23 +468,34 @@
         <!-- ── Brand ── -->
         <a href="/" class="nav-brand">
           <span class="brand-icon">
-            <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
-              <polygon
-                points="50,8 65,38 95,38 72,58 80,90 50,70 20,90 28,58 5,38 35,38"
-                stroke="url(#brandGemGrad)"
-                stroke-width="5"
-                fill="url(#brandGemFill)"
-              />
+            <svg width="28" height="28" viewBox="0 0 512 512" fill="none">
               <defs>
-                <linearGradient id="brandGemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="var(--color-primary, #d4a039)" />
-                  <stop offset="100%" stop-color="#e056a0" />
+                <linearGradient id="navGemGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#e8b94a" />
+                  <stop offset="50%" stop-color="#d4a039" />
+                  <stop offset="100%" stop-color="#e85d75" />
                 </linearGradient>
-                <linearGradient id="brandGemFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="rgba(212, 160, 57, 0.2)" />
-                  <stop offset="100%" stop-color="rgba(224, 86, 160, 0.05)" />
+                <linearGradient id="navTableGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#f0d88a" />
+                  <stop offset="100%" stop-color="#e8b94a" />
                 </linearGradient>
               </defs>
+              <polygon
+                points="256,72 370,140 414,256 370,372 256,436 142,372 98,256 142,140"
+                fill="url(#navGemGrad)"
+                stroke="#b8862e"
+                stroke-width="2.5"
+              />
+              <polygon
+                points="256,164 326,208 348,234 348,278 280,328 168,328 168,278 186,208"
+                fill="url(#navTableGrad)"
+                opacity="0.8"
+              />
+              <polygon
+                points="256,192 306,220 324,256 306,292 256,308 206,292 188,256 206,220"
+                fill="#f5e6b8"
+                opacity="0.5"
+              />
             </svg>
           </span>
           <span class="brand-text">Radiant</span>
@@ -545,21 +572,6 @@
                     <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                     <line x1="1" y1="10" x2="23" y2="10"></line>
                   </svg>
-                {:else if item.icon === 'user'}
-                  <!-- Profile / user icon -->
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                  </svg>
                 {/if}
               </span>
               <span class="link-text">{item.label}</span>
@@ -573,6 +585,12 @@
         <!-- ── Right Actions — sync status + logout ── -->
         <div class="nav-actions">
           <SyncStatus />
+          <a href="/profile" class="user-menu user-menu-link">
+            <span class="user-avatar">
+              {avatarInitial}
+            </span>
+            <span class="user-greeting">Hey, {greeting}!</span>
+          </a>
           <button class="logout-btn" onclick={handleSignOut} aria-label="Sign out">
             <svg
               width="18"
@@ -679,20 +697,6 @@
                   <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                   <line x1="1" y1="10" x2="23" y2="10"></line>
                 </svg>
-              {:else if item.icon === 'user'}
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
               {/if}
             </span>
             <span class="tab-label">{item.label}</span>
@@ -701,6 +705,18 @@
             {/if}
           </a>
         {/each}
+
+        <!-- ── Profile Tab — avatar with first-letter initial ── -->
+        <a href="/profile" class="tab-item tab-profile" class:active={isActive('/profile')}>
+          <span class="tab-glow"></span>
+          <span class="tab-icon">
+            <span class="mobile-avatar">{avatarInitial}</span>
+          </span>
+          <span class="tab-label">Profile</span>
+          {#if isActive('/profile')}
+            <span class="tab-active-dot"></span>
+          {/if}
+        </a>
       </div>
     </nav>
   {/if}
@@ -1055,6 +1071,8 @@
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
       border-bottom: 1px solid var(--color-glass-border);
+      padding: 0 1.5rem;
+      padding-top: env(safe-area-inset-top, 0);
     }
   }
 
@@ -1063,9 +1081,10 @@
     align-items: center;
     justify-content: space-between;
     height: 100%;
-    max-width: 1280px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 0 24px;
+    gap: 1.5rem;
+    position: relative;
   }
 
   /* ── Brand ── */
@@ -1082,7 +1101,19 @@
   .brand-icon {
     display: flex;
     align-items: center;
+    justify-content: center;
     filter: drop-shadow(0 0 6px rgba(212, 160, 57, 0.4));
+    animation: brandFloat 4s ease-in-out infinite;
+  }
+
+  @keyframes brandFloat {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
   }
 
   .brand-text {
@@ -1212,6 +1243,66 @@
     color: var(--color-error);
     background: rgba(232, 93, 117, 0.08);
     border-color: rgba(232, 93, 117, 0.25);
+  }
+
+  /* ── User Menu (greeting pill) ── */
+
+  .user-menu {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.375rem;
+    padding-left: 0.5rem;
+    padding-right: 0.375rem;
+    background: rgba(14, 12, 8, 0.6);
+    border: 1px solid rgba(212, 160, 57, 0.15);
+    border-radius: 9999px;
+    transition: all 0.3s ease;
+  }
+
+  .user-menu:hover {
+    border-color: rgba(212, 160, 57, 0.3);
+    background: rgba(14, 12, 8, 0.8);
+  }
+
+  .user-menu-link {
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .user-menu-link:hover {
+    border-color: rgba(212, 160, 57, 0.4);
+    box-shadow: 0 0 20px rgba(212, 160, 57, 0.15);
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--color-primary, #d4a039), #e85d75);
+    color: white;
+    font-weight: 700;
+    font-size: 0.875rem;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(212, 160, 57, 0.3);
+    transition:
+      transform 0.3s ease,
+      box-shadow 0.3s;
+  }
+
+  .user-menu:hover .user-avatar {
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(212, 160, 57, 0.4);
+  }
+
+  .user-greeting {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text);
+    white-space: nowrap;
+    padding-right: 0.25rem;
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -1365,6 +1456,46 @@
       box-shadow:
         0 0 10px rgba(212, 160, 57, 0.9),
         0 0 20px rgba(212, 160, 57, 0.6);
+    }
+  }
+
+  /* ── Profile Tab (mobile) ── */
+
+  .tab-profile {
+    min-width: auto;
+  }
+
+  .mobile-avatar {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(212, 160, 57, 0.3) 0%, rgba(232, 93, 117, 0.2) 100%);
+    border: 1.5px solid rgba(212, 160, 57, 0.4);
+    color: var(--color-text);
+    font-weight: 700;
+    font-size: 0.75rem;
+    border-radius: 50%;
+    transition: all 0.4s ease;
+  }
+
+  .tab-profile:hover .mobile-avatar {
+    border-color: rgba(212, 160, 57, 0.6);
+    box-shadow:
+      0 0 15px rgba(212, 160, 57, 0.3),
+      0 4px 12px rgba(0, 0, 0, 0.4);
+    transform: scale(1.05);
+  }
+
+  /* ── Wide Tablet (<=1100px) — hide greeting text to prevent nav overlap ── */
+  @media (max-width: 1100px) {
+    .user-greeting {
+      display: none;
+    }
+
+    .user-menu {
+      padding-right: 0.375rem;
     }
   }
 

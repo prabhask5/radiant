@@ -1654,31 +1654,25 @@
 
   .pin-row {
     display: flex;
-    gap: 8px;
     justify-content: center;
-    width: 100%;
+    gap: 0.5rem;
   }
 
   .pin-digit {
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 44px;
+    width: 44px;
     height: 52px;
     text-align: center;
-    font-family: var(--font-mono);
     font-size: 1.25rem;
-    font-weight: 500;
+    font-weight: 700;
+    letter-spacing: 0;
+    padding: 0;
     color: var(--login-text);
     background: rgba(14, 12, 8, 0.7);
     border: 1.5px solid rgba(180, 140, 50, 0.15);
     border-radius: 10px;
     outline: none;
     caret-color: var(--login-gem-primary);
-    transition:
-      border-color 0.2s ease,
-      box-shadow 0.2s ease,
-      background 0.2s ease,
-      transform 0.2s ease;
+    transition: all 0.3s ease;
   }
 
   .pin-digit:focus {
@@ -1686,7 +1680,7 @@
     box-shadow:
       0 0 0 3px rgba(184, 134, 46, 0.2),
       0 0 20px rgba(184, 134, 46, 0.1);
-    transform: scale(1.08);
+    transform: translateY(-2px);
     background: rgba(184, 134, 46, 0.06);
   }
 
@@ -2196,7 +2190,7 @@
     }
 
     .pin-digit {
-      max-width: 40px;
+      width: 40px;
       height: 48px;
       font-size: 1.125rem;
     }
@@ -2244,7 +2238,7 @@
       font-size: 1.75rem;
     }
     .pin-digit {
-      max-width: 40px;
+      width: 40px;
       height: 48px;
       font-size: 1.25rem;
     }
@@ -2272,7 +2266,7 @@
       font-size: 2rem;
     }
     .pin-digit {
-      max-width: 44px;
+      width: 44px;
       height: 52px;
       font-size: 1.375rem;
     }
@@ -2310,7 +2304,7 @@
       font-size: 1.5rem;
     }
     .pin-digit {
-      max-width: 36px;
+      width: 36px;
       height: 44px;
       font-size: 1.125rem;
     }
