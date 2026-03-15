@@ -26,7 +26,7 @@
   import { getConfig } from 'stellar-drive/config';
   import { debug } from 'stellar-drive/utils';
   import { formatCurrency } from '$lib/utils/currency';
-  import { remoteChangeAnimation } from 'stellar-drive/actions';
+  import { remoteChangeAnimation, truncateTooltip } from 'stellar-drive/actions';
   import type { TellerConnectStatic, TellerConnectEnrollment } from '$lib/teller/types';
   import type { Account, TellerEnrollment } from '$lib/types';
   import {
@@ -48,6 +48,9 @@
 
   /** Whether we're currently loading the Teller Connect SDK. */
   let tellerLoading = $state(false);
+
+  /** Whether Teller Connect UI is currently visible. */
+  let tellerOpen = $state(false);
 
   /** Whether a sync operation is in progress after enrollment. */
   let syncing = $state(false);
@@ -485,6 +488,7 @@
         products: ['balance', 'transactions'],
         environment: tellerEnvironment,
         onSuccess: async (enrollment: TellerConnectEnrollment) => {
+          tellerOpen = false;
           await handleEnrollmentSuccess(enrollment);
         },
         onInit: () => {
@@ -492,16 +496,20 @@
         },
         onExit: () => {
           tellerLoading = false;
+          tellerOpen = false;
         },
         onFailure: (error: { message: string }) => {
           tellerLoading = false;
+          tellerOpen = false;
           showFeedback('error', `Connection failed: ${error.message}`);
         }
       });
 
+      tellerOpen = true;
       tellerConnect.open();
     } catch (err) {
       tellerLoading = false;
+      tellerOpen = false;
       showFeedback('error', err instanceof Error ? err.message : 'Failed to open Teller Connect');
     }
   }
@@ -1106,7 +1114,7 @@
   // ==========================================================================
 
   /** Lock body scroll when any modal is open. */
-  const anyModalOpen = $derived(showManualModal || showCSVModal);
+  const anyModalOpen = $derived(showManualModal || showCSVModal || tellerOpen);
 
   $effect(() => {
     if (browser && anyModalOpen) {
@@ -1417,7 +1425,7 @@
                 >
               </div>
               <div class="inst-text">
-                <h2 class="inst-name">{group.institutionName}</h2>
+                <h2 class="inst-name" use:truncateTooltip>{group.institutionName}</h2>
                 <span class="inst-sync"
                   >{group.enrollmentStatus === 'manual'
                     ? group.lastSynced
@@ -1637,11 +1645,11 @@
                       <button
                         class="acct-name"
                         class:muted={account.is_hidden}
+                        use:truncateTooltip
                         onclick={(e) => {
                           e.stopPropagation();
                           startEditingName(account);
                         }}
-                        title="Click to rename"
                       >
                         {account.name}
                       </button>
@@ -1746,6 +1754,14 @@
     </div>
   {/if}
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TELLER CONNECT BACKDROP
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+{#if tellerOpen}
+  <div class="teller-backdrop"></div>
+{/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      MANUAL ACCOUNT CREATION MODAL
@@ -2666,13 +2682,14 @@
     background: var(--surface-card);
     border: 1px solid var(--border-subtle);
     border-radius: 14px 14px 4px 4px;
-    flex-wrap: wrap;
   }
 
   .inst-info {
     display: flex;
     align-items: center;
     gap: 0.65rem;
+    min-width: 0;
+    flex: 1;
   }
 
   .inst-icon {
@@ -2716,6 +2733,7 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
+    flex-shrink: 0;
   }
 
   /* ── Status Badge ───────────────────────────────────────────────────────── */
@@ -3190,14 +3208,13 @@
     }
 
     .institution-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.6rem;
+      gap: 0.5rem;
       padding: 0.65rem 0.85rem;
     }
 
-    .inst-actions {
-      align-self: flex-end;
+    .inst-info {
+      min-width: 0;
+      flex: 1;
     }
 
     .account-card {
@@ -3251,6 +3268,17 @@
   /* ═══════════════════════════════════════════════════════════════════════════
      REAL-TIME ANIMATION KEYFRAMES
      ═══════════════════════════════════════════════════════════════════════════ */
+
+  /* ── Teller Connect Backdrop ──────────────────────────────────────────── */
+  .teller-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    animation: backdrop-in 0.25s ease-out;
+  }
 
   /* ── Teller Connect iframe constraint ──────────────────────────────────── */
   :global(.teller-connect-iframe),

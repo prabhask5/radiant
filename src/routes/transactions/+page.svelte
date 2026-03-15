@@ -33,7 +33,7 @@
     getCurrentMonth,
     formatMonth
   } from '$lib/utils/currency';
-  import { remoteChangeAnimation } from 'stellar-drive/actions';
+  import { remoteChangeAnimation, truncateTooltip } from 'stellar-drive/actions';
   import { debug } from 'stellar-drive/utils';
 
   // ===========================================================================
@@ -546,7 +546,11 @@
         {/each}
       </select>
 
-      <select class="filter-select" bind:value={statusFilter} aria-label="Filter by status">
+      <select
+        class="filter-select filter-status"
+        bind:value={statusFilter}
+        aria-label="Filter by status"
+      >
         <option value="all">All status</option>
         <option value="posted">Posted</option>
         <option value="pending">Pending</option>
@@ -782,7 +786,7 @@
 
             <!-- Description & Counterparty -->
             <div class="txn-info">
-              <span class="txn-desc">{txn.description}</span>
+              <span class="txn-desc" use:truncateTooltip>{txn.description}</span>
               {#if txn.counterparty_name}
                 <span class="txn-counterparty">{txn.counterparty_name}</span>
               {/if}
@@ -1176,6 +1180,12 @@
     border-color: rgba(200, 160, 60, 0.25);
   }
 
+  @media (max-width: 640px) {
+    .today-btn {
+      order: 1;
+    }
+  }
+
   /* ═══════════════════════════════════════════════════════════════════════════
      FILTER BAR — Frosted glass
      ═══════════════════════════════════════════════════════════════════════════ */
@@ -1303,6 +1313,10 @@
     background-position: right 0.5rem center;
     padding-right: 1.5rem;
     min-width: 0;
+  }
+
+  .filter-status {
+    flex: 0.7;
   }
 
   .filter-select:focus {
@@ -2264,8 +2278,12 @@
     width: 32px;
     min-width: 32px;
     height: 32px;
+    max-height: 32px;
+    aspect-ratio: 1;
     flex-shrink: 0;
+    flex-grow: 0;
     border-radius: 50%;
+    box-sizing: border-box;
     border: 1px solid var(--txn-border);
     background: var(--txn-frost);
     color: var(--txn-text-muted);
