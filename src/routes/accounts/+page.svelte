@@ -473,6 +473,7 @@
     }
 
     tellerLoading = true;
+    tellerOpen = true;
 
     try {
       await loadTellerConnect();
@@ -505,7 +506,6 @@
         }
       });
 
-      tellerOpen = true;
       tellerConnect.open();
     } catch (err) {
       tellerLoading = false;
@@ -1760,7 +1760,14 @@
      ═══════════════════════════════════════════════════════════════════════════ -->
 
 {#if tellerOpen}
-  <div class="teller-backdrop"></div>
+  <div class="teller-backdrop">
+    {#if tellerLoading}
+      <div class="teller-loader">
+        <div class="btn-spinner teller-spinner"></div>
+        <span class="teller-loader-text">Connecting...</span>
+      </div>
+    {/if}
+  </div>
 {/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -3289,11 +3296,34 @@
   .teller-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 100;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     animation: backdrop-in 0.25s ease-out;
+  }
+
+  .teller-loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .teller-spinner {
+    width: 28px;
+    height: 28px;
+    border-width: 2.5px;
+  }
+
+  .teller-loader-text {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
   }
 
   /* ── Teller Connect iframe — centered modal ──────────────────────────── */
@@ -3303,7 +3333,7 @@
     top: 50% !important;
     left: 50% !important;
     transform: translate(-50%, -50%) !important;
-    z-index: 101 !important;
+    z-index: 201 !important;
     max-width: calc(100vw - 2rem) !important;
     max-height: calc(
       100vh - env(safe-area-inset-top, 47px) - env(safe-area-inset-bottom, 0px) - 2rem
