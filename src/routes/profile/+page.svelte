@@ -1033,7 +1033,14 @@
         </svg>
         Settings
       </h2>
-      <a href="/setup" class="btn-action setup-link">Update Configuration</a>
+      {#if inDemoMode}
+        <button
+          class="btn-action setup-link"
+          onclick={() => showDemoToast('Not available in demo mode')}>Update Configuration</button
+        >
+      {:else}
+        <a href="/setup" class="btn-action setup-link">Update Configuration</a>
+      {/if}
     </section>
 
     <!-- ================================================================= -->

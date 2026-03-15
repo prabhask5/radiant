@@ -1186,6 +1186,7 @@
 
   .nav-link {
     position: relative;
+    overflow: hidden;
     display: flex;
     align-items: center;
     gap: 6px;

@@ -12,6 +12,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { handleEmailConfirmation, broadcastAuthConfirmed } from 'stellar-drive/kit';
+  import { isDemoMode } from 'stellar-drive';
 
   let status: 'verifying' | 'success' | 'error' | 'redirecting' | 'can_close' = 'verifying';
   let errorMessage = '';
@@ -19,6 +20,10 @@
   const CHANNEL_NAME = 'radiant-auth-channel';
 
   onMount(async () => {
+    if (isDemoMode()) {
+      goto('/', { replaceState: true });
+      return;
+    }
     const tokenHash = $page.url.searchParams.get('token_hash');
     const type = $page.url.searchParams.get('type');
 

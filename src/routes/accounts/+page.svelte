@@ -17,7 +17,9 @@
 
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { accountsStore, enrollmentsStore } from '$lib/stores/data';
+  import { accountsStore, enrollmentsStore, transactionsStore } from '$lib/stores/data';
+  import { engineCreate, engineUpdate, engineGetAll, generateId } from 'stellar-drive';
+  import { isDemoMode } from 'stellar-drive';
   import { getConfig } from 'stellar-drive/config';
   import { formatCurrency } from '$lib/utils/currency';
   import type { TellerConnectStatic, TellerConnectEnrollment } from '$lib/teller/types';
@@ -92,7 +94,7 @@
     for (const enrollment of enrollments) {
       groups.set(enrollment.id, {
         institutionName: enrollment.institution_name,
-        enrollmentId: enrollment.enrollment_id,
+        enrollmentId: enrollment.id,
         enrollmentStatus: enrollment.status,
         lastSynced: enrollment.last_synced_at,
         accounts: []
@@ -151,6 +153,88 @@
   const hasTellerConfig = $derived(!!tellerAppId);
 
   // ==========================================================================
+  //                     SYNC DATA PERSISTENCE
+  // ==========================================================================
+
+  /**
+   * Persist accounts and transactions returned from the sync endpoint
+   * into local IndexedDB via stellar-drive.
+   *
+   * For accounts: looks up existing by teller_account_id to update, or creates new.
+   * For transactions: looks up existing by teller_transaction_id to update, or creates new.
+   */
+  async function persistSyncData(
+    syncData: {
+      accounts: Array<Record<string, unknown>>;
+      transactions: Array<Record<string, unknown>>;
+    },
+    localEnrollmentId: string
+  ) {
+    // Build a map of existing accounts by teller_account_id for dedup
+    const existingAccounts = (await engineGetAll('accounts')) as unknown as Account[];
+    const acctByTellerId = new Map(existingAccounts.map((a) => [a.teller_account_id, a]));
+
+    // Map from teller_account_id -> local account id (for transaction FK resolution)
+    const tellerToLocalId = new Map<string, string>();
+
+    for (const acctData of syncData.accounts) {
+      const tellerAcctId = acctData.teller_account_id as string;
+      const existing = acctByTellerId.get(tellerAcctId);
+
+      if (existing) {
+        // Update existing account with fresh data
+        await engineUpdate('accounts', existing.id, {
+          ...acctData,
+          enrollment_id: localEnrollmentId
+        });
+        tellerToLocalId.set(tellerAcctId, existing.id);
+      } else {
+        // Create new account
+        const id = generateId();
+        await engineCreate('accounts', {
+          id,
+          ...acctData,
+          enrollment_id: localEnrollmentId
+        });
+        tellerToLocalId.set(tellerAcctId, id);
+      }
+    }
+
+    // Build a set of existing transaction teller IDs for dedup
+    const existingTxns = (await engineGetAll('transactions')) as Array<{
+      id: string;
+      teller_transaction_id: string;
+    }>;
+    const txnByTellerId = new Map(existingTxns.map((t) => [t.teller_transaction_id, t.id]));
+
+    for (const txnData of syncData.transactions) {
+      const tellerTxnId = txnData.teller_transaction_id as string;
+      const tellerAcctId = txnData.teller_account_id as string;
+      const localAccountId = tellerToLocalId.get(tellerAcctId);
+
+      if (!localAccountId) continue;
+
+      // Remove teller_account_id from the data (not a schema field)
+      const { teller_account_id: _, ...txnFields } = txnData;
+
+      const existingId = txnByTellerId.get(tellerTxnId);
+      if (existingId) {
+        await engineUpdate('transactions', existingId, {
+          ...txnFields,
+          account_id: localAccountId
+        });
+      } else {
+        const id = generateId();
+        await engineCreate('transactions', {
+          id,
+          ...txnFields,
+          account_id: localAccountId
+        });
+      }
+    }
+  }
+
+  // ==========================================================================
   //                     TELLER CONNECT INTEGRATION
   // ==========================================================================
 
@@ -181,6 +265,10 @@
    * On success, triggers a sync with the received access token.
    */
   async function openTellerConnect() {
+    if (isDemoMode()) {
+      showFeedback('error', 'Connecting bank accounts is not available in demo mode.');
+      return;
+    }
     if (!tellerAppId) {
       showFeedback('error', 'Teller app ID not configured. Deploy with PUBLIC_TELLER_APP_ID set.');
       return;
@@ -236,7 +324,7 @@
 
     try {
       // Save the enrollment locally
-      await enrollmentsStore.create({
+      const localEnrollmentId = await enrollmentsStore.create({
         enrollment_id: enrollment.enrollment.id,
         institution_name: enrollment.enrollment.institution.name,
         institution_id: '',
@@ -258,11 +346,23 @@
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || `Sync failed with status ${response.status}`);
+        throw new Error(errData.error || `Sync failed with status ${response.status}`);
       }
 
+      const syncData = await response.json();
+
+      // Persist accounts and transactions to IndexedDB
+      await persistSyncData(syncData, localEnrollmentId);
+
+      // Update enrollment status
+      await enrollmentsStore.updateStatus(localEnrollmentId, 'connected');
+
       // Refresh stores to pick up new data
-      await Promise.all([accountsStore.refresh(), enrollmentsStore.refresh()]);
+      await Promise.all([
+        accountsStore.refresh(),
+        transactionsStore.refresh(),
+        enrollmentsStore.refresh()
+      ]);
 
       showFeedback(
         'success',
@@ -280,6 +380,10 @@
    * Retry sync for an existing enrollment using its stored access token.
    */
   async function retrySyncEnrollment(enrollmentId: string) {
+    if (isDemoMode()) {
+      showFeedback('error', 'Syncing with banks is not available in demo mode.');
+      return;
+    }
     const enrollment = enrollments.find((e) => e.id === enrollmentId);
     if (!enrollment?.access_token) {
       showFeedback('error', 'No access token stored for this enrollment.');
@@ -304,7 +408,19 @@
         throw new Error(errData.error || `Sync failed with status ${response.status}`);
       }
 
-      await Promise.all([accountsStore.refresh(), enrollmentsStore.refresh()]);
+      const syncData = await response.json();
+
+      // Persist accounts and transactions to IndexedDB
+      await persistSyncData(syncData, enrollment.id);
+
+      // Update enrollment status
+      await enrollmentsStore.updateStatus(enrollment.id, 'connected');
+
+      await Promise.all([
+        accountsStore.refresh(),
+        transactionsStore.refresh(),
+        enrollmentsStore.refresh()
+      ]);
       showFeedback('success', `${enrollment.institution_name} accounts synced successfully.`);
     } catch (err) {
       console.error('Retry sync error:', err);
