@@ -1613,7 +1613,7 @@
   .profile-page {
     position: relative;
     background: transparent;
-    padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+    /* bottom padding handled by layout */
     animation: profileEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 

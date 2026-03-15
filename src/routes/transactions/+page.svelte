@@ -1037,7 +1037,7 @@
      ═══════════════════════════════════════════════════════════════════════════ */
 
   .txn-page {
-    padding: 0 0 6rem;
+    padding: 0;
     opacity: 0;
     transform: translateY(12px);
     transition:

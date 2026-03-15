@@ -2212,7 +2212,7 @@
     --border-interactive: rgba(180, 150, 80, 0.2);
 
     position: relative;
-    padding: 0 0 6rem;
+    padding: 0;
     background: transparent;
     font-family: var(
       --font-body,
@@ -3139,10 +3139,6 @@
 
   /* ── Responsive ─────────────────────────────────────────────────────────── */
   @media (max-width: 640px) {
-    .accounts-page {
-      padding-bottom: 5rem;
-    }
-
     .page-header {
       flex-direction: column;
       gap: 0.75rem;

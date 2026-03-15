@@ -1425,16 +1425,7 @@
     flex-direction: column;
     overflow-x: hidden;
     padding: 2rem;
-  }
-
-  .main.with-nav {
-    padding-top: 0;
-  }
-
-  @media (min-width: 768px) {
-    .main.with-nav {
-      padding-top: var(--nav-height);
-    }
+    padding-top: calc(var(--nav-height) + 2rem);
   }
 
   @media (max-width: 767px) {
@@ -1442,18 +1433,16 @@
       padding: 1rem;
       padding-left: max(1rem, env(safe-area-inset-left, 1rem));
       padding-right: max(1rem, env(safe-area-inset-right, 1rem));
+      padding-top: calc(env(safe-area-inset-top, 47px) + 24px);
     }
     .main.with-nav {
-      padding-top: calc(env(safe-area-inset-top, 0px) + 28px);
-      padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) * 0.6);
+      padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 16px);
     }
   }
 
   @media (max-width: 375px) {
     .main {
       padding: 0.875rem;
-    }
-    .main.with-nav {
       padding-top: calc(env(safe-area-inset-top, 20px) + 16px);
     }
   }

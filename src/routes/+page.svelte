@@ -139,7 +139,7 @@
      LAYOUT
      ────────────────────────────────────────────────────────────────────────── */
   .dashboard {
-    padding: 0 0 80px;
+    padding: 0;
     display: flex;
     flex-direction: column;
     gap: 20px;
