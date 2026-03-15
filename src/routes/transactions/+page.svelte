@@ -50,8 +50,6 @@
   let accountFilter = $state('all');
   let categoryFilter = $state('all');
   let statusFilter = $state<'all' | 'posted' | 'pending'>('all');
-  let dateStart = $state('');
-  let dateEnd = $state('');
 
   /* ── Pagination ── */
   const PAGE_SIZE = 50;
@@ -125,8 +123,8 @@
    */
   const filteredTransactions = $derived.by(() => {
     const query = searchQuery.toLowerCase().trim();
-    const rangeStart = dateStart || monthRange.start;
-    const rangeEnd = dateEnd || monthRange.end;
+    const rangeStart = monthRange.start;
+    const rangeEnd = monthRange.end;
 
     return allTransactions
       .filter((t) => {
@@ -297,8 +295,6 @@
     accountFilter = 'all';
     categoryFilter = 'all';
     statusFilter = 'all';
-    dateStart = '';
-    dateEnd = '';
     visibleCount = PAGE_SIZE;
   }
 
@@ -307,9 +303,7 @@
     searchQuery !== '' ||
       accountFilter !== 'all' ||
       categoryFilter !== 'all' ||
-      statusFilter !== 'all' ||
-      dateStart !== '' ||
-      dateEnd !== ''
+      statusFilter !== 'all'
   );
 
   // ===========================================================================
@@ -473,18 +467,6 @@
         <option value="posted">Posted</option>
         <option value="pending">Pending</option>
       </select>
-    </div>
-
-    <div class="date-range-row">
-      <label class="date-field">
-        <span class="date-label">From</span>
-        <input type="date" class="date-input" bind:value={dateStart} />
-      </label>
-      <span class="date-separator">—</span>
-      <label class="date-field">
-        <span class="date-label">To</span>
-        <input type="date" class="date-input" bind:value={dateEnd} />
-      </label>
     </div>
   </div>
 
@@ -820,11 +802,10 @@
      ═══════════════════════════════════════════════════════════════════════════ */
 
   .txn-page {
-    max-width: 720px;
+    width: 100%;
+    max-width: 960px;
     margin: 0 auto;
-    padding: 0 1rem 6rem;
-    padding-top: max(1rem, env(safe-area-inset-top, 0px));
-    padding-bottom: max(6rem, calc(env(safe-area-inset-bottom, 0px) + 6rem));
+    padding: 1rem 1rem 6rem;
     opacity: 0;
     transform: translateY(12px);
     transition:
@@ -1064,52 +1045,6 @@
 
   .filter-select:focus {
     border-color: var(--txn-citrine);
-  }
-
-  .date-range-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .date-field {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-
-  .date-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--txn-text-dim);
-  }
-
-  .date-input {
-    height: 30px;
-    border-radius: var(--txn-radius-sm);
-    border: 1px solid var(--txn-border-subtle);
-    background: var(--txn-frost);
-    color: var(--txn-text-muted);
-    font-size: 0.75rem;
-    font-family: inherit;
-    padding: 0 0.5rem;
-    outline: none;
-    transition: border-color 0.2s;
-    width: 100%;
-    color-scheme: dark;
-  }
-
-  .date-input:focus {
-    border-color: var(--txn-citrine);
-  }
-
-  .date-separator {
-    color: var(--txn-text-dim);
-    font-size: 0.8rem;
-    padding-top: 1rem;
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -2064,25 +1999,6 @@
 
     .detail-label {
       min-width: unset;
-    }
-
-    .date-range-row {
-      flex-direction: column;
-      gap: 0.3rem;
-    }
-
-    .date-separator {
-      display: none;
-    }
-
-    .date-field {
-      flex-direction: row;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .date-input {
-      font-size: 16px; /* Prevents iOS zoom on focus */
     }
 
     .search-input {

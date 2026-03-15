@@ -581,9 +581,6 @@
      ═══════════════════════════════════════════════════════════════════════════ -->
 
 <div class="accounts-page">
-  <!-- Crystal lattice background -->
-  <div class="lattice-bg" aria-hidden="true"></div>
-
   <!-- ── Header ─────────────────────────────────────────────────────── -->
   <header class="page-header">
     <div class="header-left">
@@ -899,11 +896,11 @@
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    ><path d="M18.36 6.64a9 9 0 11-12.73 0" /><line
-                      x1="12"
-                      y1="2"
-                      x2="12"
-                      y2="12"
+                    ><line x1="18" y1="6" x2="6" y2="18" /><line
+                      x1="6"
+                      y1="6"
+                      x2="18"
+                      y2="18"
                     /></svg
                   >
                 </button>
@@ -1088,9 +1085,8 @@
 
     position: relative;
     min-height: 100dvh;
-    padding: 1.5rem;
-    padding-bottom: 6rem;
-    background: var(--surface-base);
+    padding: 1rem 1rem 6rem;
+    background: transparent;
     font-family: var(
       --font-body,
       'SF Pro Text',
@@ -1102,39 +1098,6 @@
     );
     color: var(--text-primary);
     overflow-x: hidden;
-  }
-
-  /* ── Crystal Lattice Background ─────────────────────────────────────────── */
-  .lattice-bg {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background:
-      radial-gradient(ellipse at 20% 30%, rgba(46, 196, 166, 0.04) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 60%, rgba(232, 185, 74, 0.03) 0%, transparent 50%);
-  }
-
-  .lattice-bg::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(
-        30deg,
-        transparent 49.5%,
-        rgba(46, 196, 166, 0.012) 49.5%,
-        rgba(46, 196, 166, 0.012) 50.5%,
-        transparent 50.5%
-      ),
-      linear-gradient(
-        150deg,
-        transparent 49.5%,
-        rgba(232, 185, 74, 0.008) 49.5%,
-        rgba(232, 185, 74, 0.008) 50.5%,
-        transparent 50.5%
-      );
-    background-size: 100px 100px;
   }
 
   /* ── Page Header ────────────────────────────────────────────────────────── */
@@ -1940,8 +1903,7 @@
   /* ── Responsive ─────────────────────────────────────────────────────────── */
   @media (max-width: 640px) {
     .accounts-page {
-      padding: 1rem;
-      padding-bottom: 5rem;
+      padding: 1rem 1rem 5rem;
     }
 
     .page-header {

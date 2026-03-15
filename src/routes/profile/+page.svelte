@@ -146,6 +146,102 @@
         lastName = demoConfig.mockProfile.lastName;
         currentEmail = demoConfig.mockProfile.email;
       }
+      currentDeviceId = 'demo-device';
+      trustedDevices = [
+        {
+          id: 'demo-td-1',
+          userId: 'demo-user',
+          deviceId: 'demo-device',
+          deviceLabel: 'Chrome on macOS',
+          trustedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+          lastUsedAt: new Date().toISOString()
+        },
+        {
+          id: 'demo-td-2',
+          userId: 'demo-user',
+          deviceId: 'demo-device-2',
+          deviceLabel: 'Safari on iPhone',
+          trustedAt: new Date(Date.now() - 14 * 86400000).toISOString(),
+          lastUsedAt: new Date(Date.now() - 2 * 86400000).toISOString()
+        }
+      ] as TrustedDevice[];
+      diagnostics = {
+        timestamp: new Date().toISOString(),
+        prefix: 'radiant',
+        deviceId: 'demo-device',
+        sync: {
+          status: 'idle' as const,
+          totalCycles: 0,
+          lastSyncTime: null,
+          lastSuccessfulSyncTimestamp: null,
+          syncMessage: null,
+          recentCycles: [],
+          cyclesLastMinute: 0,
+          hasHydrated: false,
+          schemaValidated: false,
+          pendingCount: 0
+        },
+        egress: {
+          sessionStart: new Date().toISOString(),
+          totalBytes: 0,
+          totalFormatted: '0 B',
+          totalRecords: 0,
+          byTable: {}
+        },
+        queue: {
+          pendingOperations: 0,
+          pendingEntityIds: [],
+          byTable: {},
+          byOperationType: {},
+          oldestPendingTimestamp: null,
+          itemsInBackoff: 0
+        },
+        realtime: {
+          connectionState: 'disconnected' as const,
+          healthy: false,
+          reconnectAttempts: 0,
+          lastError: null,
+          userId: null,
+          deviceId: 'demo-device',
+          recentlyProcessedCount: 0,
+          operationInProgress: false,
+          reconnectScheduled: false
+        },
+        network: { online: true },
+        engine: {
+          isTabVisible: true,
+          tabHiddenAt: null,
+          lockHeld: false,
+          lockHeldForMs: null,
+          recentlyModifiedCount: 0,
+          wasOffline: false,
+          authValidatedAfterReconnect: false
+        },
+        conflicts: { recentHistory: [], totalCount: 0 },
+        errors: { lastError: null, lastErrorDetails: null, recentErrors: [] },
+        crdt: {
+          enabled: false,
+          config: null,
+          activeDocuments: [],
+          activeDocumentCount: 0,
+          offline: {
+            documentCount: 0,
+            maxDocuments: 0,
+            totalSizeBytes: 0,
+            totalSizeFormatted: '0 B',
+            documents: []
+          },
+          pendingUpdates: [],
+          totalPendingUpdates: 0
+        },
+        config: {
+          tableCount: 4,
+          tableNames: ['teller_enrollments', 'accounts', 'transactions', 'categories'],
+          syncDebounceMs: 500,
+          syncIntervalMs: 30000,
+          tombstoneMaxAgeDays: 30
+        }
+      } as DiagnosticsSnapshot;
       devicesLoading = false;
       diagnosticsLoading = false;
       return;
@@ -938,78 +1034,76 @@
     <!-- ================================================================= -->
     <!--                   TRUSTED DEVICES CARD                            -->
     <!-- ================================================================= -->
-    {#if !inDemoMode}
-      <section class="settings-card">
-        <h2 class="card-heading">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-            <line x1="8" y1="21" x2="16" y2="21" />
-            <line x1="12" y1="17" x2="12" y2="21" />
-          </svg>
-          Trusted Devices
-        </h2>
-        {#if devicesLoading}
-          <div class="devices-loading">
-            <span class="spinner"></span>
-            <span>Loading devices...</span>
-          </div>
-        {:else if trustedDevices.length === 0}
-          <p class="devices-empty">No trusted devices found.</p>
-        {:else}
-          <ul class="device-list">
-            {#each trustedDevices as device (device.id)}
-              <li class="device-row">
-                <div class="device-info">
-                  <span class="device-name">
-                    {device.deviceLabel || 'Unknown Device'}
-                    {#if device.deviceId === currentDeviceId}
-                      <span class="device-badge">This device</span>
-                    {/if}
-                  </span>
-                  <span class="device-meta">
-                    Last seen {new Date(device.lastUsedAt).toLocaleDateString()}
-                  </span>
-                </div>
-                {#if device.deviceId !== currentDeviceId}
-                  <button
-                    class="device-remove"
-                    onclick={() => handleRemoveDevice(device.id)}
-                    disabled={removingDeviceId === device.id}
-                    aria-label="Remove device"
-                  >
-                    {#if removingDeviceId === device.id}
-                      <span class="spinner"></span>
-                    {:else}
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    {/if}
-                  </button>
-                {/if}
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
-    {/if}
+    <section class="settings-card">
+      <h2 class="card-heading">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+        Trusted Devices
+      </h2>
+      {#if devicesLoading}
+        <div class="devices-loading">
+          <span class="spinner"></span>
+          <span>Loading devices...</span>
+        </div>
+      {:else if trustedDevices.length === 0}
+        <p class="devices-empty">No trusted devices found.</p>
+      {:else}
+        <ul class="device-list">
+          {#each trustedDevices as device (device.id)}
+            <li class="device-row" class:current={device.deviceId === currentDeviceId}>
+              <div class="device-info">
+                <span class="device-name">
+                  {device.deviceLabel || 'Unknown Device'}
+                  {#if device.deviceId === currentDeviceId}
+                    <span class="device-badge">This device</span>
+                  {/if}
+                </span>
+                <span class="device-meta">
+                  Last seen {new Date(device.lastUsedAt).toLocaleDateString()}
+                </span>
+              </div>
+              {#if device.deviceId !== currentDeviceId}
+                <button
+                  class="device-remove"
+                  onclick={() => handleRemoveDevice(device.id)}
+                  disabled={removingDeviceId === device.id}
+                  aria-label="Remove device"
+                >
+                  {#if removingDeviceId === device.id}
+                    <span class="spinner"></span>
+                  {:else}
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  {/if}
+                </button>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
 
     <!-- ================================================================= -->
     <!--                   SETTINGS CARD                                   -->
@@ -1490,10 +1584,7 @@
   .profile-page {
     position: relative;
     min-height: 100dvh;
-    background: var(--prof-void);
-    background-image:
-      radial-gradient(ellipse 70% 40% at 30% 0%, rgba(184, 134, 46, 0.07) 0%, transparent 60%),
-      radial-gradient(ellipse 50% 30% at 80% 100%, rgba(46, 196, 166, 0.04) 0%, transparent 50%);
+    background: transparent;
     padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
     animation: profileEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
@@ -1547,8 +1638,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
-    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding: 1rem 20px;
     position: sticky;
     top: 0;
     z-index: 10;
@@ -2278,7 +2368,19 @@
     justify-content: space-between;
     padding: 12px 14px;
     background: rgba(10, 10, 26, 0.35);
+    border: 1px solid transparent;
     border-radius: var(--prof-radius-sm);
+    transition:
+      border-color 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  .device-row.current {
+    border-color: rgba(46, 196, 166, 0.3);
+    background: rgba(46, 196, 166, 0.05);
+    box-shadow:
+      0 0 12px rgba(46, 196, 166, 0.08),
+      inset 0 0 12px rgba(46, 196, 166, 0.03);
   }
 
   .device-info {
@@ -2672,7 +2774,6 @@
     }
     .avatar-section {
       padding: 20px 16px 8px;
-      padding-top: calc(20px + env(safe-area-inset-top, 0px));
     }
     .field-row {
       flex-direction: column;

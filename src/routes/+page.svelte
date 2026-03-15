@@ -142,7 +142,7 @@
     max-width: 960px;
     width: 100%;
     margin: 0 auto;
-    padding: 0 12px 80px;
+    padding: 1rem 12px 80px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -151,7 +151,7 @@
 
   @media (min-width: 768px) {
     .dashboard {
-      padding: 0 24px 80px;
+      padding: 1rem 24px 80px;
       gap: 24px;
     }
   }
