@@ -11,6 +11,8 @@
     "config": "svelte.config.js"
   },
   "ignoreDependencies": [
-    "dexie"
+    "dexie",
+    "postgres",
+    "stellar-drive"
   ]
 }

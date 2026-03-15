@@ -107,9 +107,9 @@
       initialSupabaseKey = supabasePublishableKey;
     }
 
-    // Read public Teller env vars (server-only vars won't be available)
-    const envAppId = import.meta.env.PUBLIC_TELLER_APP_ID;
-    const envEnvironment = import.meta.env.PUBLIC_TELLER_ENVIRONMENT;
+    // Read public Teller config from runtime config (served by /api/config)
+    const envAppId = config?.extra?.PUBLIC_TELLER_APP_ID;
+    const envEnvironment = config?.extra?.PUBLIC_TELLER_ENVIRONMENT;
 
     if (envAppId) {
       tellerAppId = envAppId;

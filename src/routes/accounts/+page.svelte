@@ -18,6 +18,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { accountsStore, enrollmentsStore } from '$lib/stores/data';
+  import { getConfig } from 'stellar-drive/config';
   import { formatCurrency } from '$lib/utils/currency';
   import type { TellerConnectStatic, TellerConnectEnrollment } from '$lib/teller/types';
   import type { Account, TellerEnrollment } from '$lib/types';
@@ -66,10 +67,10 @@
   /** All enrollments from the store. */
   const enrollments: TellerEnrollment[] = $derived($enrollmentsStore ?? []);
 
-  /** Teller configuration from environment variables. */
-  const tellerAppId = import.meta.env.PUBLIC_TELLER_APP_ID || '';
+  /** Teller configuration from runtime config (served by /api/config). */
+  const tellerAppId = getConfig()?.extra?.PUBLIC_TELLER_APP_ID || '';
   const tellerEnvironment =
-    (import.meta.env.PUBLIC_TELLER_ENVIRONMENT as 'sandbox' | 'development' | 'production') ||
+    (getConfig()?.extra?.PUBLIC_TELLER_ENVIRONMENT as 'sandbox' | 'development' | 'production') ||
     'sandbox';
 
   /**

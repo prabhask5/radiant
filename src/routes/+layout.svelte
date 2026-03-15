@@ -1312,6 +1312,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    overflow-x: hidden;
   }
 
   .main.with-nav {

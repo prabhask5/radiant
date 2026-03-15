@@ -9,5 +9,7 @@
 import { createConfigHandler } from 'stellar-drive/kit';
 import type { RequestHandler } from './$types';
 
-/** GET /api/config — Retrieve the current Supabase configuration. */
-export const GET: RequestHandler = createConfigHandler();
+/** GET /api/config — Retrieve the current Supabase configuration + Teller public vars. */
+export const GET: RequestHandler = createConfigHandler({
+  extraEnvVars: ['PUBLIC_TELLER_APP_ID', 'PUBLIC_TELLER_ENVIRONMENT']
+});

@@ -588,11 +588,13 @@
      ────────────────────────────────────────────────────────────────────────── */
   .dashboard {
     max-width: 960px;
+    width: 100%;
     margin: 0 auto;
     padding: 0 12px 80px;
     display: flex;
     flex-direction: column;
     gap: 20px;
+    box-sizing: border-box;
   }
 
   @media (min-width: 768px) {
