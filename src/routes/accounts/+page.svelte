@@ -2252,7 +2252,6 @@
       sans-serif
     );
     color: var(--text-primary);
-    overflow-x: hidden;
   }
 
   /* ── Page Header ────────────────────────────────────────────────────────── */
@@ -3286,39 +3285,33 @@
      REAL-TIME ANIMATION KEYFRAMES
      ═══════════════════════════════════════════════════════════════════════════ */
 
-  /* ── Teller Connect Backdrop ──────────────────────────────────────────── */
+  /* ── Teller Connect Backdrop — identical to modal-backdrop ─────────────── */
   .teller-backdrop {
-    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    animation: backdrop-in 0.25s ease-out;
   }
 
-  @media (max-width: 767px) {
-    .teller-backdrop {
-      display: block;
-      position: fixed;
-      inset: 0;
-      z-index: 101;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      animation: backdrop-in 0.25s ease-out;
-      pointer-events: none;
-    }
-  }
-
-  /* ── Teller Connect iframe constraint ──────────────────────────────────── */
+  /* ── Teller Connect iframe — centered modal ──────────────────────────── */
   :global(.teller-connect-iframe),
   :global(iframe[src*='teller.io']) {
-    max-width: 100vw !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 101 !important;
+    max-width: calc(100vw - 2rem) !important;
     max-height: calc(
-      100vh - env(safe-area-inset-top, 47px) - env(safe-area-inset-bottom, 0px)
+      100vh - env(safe-area-inset-top, 47px) - env(safe-area-inset-bottom, 0px) - 2rem
     ) !important;
-    width: min(100vw, 420px) !important;
-    height: min(
-      calc(100vh - env(safe-area-inset-top, 47px) - env(safe-area-inset-bottom, 0px)),
-      700px
-    ) !important;
-    top: env(safe-area-inset-top, 47px) !important;
-    z-index: 102 !important;
+    border-radius: 16px !important;
+    box-shadow:
+      0 24px 48px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(180, 150, 80, 0.08) !important;
   }
 
   :global(.syncable-item) {

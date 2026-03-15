@@ -1423,7 +1423,6 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
     padding: 2rem;
     padding-top: calc(var(--nav-height) + 2rem);
   }
