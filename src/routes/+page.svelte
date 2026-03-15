@@ -20,7 +20,14 @@
   import { authState } from 'stellar-drive/stores';
 
   /* ── App Data Stores ── */
-  import { accountsStore } from '$lib/stores/data';
+  import { accountsStore, transactionsStore } from '$lib/stores/data';
+
+  /* ── Utilities ── */
+  import { formatCurrencyCompact } from '$lib/utils/currency';
+
+  /* ── Components ── */
+  import GemChart from '$lib/components/GemChart.svelte';
+  import type { ChartDataPoint } from '$lib/components/GemChart.svelte';
 
   /* ── Types ── */
   import type { Account } from '$lib/types';
@@ -44,9 +51,115 @@
   const firstName = $derived(resolveFirstName($authState.session, $authState.offlineProfile));
 
   /** Whether we have any linked accounts. */
-  const hasAccounts = $derived(
-    ($accountsStore ?? []).filter((a: Account) => !a.is_hidden && a.status === 'open').length > 0
+  const accounts = $derived(
+    ($accountsStore ?? []).filter((a: Account) => !a.is_hidden && a.status === 'open')
   );
+  const hasAccounts = $derived(accounts.length > 0);
+
+  // ==========================================================================
+  //                      NET WORTH CHART DATA
+  // ==========================================================================
+
+  const chartTimeRanges = [
+    { label: '1W', value: '1w' },
+    { label: '1M', value: '1m' },
+    { label: '3M', value: '3m' },
+    { label: '6M', value: '6m' },
+    { label: '1Y', value: '1y' },
+    { label: 'ALL', value: 'all' }
+  ];
+
+  let chartRange = $state('1m');
+
+  const chartCutoff = $derived.by(() => {
+    const now = new Date();
+    switch (chartRange) {
+      case '1w':
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+      case '1m':
+        return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      case '3m':
+        return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      case '6m':
+        return new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      case '1y':
+        return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      default:
+        return new Date(2000, 0, 1);
+    }
+  });
+
+  /**
+   * Compute daily net worth (assets - liabilities) over time.
+   * Works backwards from current balances using transaction history.
+   */
+  const netWorthLines = $derived.by(() => {
+    const txns = $transactionsStore ?? [];
+    const accts = accounts;
+    if (accts.length === 0) return [];
+
+    const cutoffStr = chartCutoff.toISOString().slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // For each account, compute running balance from start
+    const dailyNet = new Map<string, number>();
+
+    for (const acct of accts) {
+      const currentBal =
+        parseFloat(
+          acct.type === 'credit'
+            ? (acct.balance_ledger ?? acct.balance_available ?? '0')
+            : (acct.balance_available ?? acct.balance_ledger ?? '0')
+        ) || 0;
+      const isDebt = acct.type === 'credit';
+
+      const acctTxns = txns
+        .filter((t) => t.account_id === acct.id && !t.is_excluded)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const totalTxnSum = acctTxns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+      let running = currentBal - totalTxnSum;
+
+      // Apply transactions before cutoff
+      let i = 0;
+      while (i < acctTxns.length && acctTxns[i].date < cutoffStr) {
+        running += parseFloat(acctTxns[i].amount) || 0;
+        i++;
+      }
+
+      const addToDay = (dateStr: string, bal: number) => {
+        const netVal = isDebt ? -Math.abs(bal) : bal;
+        dailyNet.set(dateStr, (dailyNet.get(dateStr) ?? 0) + netVal);
+      };
+
+      addToDay(cutoffStr, running);
+
+      while (i < acctTxns.length && acctTxns[i].date <= todayStr) {
+        const txnDate = acctTxns[i].date;
+        running += parseFloat(acctTxns[i].amount) || 0;
+        i++;
+        if (i >= acctTxns.length || acctTxns[i]?.date !== txnDate) {
+          addToDay(txnDate, running);
+        }
+      }
+
+      addToDay(todayStr, currentBal);
+    }
+
+    const sorted = Array.from(dailyNet.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+    if (sorted.length === 0) return [];
+
+    const data: ChartDataPoint[] = sorted.map(([date, value]) => ({ date, value }));
+
+    return [
+      {
+        label: 'Net Worth',
+        color: '#e8b94a',
+        data
+      }
+    ];
+  });
 
   // ==========================================================================
   //                           LIFECYCLE
@@ -91,6 +204,23 @@
       </p>
     </div>
   </header>
+
+  <!-- ─────────────────────────────────────────────────────────────────────
+       NET WORTH CHART
+       ───────────────────────────────────────────────────────────────────── -->
+  {#if hasAccounts && netWorthLines.length > 0}
+    <div class="anim-item" style="--delay: 1">
+      <GemChart
+        title="Net Worth"
+        lines={netWorthLines}
+        timeRanges={chartTimeRanges}
+        selectedRange={chartRange}
+        onRangeChange={(r) => (chartRange = r)}
+        height={180}
+        formatValue={formatCurrencyCompact}
+      />
+    </div>
+  {/if}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
