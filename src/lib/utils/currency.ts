@@ -146,25 +146,19 @@ export function formatPercent(value: number, decimals = 1): string {
 }
 
 /**
- * Determine the sign/direction CSS class for a monetary amount.
+ * Determine the CSS class for a transaction amount.
  *
- * Returns a string suitable for use as a CSS class name to color-code
- * amounts: positive (income) in green, negative (expenses) in red.
+ * Negative amounts (credits: deposits, refunds, CC payments) are highlighted
+ * as `'credit'` (green). Positive amounts (debits: charges, withdrawals)
+ * are `'debit'` (neutral). Zero is `'zero'`.
  *
  * @param amount - The amount to classify (number or decimal string)
- * @returns `'positive'`, `'negative'`, or `'zero'`
- *
- * @example
- * ```ts
- * amountClass(100);       // "positive"
- * amountClass('-50.00');  // "negative"
- * amountClass(0);         // "zero"
- * ```
+ * @returns `'credit'`, `'debit'`, or `'zero'`
  */
-export function amountClass(amount: number | string): 'positive' | 'negative' | 'zero' {
+export function amountClass(amount: number | string): 'credit' | 'debit' | 'zero' {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  if (num > 0) return 'positive';
-  if (num < 0) return 'negative';
+  if (num < 0) return 'credit';
+  if (num > 0) return 'debit';
   return 'zero';
 }
 

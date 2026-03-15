@@ -1,9 +1,10 @@
 <!--
   @fileoverview Five-step Supabase + Teller.io configuration wizard.
 
-  Guides the user through entering Supabase credentials, validating them
-  against the server, optionally deploying environment variables to Vercel,
-  and reloading the app with the new config active.
+  Guides the user through entering Supabase credentials (including the
+  service role key for server-side bank data writes), configuring Teller.io
+  for bank connectivity, deploying environment variables to Vercel, and
+  reloading the app with the new config active.
 -->
 <script lang="ts">
   /**
@@ -14,7 +15,7 @@
    *
    * 1. Create a Supabase project (instructions only).
    * 2. Initialize the database (automatic — informational step).
-   * 3. Enter and validate Supabase credentials (URL + publishable key).
+   * 3. Enter and validate Supabase credentials (URL + publishable key + service role key).
    * 4. Configure Teller.io for bank data (client + server credentials).
    * 5. Persist configuration via Vercel API (set env vars + redeploy).
    *
@@ -48,6 +49,9 @@
 
   /** Supabase publishable key entered by the user */
   let supabasePublishableKey = $state('');
+
+  /** Supabase service role key (server-side, bypasses RLS) */
+  let supabaseServiceRoleKey = $state('');
 
   /** One-time Vercel API token for setting env vars */
   let vercelToken = $state('');
@@ -122,7 +126,9 @@
   );
 
   /** Whether the Continue button on step 3 should be enabled */
-  const canContinueStep3 = $derived(validateSuccess && !credentialsChanged);
+  const canContinueStep3 = $derived(
+    validateSuccess && !credentialsChanged && !!supabaseServiceRoleKey
+  );
 
   /** Whether the Continue button on step 4 should be enabled (all Teller fields required) */
   const canContinueStep4 = $derived(
@@ -233,6 +239,7 @@
     if (tellerCert) extraEnvVars['TELLER_CERT'] = tellerCert;
     if (tellerKey) extraEnvVars['TELLER_KEY'] = tellerKey;
     if (tellerWebhookSecret) extraEnvVars['TELLER_WEBHOOK_SECRET'] = tellerWebhookSecret;
+    if (supabaseServiceRoleKey) extraEnvVars['SUPABASE_SERVICE_ROLE_KEY'] = supabaseServiceRoleKey;
 
     try {
       const res = await fetch('/api/setup/deploy', {
@@ -313,6 +320,14 @@
         </div>
       {/if}
 
+      <!-- Public page warning -->
+      {#if isFirstSetup}
+        <div class="message message-warning">
+          This page is publicly accessible until configuration is complete. Once environment
+          variables are set and deployed, it will be protected by authentication.
+        </div>
+      {/if}
+
       <!-- Step cards -->
       <div class="step-card">
         {#if currentStep === 1}
@@ -371,6 +386,23 @@
               bind:value={supabasePublishableKey}
             />
             <span class="hint">This is the `anon` key — safe to expose in the browser.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="supabase-service-role-key">Service Role Key (secret)</label>
+            <input
+              id="supabase-service-role-key"
+              type="password"
+              placeholder="eyJhbGciOiJIUzI1NiIs..."
+              bind:value={supabaseServiceRoleKey}
+            />
+            <span class="hint"
+              >Found under <strong>Settings &gt; API &gt; Project API keys &gt; service_role</strong
+              >. This key bypasses Row-Level Security and is used by the server to write bank data
+              (accounts, transactions, balances) to Supabase when webhooks arrive from Teller. It
+              enables real-time sync across all your devices. This key is stored as a Vercel
+              environment variable and is <strong>never</strong> exposed to the browser.</span
+            >
           </div>
 
           <button
@@ -1177,6 +1209,12 @@
   .message-success a {
     color: #34d399;
     text-decoration: underline;
+  }
+
+  .message-warning {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════

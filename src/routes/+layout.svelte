@@ -964,8 +964,8 @@
     left: 0;
     right: 0;
     z-index: 150;
-    height: calc(env(safe-area-inset-top, 47px) * 2 + 24px);
-    padding-top: calc(env(safe-area-inset-top, 47px) * 2);
+    height: calc(env(safe-area-inset-top, 0px) * 2 + 24px);
+    padding-top: calc(env(safe-area-inset-top, 0px) * 2);
     background: linear-gradient(
       180deg,
       rgba(14, 12, 8, 0.3) 0%,
@@ -1442,7 +1442,7 @@
 
   @media (max-width: 767px) {
     .main.with-nav {
-      padding-top: calc(env(safe-area-inset-top, 47px) * 2 + 24px);
+      padding-top: calc(env(safe-area-inset-top, 0px) + 28px);
       padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) * 0.6);
     }
   }

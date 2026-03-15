@@ -195,25 +195,27 @@
 
   /** Summary statistics for the filtered transactions. */
   const summary = $derived.by(() => {
-    let income = 0;
-    let expenses = 0;
+    let inflow = 0;
+    let outflow = 0;
     let count = 0;
 
     for (const t of filteredTransactions) {
       if (t.is_excluded) continue;
       const amt = parseFloat(t.amount) || 0;
-      if (amt > 0) {
-        income += amt;
-      } else {
-        expenses += Math.abs(amt);
+      if (amt < 0) {
+        // Credits: deposits, refunds, CC payments
+        inflow += Math.abs(amt);
+      } else if (amt > 0) {
+        // Debits: charges, withdrawals
+        outflow += amt;
       }
       count++;
     }
 
     return {
-      income,
-      expenses,
-      net: income - expenses,
+      inflow,
+      outflow,
+      net: inflow - outflow,
       count
     };
   });
@@ -473,14 +475,14 @@
   <!-- ─── Summary Strip ─── -->
   {#if hasLoaded && filteredTransactions.length > 0}
     <div class="summary-strip">
-      <div class="summary-item income">
-        <span class="summary-label">Income</span>
-        <span class="summary-value">{formatCurrency(summary.income)}</span>
+      <div class="summary-item inflow">
+        <span class="summary-label">In</span>
+        <span class="summary-value">{formatCurrency(summary.inflow)}</span>
       </div>
       <div class="summary-divider"></div>
-      <div class="summary-item expenses">
-        <span class="summary-label">Expenses</span>
-        <span class="summary-value">{formatCurrency(summary.expenses)}</span>
+      <div class="summary-item outflow">
+        <span class="summary-label">Out</span>
+        <span class="summary-value">{formatCurrency(summary.outflow)}</span>
       </div>
       <div class="summary-divider"></div>
       <div class="summary-item {summary.net >= 0 ? 'net-positive' : 'net-negative'}">
@@ -634,9 +636,7 @@
               {#if txn.is_excluded}
                 <span class="excluded-strike">{formatCurrency(Math.abs(amt))}</span>
               {:else}
-                {cls === 'negative' ? '-' : cls === 'positive' ? '+' : ''}{formatCurrency(
-                  Math.abs(amt)
-                )}
+                {formatCurrency(Math.abs(amt))}
               {/if}
             </span>
           </button>
@@ -1096,12 +1096,12 @@
     white-space: nowrap;
   }
 
-  .summary-item.income .summary-value {
+  .summary-item.inflow .summary-value {
     color: var(--txn-emerald);
   }
 
-  .summary-item.expenses .summary-value {
-    color: var(--txn-ruby);
+  .summary-item.outflow .summary-value {
+    color: var(--txn-text);
   }
 
   .summary-item.net-positive .summary-value {
@@ -1534,12 +1534,12 @@
     flex-shrink: 0;
   }
 
-  .txn-amount.positive {
+  .txn-amount.credit {
     color: var(--txn-emerald);
   }
 
-  .txn-amount.negative {
-    color: var(--txn-ruby);
+  .txn-amount.debit {
+    color: var(--txn-text);
   }
 
   .txn-amount.zero {

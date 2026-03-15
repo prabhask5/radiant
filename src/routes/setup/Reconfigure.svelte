@@ -18,6 +18,7 @@
 
   let supabaseUrl = $state('');
   let supabasePublishableKey = $state('');
+  let supabaseServiceRoleKey = $state('');
 
   let tellerAppId = $state('');
   let tellerCert = $state('');
@@ -30,6 +31,7 @@
   // Initial values for change detection
   let initialSupabaseUrl = $state('');
   let initialSupabaseKey = $state('');
+  let initialServiceRoleKey = $state('');
   let initialTellerAppId = $state('');
   let initialTellerCert = $state('');
   let initialTellerKey = $state('');
@@ -54,7 +56,9 @@
   // ===========================================================================
 
   const supabaseChanged = $derived(
-    supabaseUrl !== initialSupabaseUrl || supabasePublishableKey !== initialSupabaseKey
+    supabaseUrl !== initialSupabaseUrl ||
+      supabasePublishableKey !== initialSupabaseKey ||
+      supabaseServiceRoleKey !== initialServiceRoleKey
   );
 
   const tellerChanged = $derived(
@@ -207,6 +211,7 @@
       if (tellerCert) extraEnvVars.TELLER_CERT = tellerCert;
       if (tellerKey) extraEnvVars.TELLER_KEY = tellerKey;
       if (tellerWebhookSecret) extraEnvVars.TELLER_WEBHOOK_SECRET = tellerWebhookSecret;
+      if (supabaseServiceRoleKey) extraEnvVars.SUPABASE_SERVICE_ROLE_KEY = supabaseServiceRoleKey;
 
       const res = await fetch('/api/setup/deploy', {
         method: 'POST',
@@ -282,6 +287,27 @@
         <span class="input-hint"
           >This is your public (anon) key. Row-Level Security policies enforce access control.</span
         >
+      </div>
+
+      <div class="form-group">
+        <label for="reconfig-supabase-service-role-key">Service Role Key (secret)</label>
+        <input
+          id="reconfig-supabase-service-role-key"
+          type="password"
+          placeholder="eyJhbGciOiJIUzI1NiIs..."
+          bind:value={supabaseServiceRoleKey}
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <span class="input-hint"
+          >Found under Settings &gt; API &gt; service_role. Used by the server for bank data writes.
+          Leave blank to keep existing value.</span
+        >
+      </div>
+
+      <div class="message info">
+        Server-side credentials (service role key) cannot be displayed for security. Leave blank to
+        keep existing value.
       </div>
 
       <button

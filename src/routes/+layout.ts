@@ -34,6 +34,7 @@ import { goto } from '$app/navigation';
 import { debug, initEngine, supabase, probeNetworkReachability } from 'stellar-drive';
 import { lockSingleUser } from 'stellar-drive/auth';
 import { resolveRootLayout } from 'stellar-drive/kit';
+import { getConfig } from 'stellar-drive/config';
 import { isSafeRedirect } from 'stellar-drive/utils';
 import { schema } from '$lib/schema';
 import { demoConfig } from '$lib/demo/config';
@@ -162,6 +163,26 @@ export const load: LayoutLoad = async ({ url }): Promise<RootLayoutData> => {
       '| serverConfigured:',
       result.serverConfigured
     );
+
+    // Check if any required env vars are missing (even when Supabase is configured).
+    // Setup takes priority over authentication — if env vars are missing, the app
+    // can't function properly, so redirect everyone to /setup (which will be public).
+    if (result.serverConfigured) {
+      const config = getConfig();
+      const serviceRoleConfigured = config?.extra?.SERVICE_ROLE_CONFIGURED === 'true';
+      const tellerConfigured = !!config?.extra?.PUBLIC_TELLER_APP_ID;
+      if (
+        (!serviceRoleConfigured || !tellerConfigured) &&
+        !url.pathname.startsWith('/setup') &&
+        !url.pathname.startsWith('/policy')
+      ) {
+        debug('log', '[layout] Missing required env vars — redirecting to /setup', {
+          serviceRoleConfigured,
+          tellerConfigured
+        });
+        redirect(307, '/setup');
+      }
+    }
 
     if (result.authMode === 'none') {
       if (

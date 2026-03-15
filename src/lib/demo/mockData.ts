@@ -181,8 +181,8 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       currency: 'USD',
       last_four: '9104',
       status: 'open',
-      balance_available: null,
-      balance_ledger: '-1847.23',
+      balance_available: '8152.77',
+      balance_ledger: '1847.23',
       balance_updated_at: now(),
       is_hidden: false
     },
@@ -213,8 +213,8 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       currency: 'USD',
       last_four: '3356',
       status: 'open',
-      balance_available: null,
-      balance_ledger: '-523.40',
+      balance_available: '4476.60',
+      balance_ledger: '523.40',
       balance_updated_at: now(),
       is_hidden: false
     }
@@ -350,11 +350,11 @@ export async function seedDemoData(db: Dexie): Promise<void> {
   //  4. Transactions (30 entries across the past 30 days)
   // ---------------------------------------------------------------------------
   await db.table('transactions').bulkPut([
-    // --- Income ---
+    // --- Income (negative = money flowing in) ---
     txn(
       '01',
       ACCT_CHASE_CHECKING,
-      '4250.00',
+      '-4250.00',
       daysAgo(1),
       'Direct Deposit - ACME Corp',
       'ACME Corp',
@@ -365,7 +365,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '02',
       ACCT_BOFA_CHECKING,
-      '1200.00',
+      '-1200.00',
       daysAgo(15),
       'Freelance Payment - Design Work',
       'DesignCo',
@@ -374,11 +374,11 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'posted'
     ),
 
-    // --- Groceries ---
+    // --- Groceries (positive = money flowing out) ---
     txn(
       '03',
       ACCT_CHASE_CHECKING,
-      '-87.43',
+      '87.43',
       daysAgo(1),
       'WHOLE FOODS MARKET #10432',
       'Whole Foods',
@@ -389,7 +389,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '04',
       ACCT_CHASE_CHECKING,
-      '-62.18',
+      '62.18',
       daysAgo(4),
       'TRADER JOES #521',
       "Trader Joe's",
@@ -400,7 +400,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '05',
       ACCT_BOFA_CHECKING,
-      '-134.92',
+      '134.92',
       daysAgo(8),
       'COSTCO WHOLESALE #1142',
       'Costco',
@@ -411,7 +411,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '06',
       ACCT_CHASE_CHECKING,
-      '-45.67',
+      '45.67',
       daysAgo(14),
       'GROCERY OUTLET #87',
       'Grocery Outlet',
@@ -422,7 +422,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '07',
       ACCT_CHASE_CHECKING,
-      '-78.31',
+      '78.31',
       daysAgo(21),
       'WHOLE FOODS MARKET #10432',
       'Whole Foods',
@@ -435,7 +435,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '08',
       ACCT_CHASE_CREDIT,
-      '-42.50',
+      '42.50',
       daysAgo(2),
       'CHIPOTLE MEXICAN GRILL',
       'Chipotle',
@@ -446,7 +446,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '09',
       ACCT_CHASE_CREDIT,
-      '-78.90',
+      '78.90',
       daysAgo(5),
       'THE CHEESECAKE FACTORY',
       'Cheesecake Factory',
@@ -457,7 +457,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '10',
       ACCT_CHASE_CREDIT,
-      '-15.47',
+      '15.47',
       daysAgo(9),
       'STARBUCKS #14523',
       'Starbucks',
@@ -468,7 +468,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '11',
       ACCT_BOFA_CREDIT,
-      '-32.80',
+      '32.80',
       daysAgo(12),
       'PANERA BREAD #3421',
       'Panera Bread',
@@ -481,7 +481,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '12',
       ACCT_CHASE_CREDIT,
-      '-34.52',
+      '34.52',
       daysAgo(1),
       'UBER TRIP',
       'Uber',
@@ -492,7 +492,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '13',
       ACCT_CHASE_CHECKING,
-      '-55.00',
+      '55.00',
       daysAgo(6),
       'SHELL OIL #54231',
       'Shell',
@@ -503,7 +503,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '14',
       ACCT_BOFA_CREDIT,
-      '-18.75',
+      '18.75',
       daysAgo(11),
       'UBER TRIP',
       'Uber',
@@ -516,7 +516,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '15',
       ACCT_CHASE_CREDIT,
-      '-129.99',
+      '129.99',
       daysAgo(3),
       'AMAZON.COM*RT4K21',
       'Amazon',
@@ -527,7 +527,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '16',
       ACCT_CHASE_CREDIT,
-      '-67.50',
+      '67.50',
       daysAgo(10),
       'TARGET #1847',
       'Target',
@@ -538,7 +538,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '17',
       ACCT_BOFA_CREDIT,
-      '-43.21',
+      '43.21',
       daysAgo(18),
       'AMAZON.COM*MK9P32',
       'Amazon',
@@ -551,7 +551,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '18',
       ACCT_CHASE_CREDIT,
-      '-24.99',
+      '24.99',
       daysAgo(7),
       'AMC THEATRES #342',
       'AMC',
@@ -562,7 +562,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '19',
       ACCT_BOFA_CREDIT,
-      '-59.99',
+      '59.99',
       daysAgo(16),
       'TICKETMASTER',
       'Ticketmaster',
@@ -575,7 +575,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '20',
       ACCT_CHASE_CHECKING,
-      '-142.87',
+      '142.87',
       daysAgo(10),
       'PG&E ELECTRIC',
       'PG&E',
@@ -586,7 +586,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '21',
       ACCT_CHASE_CHECKING,
-      '-65.00',
+      '65.00',
       daysAgo(12),
       'AT&T INTERNET',
       'AT&T',
@@ -599,7 +599,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '22',
       ACCT_BOFA_CHECKING,
-      '-35.00',
+      '35.00',
       daysAgo(13),
       'CVS PHARMACY #8832',
       'CVS',
@@ -610,7 +610,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '23',
       ACCT_CHASE_CREDIT,
-      '-150.00',
+      '150.00',
       daysAgo(20),
       'KAISER PERMANENTE COPAY',
       'Kaiser',
@@ -623,7 +623,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '24',
       ACCT_CHASE_CHECKING,
-      '-2200.00',
+      '2200.00',
       daysAgo(2),
       'RENT PAYMENT - AVALON APT',
       'Avalon Apartments',
@@ -636,7 +636,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '25',
       ACCT_CHASE_CREDIT,
-      '-15.99',
+      '15.99',
       daysAgo(5),
       'NETFLIX.COM',
       'Netflix',
@@ -647,7 +647,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '26',
       ACCT_CHASE_CREDIT,
-      '-10.99',
+      '10.99',
       daysAgo(8),
       'SPOTIFY USA',
       'Spotify',
@@ -658,7 +658,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '27',
       ACCT_BOFA_CREDIT,
-      '-14.99',
+      '14.99',
       daysAgo(9),
       'OPENAI *CHATGPT PLUS',
       'OpenAI',
@@ -671,7 +671,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '28',
       ACCT_CHASE_CHECKING,
-      '-189.00',
+      '189.00',
       daysAgo(3),
       'GEICO AUTO INSURANCE',
       'GEICO',
@@ -684,7 +684,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '29',
       ACCT_CHASE_CHECKING,
-      '-500.00',
+      '500.00',
       daysAgo(7),
       'TRANSFER TO SAVINGS',
       null,
@@ -695,11 +695,24 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     txn(
       '30',
       ACCT_CHASE_SAVINGS,
-      '500.00',
+      '-500.00',
       daysAgo(7),
       'TRANSFER FROM CHECKING',
       null,
       null,
+      CAT_TRANSFER,
+      'posted'
+    ),
+
+    // --- Credit card payment (negative on CC = paying it off = green) ---
+    txn(
+      '31',
+      ACCT_CHASE_CREDIT,
+      '-1500.00',
+      daysAgo(4),
+      'PAYMENT THANK YOU',
+      'Chase',
+      'organization',
       CAT_TRANSFER,
       'posted'
     )
@@ -750,7 +763,7 @@ function txn(
     teller_category: null,
     category_id: categoryId,
     status,
-    type: parseFloat(amount) >= 0 ? 'income' : 'card_payment',
+    type: parseFloat(amount) < 0 ? 'credit' : 'debit',
     running_balance: null,
     is_excluded: false,
     notes: null

@@ -18,8 +18,8 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { accountsStore, enrollmentsStore, transactionsStore } from '$lib/stores/data';
-  import { getDb, generateId } from 'stellar-drive';
-  import { isDemoMode } from 'stellar-drive';
+  import { getDb, isDemoMode, resolveUserId } from 'stellar-drive';
+  import { authState } from 'stellar-drive/stores';
   import { getConfig } from 'stellar-drive/config';
   import { formatCurrency } from '$lib/utils/currency';
   import type { TellerConnectStatic, TellerConnectEnrollment } from '$lib/teller/types';
@@ -158,79 +158,27 @@
 
   /**
    * Persist accounts and transactions returned from the sync endpoint
-   * directly into IndexedDB (Dexie), bypassing the sync queue.
+   * directly into IndexedDB (Dexie) for immediate UI reactivity.
    *
-   * The data comes from the Teller API via our server proxy — it does NOT
-   * need to be pushed back to Supabase via the sync engine. Writing through
-   * engineCreate/engineUpdate would queue hundreds of sync operations that
-   * time out waiting to push.
-   *
-   * Uses `put` (upsert) semantics: existing records are overwritten, new
-   * records are inserted.
+   * The server has already written the data to Supabase with stable IDs.
+   * The rows returned include those IDs, so we write them directly to
+   * IndexedDB without generating new IDs. Other devices will receive the
+   * same data via stellar-drive's realtime WebSocket.
    */
-  async function persistSyncData(
-    syncData: {
-      accounts: Array<Record<string, unknown>>;
-      transactions: Array<Record<string, unknown>>;
-    },
-    localEnrollmentId: string
-  ) {
+  async function persistSyncData(syncData: {
+    accounts: Array<Record<string, unknown>>;
+    transactions: Array<Record<string, unknown>>;
+  }) {
     const db = getDb();
-    const timestamp = new Date().toISOString();
-
-    // Build a map of existing accounts by teller_account_id for dedup
-    const existingAccounts = (await db.table('accounts').toArray()) as Account[];
-    const acctByTellerId = new Map(existingAccounts.map((a) => [a.teller_account_id, a]));
-
-    // Map from teller_account_id -> local account id (for transaction FK resolution)
-    const tellerToLocalId = new Map<string, string>();
-    const accountRows: Record<string, unknown>[] = [];
-
-    for (const acctData of syncData.accounts) {
-      const tellerAcctId = acctData.teller_account_id as string;
-      const existing = acctByTellerId.get(tellerAcctId);
-      const id = existing?.id ?? generateId();
-      tellerToLocalId.set(tellerAcctId, id);
-      accountRows.push({
-        created_at: existing?.created_at ?? timestamp,
-        ...acctData,
-        id,
-        enrollment_id: localEnrollmentId,
-        updated_at: timestamp
-      });
-    }
-
-    // Build a set of existing transaction teller IDs for dedup
-    const existingTxns = (await db.table('transactions').toArray()) as Array<{
-      id: string;
-      teller_transaction_id: string;
-      created_at?: string;
-    }>;
-    const txnByTellerId = new Map(existingTxns.map((t) => [t.teller_transaction_id, t]));
-    const txnRows: Record<string, unknown>[] = [];
-
-    for (const txnData of syncData.transactions) {
-      const tellerTxnId = txnData.teller_transaction_id as string;
-      const tellerAcctId = txnData.teller_account_id as string;
-      const localAccountId = tellerToLocalId.get(tellerAcctId);
-      if (!localAccountId) continue;
-
-      const { teller_account_id: _, ...txnFields } = txnData;
-      const existing = txnByTellerId.get(tellerTxnId);
-      const id = existing?.id ?? generateId();
-      txnRows.push({
-        created_at: existing?.created_at ?? timestamp,
-        ...txnFields,
-        id,
-        account_id: localAccountId,
-        updated_at: timestamp
-      });
-    }
 
     // Bulk upsert in a single transaction — no sync queue entries
     await db.transaction('rw', [db.table('accounts'), db.table('transactions')], async () => {
-      await db.table('accounts').bulkPut(accountRows);
-      await db.table('transactions').bulkPut(txnRows);
+      if (syncData.accounts.length > 0) {
+        await db.table('accounts').bulkPut(syncData.accounts);
+      }
+      if (syncData.transactions.length > 0) {
+        await db.table('transactions').bulkPut(syncData.transactions);
+      }
     });
   }
 
@@ -323,7 +271,10 @@
     );
 
     try {
-      // Save the enrollment locally
+      const userId = resolveUserId($authState?.session, $authState?.offlineProfile);
+      if (!userId) throw new Error('Not authenticated');
+
+      // Save the enrollment locally for immediate UI
       const localEnrollmentId = await enrollmentsStore.create({
         enrollment_id: enrollment.enrollment.id,
         institution_name: enrollment.enrollment.institution.name,
@@ -334,13 +285,16 @@
         error_message: null
       });
 
-      // Trigger server-side sync to pull accounts and transactions
+      // Server fetches from Teller, writes to Supabase, returns data with stable IDs
       const response = await fetch('/api/teller/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accessToken: enrollment.accessToken,
-          enrollmentId: enrollment.enrollment.id
+          enrollmentId: enrollment.enrollment.id,
+          userId,
+          localEnrollmentId,
+          institutionName: enrollment.enrollment.institution.name
         })
       });
 
@@ -351,8 +305,8 @@
 
       const syncData = await response.json();
 
-      // Persist accounts and transactions to IndexedDB
-      await persistSyncData(syncData, localEnrollmentId);
+      // Write to local IndexedDB for immediate UI reactivity
+      await persistSyncData(syncData);
 
       // Update enrollment status
       await enrollmentsStore.updateStatus(localEnrollmentId, 'connected');
@@ -390,6 +344,12 @@
       return;
     }
 
+    const userId = resolveUserId($authState?.session, $authState?.offlineProfile);
+    if (!userId) {
+      showFeedback('error', 'Not authenticated.');
+      return;
+    }
+
     syncing = true;
     showFeedback('success', `Re-syncing ${enrollment.institution_name}...`);
 
@@ -399,7 +359,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accessToken: enrollment.access_token,
-          enrollmentId: enrollment.enrollment_id
+          enrollmentId: enrollment.enrollment_id,
+          userId,
+          localEnrollmentId: enrollment.id,
+          institutionName: enrollment.institution_name
         })
       });
 
@@ -410,8 +373,8 @@
 
       const syncData = await response.json();
 
-      // Persist accounts and transactions to IndexedDB
-      await persistSyncData(syncData, enrollment.id);
+      // Write to local IndexedDB for immediate UI reactivity
+      await persistSyncData(syncData);
 
       // Update enrollment status
       await enrollmentsStore.updateStatus(enrollment.id, 'connected');
@@ -510,11 +473,30 @@
 
   /**
    * Get the primary balance to display for an account.
+   * For bank accounts: shows available balance.
+   * For credit cards: shows current balance owed (ledger).
    */
   function displayBalance(account: (typeof accounts)[0]): string {
+    if (account.type === 'credit') {
+      const ledger = account.balance_ledger;
+      if (!ledger) return '--';
+      return formatCurrency(Math.abs(parseFloat(ledger)));
+    }
     const balance = account.balance_available ?? account.balance_ledger;
     if (!balance) return '--';
     return formatCurrency(balance);
+  }
+
+  /**
+   * Get the credit limit for a credit card account.
+   * Limit = |ledger balance| + available credit.
+   */
+  function creditLimit(account: (typeof accounts)[0]): string | null {
+    if (account.type !== 'credit') return null;
+    const ledger = parseFloat(account.balance_ledger ?? '0');
+    const available = parseFloat(account.balance_available ?? '0');
+    if (!ledger && !available) return null;
+    return formatCurrency(Math.abs(ledger) + available);
   }
 
   /**
@@ -991,6 +973,9 @@
                   <div class="acct-bottom">
                     <span class="acct-balance" class:muted={account.is_hidden}>
                       {displayBalance(account)}
+                      {#if creditLimit(account)}
+                        <span class="acct-limit">/ {creditLimit(account)}</span>
+                      {/if}
                     </span>
                     {#if account.balance_updated_at}
                       <span class="acct-updated">{formatLastSync(account.balance_updated_at)}</span>
@@ -1845,6 +1830,12 @@
   }
 
   .acct-balance.muted {
+    color: var(--text-muted);
+  }
+
+  .acct-limit {
+    font-size: 0.8rem;
+    font-weight: 400;
     color: var(--text-muted);
   }
 

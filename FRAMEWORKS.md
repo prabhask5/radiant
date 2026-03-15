@@ -515,7 +515,7 @@ Teller.io is a bank data aggregation service that provides a REST API for access
 
 ### How Radiant uses Teller.io
 
-Radiant uses Teller.io to connect users' bank accounts, fetch transaction data, and receive webhook notifications for new transactions. The client-side Teller Connect widget handles bank enrollment, and server-side `+server.ts` endpoints handle mTLS-authenticated API calls.
+Radiant uses Teller.io to connect users' bank accounts, fetch transaction data, and receive webhook notifications for new transactions. The client-side Teller Connect widget handles bank enrollment, and server-side `+server.ts` endpoints handle mTLS-authenticated API calls and write data directly to Supabase.
 
 #### mTLS Authentication
 
@@ -531,20 +531,34 @@ const response = await fetch('https://api.teller.io/accounts', {
 });
 ```
 
-#### Teller Connect Flow
+#### Data Flow
 
-1. User clicks "Connect Bank" -- Teller Connect opens
-2. User selects institution and authenticates
-3. Teller returns an enrollment token
-4. Token stored in `teller_enrollments` table
-5. Server-side API uses token for data fetching
+All Teller data flows through three paths, all of which write server-side to Supabase using `createServerAdminClient('radiant')` from `stellar-drive/kit` (service_role key, bypasses RLS):
 
-#### Webhook Processing
+1. **Initial enrollment** -- User connects a bank via Teller Connect, client calls `POST /api/teller/sync`, server fetches from Teller via mTLS and writes accounts + transactions + balances directly to Supabase. Client also writes to local IndexedDB via `getDb().table().bulkPut()` for immediate UI. Other devices receive data via stellar-drive's realtime WebSocket.
+
+2. **Webhook-driven updates** -- `POST /api/teller/webhook` processes two event types:
+   - `transactions.processed`: Looks up enrollment in Supabase by Teller enrollment_id, fetches new data from Teller via mTLS, upserts accounts + transactions + balances into Supabase. All connected clients receive updates via realtime.
+   - `enrollment.disconnected`: Updates enrollment status to `disconnected` in Supabase. All clients see it via realtime.
+   - Expired access tokens (401 from Teller) automatically mark enrollments as disconnected.
+
+3. **Manual refresh** -- The retry/refresh button on the accounts page calls `POST /api/teller/sync` (same as initial enrollment flow).
+
+There is **no polling** -- no auto-sync on page load. Data stays fresh via webhooks. Balances update whenever `transactions.processed` fires. All connected clients receive updates automatically via stellar-drive's realtime WebSocket.
+
+#### Key Technical Details
+
+- Stable IDs: server looks up existing records by `teller_account_id` / `teller_transaction_id` to reuse UUIDs, ensuring idempotent upserts
+- Transactions upserted in batches of 200 (Supabase payload limits)
+- Client writes to IndexedDB via `getDb().table().bulkPut()` for immediate UI, bypassing the sync queue
+- Local enrichments (category assignments, notes) are preserved across Teller data refreshes
+
+#### Webhook Verification
 
 1. `POST /api/teller/webhook` receives the payload
-2. HMAC signature verified against `TELLER_WEBHOOK_SECRET`
-3. New/updated transactions fetched via Teller API
-4. Data upserted to Supabase -- syncs to all devices
+2. HMAC-SHA256 signature verified against `TELLER_WEBHOOK_SECRET`
+3. Event type determines processing path (`transactions.processed` or `enrollment.disconnected`)
+4. Data upserted to Supabase server-side -- propagates to all devices via realtime
 
 ---
 

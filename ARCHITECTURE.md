@@ -498,19 +498,34 @@ Teller requires mutual TLS authentication -- every API request must present a cl
 +----------+     HTTPS      +--------------+    mTLS     +----------+
 |  Client  |--------------->|  /api/teller/ |------------>| Teller   |
 | (Browser)|                |  sync         |  cert+key   | API      |
-|          |<---------------|  (Vercel fn)  |<--------------|          |
+|          |<---------------|  (Vercel fn)  |<------------|          |
 |          |   JSON response|              |  JSON        |          |
-+----------+                +--------------+              +----------+
++----------+                +------+-------+              +----------+
+                                   |
+                                   | service_role key
+                                   v
+                            +--------------+
+                            |  Supabase    |
+                            |  (direct     |
+                            |   write)     |
+                            +--------------+
 ```
 
 The server-side handler:
 1. Reads the mTLS certificate and private key from environment variables
 2. Creates an HTTPS agent with the client certificate
 3. Authenticates with Teller using the enrollment's access token
-4. Fetches accounts and/or transactions
-5. Returns sanitized data to the client
+4. Fetches accounts, transactions, and balances
+5. Writes data directly to Supabase using `createServerAdminClient('radiant')` from `stellar-drive/kit` (service_role key, bypasses RLS)
+6. Returns the data to the client for immediate IndexedDB write
 
-### Enrollment Lifecycle
+### Data Flow Architecture
+
+Radiant uses a **server-writes-to-Supabase** model for all Teller data. There are three paths by which bank data enters the system:
+
+#### 1. Initial Enrollment
+
+When a user connects a bank via Teller Connect:
 
 ```
 +-----------+    +-----------------+    +--------------+
@@ -536,46 +551,37 @@ The server-side handler:
       |   access_token    |                     |
       |<------------------+                     |
       |                   |                     |
-      |  Store in         |                     |
-      |  teller_enrollments                     |
-      |  (IndexedDB +     |                     |
-      |   Supabase sync)  |                     |
-      |                   |                     |
-      |  Trigger initial  |                     |
-      |  sync via         |                     |
-      |  /api/teller/sync |                     |
+      |  POST /api/teller/sync                  |
       +--------------------------------------->|
-      |                   |    Fetch accounts   |
-      |                   |    Fetch transactions
-      |<---------------------------------------+
-      |                   |                     |
-      |  Upsert to local  |                     |
-      |  DB + sync queue  |                     |
+      |                   |    Fetch accounts,  |
+      |                   |    transactions,    |
+      |                   |    balances via mTLS|
+      |              +----+----+                |
+      |              | Server  |<---------------+
+      |              | writes  |
+      |              | to      |
+      |              | Supabase|  (createServerAdminClient,
+      |              | directly|   service_role key)
+      |              +----+----+
+      |                   |
+      |   JSON response   |
+      |<------------------+
+      |                   |
+      |  Client writes to |
+      |  IndexedDB via    |
+      |  getDb().table()  |
+      |  .bulkPut()       |
+      |  (immediate UI)   |
+      |                   |
+      |  Other devices    |
+      |  receive data via |
+      |  stellar-drive    |
+      |  realtime WS      |
 ```
 
-### Transaction Sync Strategy
+#### 2. Webhook-Driven Updates
 
-Teller provides transactions as a paginated list. Radiant uses **date-range reconciliation** to efficiently sync:
-
-1. **Determine sync window** -- find the last sync timestamp for the enrollment
-2. **Fetch from Teller** -- request transactions from `last_sync_date` to now
-3. **Match by `teller_transaction_id`** -- find existing local records
-4. **Upsert new/changed** -- insert new transactions, update changed ones
-5. **Preserve local enrichments** -- category assignments, notes, and other user edits are not overwritten by Teller data
-6. **Update sync timestamp** -- record the new high-water mark
-
-```
-Local DB:     [--------------------------|------]
-              ^                          ^      ^
-              oldest                  last_sync  now
-                                         |
-Teller fetch: ---------------------------[------]
-              Only fetch this window  --->
-```
-
-### Webhook Processing
-
-Teller sends webhooks when transactions are created or updated:
+The `/api/teller/webhook` endpoint processes two event types:
 
 ```
 Teller sends POST /api/teller/webhook
@@ -593,37 +599,89 @@ Teller sends POST /api/teller/webhook
               | Valid
               v
 +-----------------------------+
-| 2. PARSE EVENT              |
-|    Extract enrollment_id    |
-|    and event type           |
-|    (transaction.created,    |
-|     transaction.updated,    |
-|     account.updated, etc.)  |
-+-------------+---------------+
-              |
-              v
+| 2. PARSE EVENT TYPE         |
++------+-------------+-------+
+       |             |
+       v             v
+  transactions.  enrollment.
+  processed      disconnected
+       |             |
+       v             v
++----------------+ +---------------------+
+| Look up enroll-| | Update enrollment   |
+| ment in Supa-  | | status to           |
+| base by Teller | | 'disconnected' in   |
+| enrollment_id  | | Supabase            |
++-------+--------+ +----------+----------+
+        |                      |
+        v                      |
++----------------+             |
+| Fetch new data |             |
+| from Teller    |             |
+| via mTLS       |             |
++-------+--------+             |
+        |                      |
+        v                      |
++----------------+             |
+| Upsert accounts|             |
+| + transactions |             |
+| + balances to  |             |
+| Supabase       |             |
+| (service_role) |             |
++-------+--------+             |
+        |                      |
+        v                      v
 +-----------------------------+
-| 3. FETCH UPDATED DATA       |
-|    Use enrollment access    |
-|    token to fetch affected  |
-|    transactions via mTLS    |
-+-------------+---------------+
-              |
-              v
+| REAL-TIME PROPAGATION       |
+| Supabase Realtime emits     |
+| changes to all connected    |
+| clients automatically via   |
+| stellar-drive WebSocket     |
 +-----------------------------+
-| 4. UPSERT TO SUPABASE       |
-|    Insert/update records    |
-|    directly in Supabase     |
-|    (server-side, no client) |
-+-------------+---------------+
-              |
-              v
-+-----------------------------+
-| 5. REAL-TIME PROPAGATION    |
-|    Supabase Realtime emits  |
-|    changes to all connected |
-|    clients automatically    |
-+-----------------------------+
+```
+
+**Expired access tokens**: If the Teller API returns a 401 during webhook processing, the server automatically marks the enrollment as `disconnected` in Supabase, and all clients see the status change via realtime.
+
+#### 3. Manual Refresh
+
+The retry/refresh button on the accounts page calls `POST /api/teller/sync` -- the same endpoint and flow as initial enrollment. This lets users manually re-fetch data without waiting for a webhook.
+
+### No Polling
+
+Radiant does **not** auto-sync Teller data on page load or on a timer. Data stays fresh via webhooks. Balances update whenever a `transactions.processed` webhook fires. The only client-initiated fetch is the explicit manual refresh.
+
+### Cross-Device Sync
+
+All Teller data is written server-side to Supabase (via service_role key). stellar-drive's realtime WebSocket propagates those changes to every connected client automatically. No device needs to independently fetch from Teller -- the server is the single writer.
+
+### Key Technical Details
+
+| Detail | Implementation |
+|--------|---------------|
+| **Server Supabase client** | `createServerAdminClient('radiant')` from `stellar-drive/kit` (service_role key, bypasses RLS) |
+| **Stable IDs** | Server looks up existing records by `teller_account_id` / `teller_transaction_id` to reuse UUIDs, ensuring idempotent upserts |
+| **Batch size** | Transactions upserted in batches of 200 (Supabase payload limits) |
+| **Client-side write** | Client writes to IndexedDB via `getDb().table().bulkPut()` for immediate UI, bypassing the sync queue |
+| **Local enrichments preserved** | Category assignments, notes, and other user edits are not overwritten by Teller data |
+
+### Transaction Sync Strategy
+
+Teller provides transactions as a paginated list. Radiant uses **date-range reconciliation** to efficiently sync:
+
+1. **Determine sync window** -- find the last sync timestamp for the enrollment
+2. **Fetch from Teller** -- request transactions from `last_sync_date` to now
+3. **Match by `teller_transaction_id`** -- find existing local records by looking up the `teller_transaction_id` in Supabase to reuse the existing UUID
+4. **Upsert new/changed** -- insert new transactions, update changed ones (batched in groups of 200)
+5. **Preserve local enrichments** -- category assignments, notes, and other user edits are not overwritten by Teller data
+6. **Update sync timestamp** -- record the new high-water mark
+
+```
+Local DB:     [--------------------------|------]
+              ^                          ^      ^
+              oldest                  last_sync  now
+                                         |
+Teller fetch: ---------------------------[------]
+              Only fetch this window  --->
 ```
 
 ---
