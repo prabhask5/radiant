@@ -80,7 +80,7 @@ export const schema: SchemaDefinition = {
       currency: 'string',
       last_four: 'string?',
       status: 'string',
-      source: 'string',
+      source: 'string?',
       balance_available: 'string?',
       balance_ledger: 'string?',
       balance_updated_at: 'timestamp?',

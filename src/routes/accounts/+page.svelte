@@ -1753,15 +1753,15 @@
                 <table class="csv-table">
                   <thead>
                     <tr>
-                      {#each csvHeaders as h}
+                      {#each csvHeaders as h (h)}
                         <th>{h}</th>
                       {/each}
                     </tr>
                   </thead>
                   <tbody>
-                    {#each csvRows.slice(0, 5) as row, ri}
+                    {#each csvRows.slice(0, 5) as row, ri (ri)}
                       <tr style="animation-delay: {ri * 60}ms">
-                        {#each row as cell}
+                        {#each row as cell, ci (ci)}
                           <td>{cell}</td>
                         {/each}
                       </tr>
@@ -1790,7 +1790,7 @@
               Date Column
               <select class="form-input" bind:value={csvMapping.date}>
                 <option value="">-- Select --</option>
-                {#each csvHeaders as h}
+                {#each csvHeaders as h (h)}
                   <option value={h}>{h}</option>
                 {/each}
               </select>
@@ -1800,7 +1800,7 @@
               Description Column
               <select class="form-input" bind:value={csvMapping.description}>
                 <option value="">-- Select --</option>
-                {#each csvHeaders as h}
+                {#each csvHeaders as h (h)}
                   <option value={h}>{h}</option>
                 {/each}
               </select>
@@ -1812,7 +1812,7 @@
                   Credit Column
                   <select class="form-input" bind:value={csvMapping.credit}>
                     <option value="">-- Select --</option>
-                    {#each csvHeaders as h}
+                    {#each csvHeaders as h (h)}
                       <option value={h}>{h}</option>
                     {/each}
                   </select>
@@ -1821,7 +1821,7 @@
                   Debit Column
                   <select class="form-input" bind:value={csvMapping.debit}>
                     <option value="">-- Select --</option>
-                    {#each csvHeaders as h}
+                    {#each csvHeaders as h (h)}
                       <option value={h}>{h}</option>
                     {/each}
                   </select>
@@ -1832,7 +1832,7 @@
                 Amount Column
                 <select class="form-input" bind:value={csvMapping.amount}>
                   <option value="">-- Select --</option>
-                  {#each csvHeaders as h}
+                  {#each csvHeaders as h (h)}
                     <option value={h}>{h}</option>
                   {/each}
                 </select>
@@ -1852,7 +1852,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {#each csvPreviewMapped as row, ri}
+                      {#each csvPreviewMapped as row, ri (ri)}
                         <tr style="animation-delay: {ri * 60}ms">
                           <td>{row.date}</td>
                           <td>{row.description}</td>
@@ -1941,7 +1941,7 @@
                         </tr>
                       </thead>
                       <tbody>
-                        {#each csvMappedTransactions.slice(0, 5) as row, ri}
+                        {#each csvMappedTransactions.slice(0, 5) as row, ri (ri)}
                           <tr style="animation-delay: {ri * 60}ms">
                             <td>{row.date}</td>
                             <td>{row.description}</td>
@@ -3697,7 +3697,7 @@
     font-size: 0.8rem;
   }
 
-  /* ── Responsive for modals ───────────────────────────────────────────────── */
+  /* ── Responsive for modals & new components ─────────────────────────────── */
 
   @media (max-width: 640px) {
     .header-actions {
@@ -3706,8 +3706,15 @@
       gap: 0.4rem;
     }
 
+    .header-actions .connect-btn,
+    .header-actions .manual-btn {
+      width: 100%;
+      justify-content: center;
+    }
+
     .modal-panel {
       max-height: 90vh;
+      margin: 0.5rem;
     }
 
     .modal-header {
@@ -3722,12 +3729,53 @@
       padding: 0.5rem 1rem 1rem;
     }
 
+    .form-row {
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .csv-dropzone {
+      min-height: 120px;
+      padding: 1.25rem;
+    }
+
     .review-stats {
       gap: 1rem;
     }
 
     .step-line {
       width: 24px;
+    }
+
+    .step-label {
+      font-size: 0.58rem;
+    }
+
+    .csv-table {
+      font-size: 0.72rem;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .manual-btn {
+      font-size: 0.8rem;
+      padding: 0.45rem 0.85rem;
+    }
+
+    .csv-steps {
+      padding: 0 0.5rem 0.5rem;
+    }
+
+    .step-line {
+      width: 16px;
+      margin: 0 0.25rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .step-circle {
+      width: 24px;
+      height: 24px;
+      font-size: 0.65rem;
     }
   }
 </style>
