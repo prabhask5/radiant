@@ -1,30 +1,13 @@
-<script lang="ts">
-  /**
-   * @fileoverview Login / unlock / device-link page — primary auth entry point.
-   *
-   * This page serves **three distinct modes** depending on the state of
-   * the single-user local auth system:
-   *
-   * 1. **Setup Mode** — First visit, no account exists yet. A two-step
-   *    wizard collects email + name (step 1) then a 6-digit PIN with
-   *    confirmation (step 2). May show an email-confirmation modal.
-   *
-   * 2. **Unlock Mode** — Account already set up on this device. The user
-   *    enters their 6-digit PIN to unlock. On untrusted devices, a
-   *    device-verification modal (email OTP) appears after the code.
-   *
-   * 3. **Link Device Mode** — A remote user exists (fetched via
-   *    `fetchRemoteGateConfig`) but this device has no local keys yet.
-   *    The user enters their existing PIN to link this device.
-   *
-   * Cross-tab communication is handled via `BroadcastChannel` —
-   * the `/confirm` page broadcasts `AUTH_CONFIRMED` which this page
-   * listens for to auto-complete verification without a manual refresh.
-   *
-   * Visual design: warm gold gem/crystal theme with faceted shards,
-   * prismatic light bands, and crystal refractions — all pure CSS.
-   */
+<!--
+  @fileoverview Login page — three modes:
+    1. **Setup**       — first-time account creation (email + PIN)
+    2. **Unlock**      — returning user enters PIN to unlock
+    3. **Link Device** — new device links to an existing account via email verification
 
+  Uses BroadcastChannel (`auth-channel`) for cross-tab communication with
+  the /confirm page so email verification results propagate instantly.
+-->
+<script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/stores';
@@ -41,9 +24,9 @@
   import { sendDeviceVerification, isDemoMode } from 'stellar-drive';
   import { isSafeRedirect } from 'stellar-drive/utils';
 
-  // =============================================================================
-  //  Layout / Page Data
-  // =============================================================================
+  // ==========================================================================
+  //                        LAYOUT / PAGE DATA
+  // ==========================================================================
 
   /** Whether this device has a linked single-user account (derived from IndexedDB, not layout data) */
   let deviceLinked = $state(false);
@@ -55,9 +38,9 @@
     return '/';
   });
 
-  // =============================================================================
-  //  Shared UI State
-  // =============================================================================
+  // ==========================================================================
+  //                          SHARED UI STATE
+  // ==========================================================================
 
   /** `true` while any async auth operation is in-flight */
   let loading = $state(false);
@@ -210,7 +193,7 @@
   onMount(async () => {
     mounted = true;
 
-    /* ── Demo mode → redirect to home (demo users shouldn't see PIN entry) ── */
+    /* ── Demo mode → redirect to home ──── */
     if (isDemoMode()) {
       goto('/', { replaceState: true });
       return;
@@ -774,1203 +757,571 @@
   <title>{deviceLinked ? 'Unlock' : 'Welcome'} - Radiant Finance</title>
 </svelte:head>
 
-<!-- Page Root — gem/crystal-themed full-viewport login -->
-<div class="login-page" class:mounted>
-  <!-- Starfield (fixed backdrop, always covers viewport) — renders as crystal facet grid -->
-  <div class="starfield">
-    <div class="stars stars-small"></div>
-    <div class="stars stars-medium"></div>
-    <div class="stars stars-large"></div>
-  </div>
+<!-- ================================================================= -->
+<!--                     BACKGROUND / ATMOSPHERE                       -->
+<!-- ================================================================= -->
+<div class="login-bg">
+  <div class="crystal-shard shard-1"></div>
+  <div class="crystal-shard shard-2"></div>
+  <div class="crystal-shard shard-3"></div>
+  <div class="refraction-overlay"></div>
 
-  <!-- Nebula Effects (fixed, ambient color orbs) — renders as prismatic light bands -->
-  <div class="nebula nebula-1"></div>
-  <div class="nebula nebula-2"></div>
-  <div class="nebula nebula-3"></div>
-
-  <!-- Background Effects (clipped separately so content can scroll) -->
-  <div class="background-effects">
-    <!-- Orbital Rings — renders as angular facet refraction lines -->
-    <div class="orbital-system">
-      <div class="orbit orbit-1"></div>
-      <div class="orbit orbit-2"></div>
-      <div class="orbit orbit-3"></div>
-      <div class="orbit-particle particle-1"></div>
-      <div class="orbit-particle particle-2"></div>
-      <div class="orbit-particle particle-3"></div>
+  <!-- ================================================================= -->
+  <!--                     RESOLVING / LOADING STATE                     -->
+  <!-- ================================================================= -->
+  {#if resolving}
+    <div class="center-stage">
+      <div class="crystal-loader">
+        <div class="facet facet-1"></div>
+        <div class="facet facet-2"></div>
+        <div class="facet facet-3"></div>
+      </div>
+      <p class="resolving-text">Resolving...</p>
     </div>
 
-    <!-- Shooting Stars — renders as prismatic light streaks -->
-    <div class="shooting-star shooting-star-1"></div>
-    <div class="shooting-star shooting-star-2"></div>
-
-    <!-- Floating Particles — renders as tiny crystal shards -->
-    <div class="particles">
-      {#each Array(15) as _, _i (_i)}
-        <span
-          class="particle"
-          style="
-            --delay: {Math.random() * 5}s;
-            --duration: {5 + Math.random() * 10}s;
-            --x-start: {Math.random() * 100}%;
-            --y-start: {Math.random() * 100}%;
-            --size: {2 + Math.random() * 3}px;
-            --opacity: {0.2 + Math.random() * 0.4};
-          "
-        ></span>
-      {/each}
-    </div>
-  </div>
-
-  <!-- Login Content — centered card area -->
-  <div class="login-content">
-    <!-- Brand Header — logo + title + tagline -->
-    <div class="brand">
-      <div class="brand-icon">
-        <div class="brand-glow"></div>
-        <svg width="48" height="48" viewBox="0 0 100 100" fill="none">
-          <circle
-            cx="50"
-            cy="50"
-            r="45"
-            stroke="url(#loginBrandGrad)"
-            stroke-width="5"
+    <!-- ================================================================= -->
+    <!--                        OFFLINE STATE                              -->
+    <!-- ================================================================= -->
+  {:else if offlineNoSetup}
+    <div class="center-stage" class:mounted>
+      <div class="auth-card">
+        <div class="card-gem-accent"></div>
+        <div class="card-icon offline-icon">
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
             fill="none"
-          />
-          <path
-            d="M30 52 L45 67 L72 35"
-            stroke="url(#loginCheckGrad)"
-            stroke-width="6"
+            stroke="currentColor"
+            stroke-width="1.5"
             stroke-linecap="round"
             stroke-linejoin="round"
-            fill="none"
-          />
-          <defs>
-            <linearGradient id="loginBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#d4a039" />
-              <stop offset="100%" stop-color="#e85d75" />
-            </linearGradient>
-            <linearGradient id="loginCheckGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#34d399" />
-              <stop offset="100%" stop-color="#2ec4a6" />
-            </linearGradient>
-          </defs>
-        </svg>
+          >
+            <line x1="1" y1="1" x2="23" y2="23" />
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+            <path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+            <line x1="12" y1="20" x2="12.01" y2="20" />
+          </svg>
+        </div>
+        <h2 class="card-title">Setup Required</h2>
+        <p class="card-subtitle">An internet connection is required to set up this device</p>
       </div>
-      <h1 class="brand-title">Radiant</h1>
-      <p class="brand-tagline">Your personal finance vault</p>
     </div>
 
-    <!-- Mode cards (hidden while resolving initial auth state) -->
-    {#if resolving}
-      <div class="login-card resolving-card">
-        <div class="card-glow"></div>
-        <div class="card-inner">
-          <div class="resolving-loader">
-            <div class="resolving-orb">
-              <div class="resolving-orb-core"></div>
-              <div class="resolving-orb-ring"></div>
-              <div class="resolving-orb-ring resolving-orb-ring-2"></div>
-            </div>
-            <div class="resolving-shimmer-line"></div>
-            <div class="resolving-shimmer-line resolving-shimmer-short"></div>
-          </div>
+    <!-- ================================================================= -->
+    <!--                     SETUP MODE (New Account)                      -->
+    <!-- ================================================================= -->
+  {:else if !deviceLinked && !linkMode}
+    <div class="center-stage" class:mounted>
+      <div class="auth-card" class:shaking>
+        <div class="card-gem-accent"></div>
+
+        <!-- Step indicator -->
+        <div class="step-indicator">
+          <div class="step-dot" class:active={setupStep === 1} class:done={setupStep === 2}></div>
+          <div class="step-line" class:filled={setupStep === 2}></div>
+          <div class="step-dot" class:active={setupStep === 2}></div>
         </div>
-      </div>
-    {:else if deviceLinked}
-      <div class="login-card" class:shake={shaking}>
-        <div class="card-glow"></div>
-        <div class="card-inner">
-          <!-- User avatar + welcome message -->
-          <div class="unlock-user-info">
-            <div class="avatar-wrapper">
-              <div class="avatar-ring-outer"></div>
-              <div class="avatar-ring-inner"></div>
-              <div class="avatar">
-                {(userInfo?.firstName || 'U').charAt(0).toUpperCase()}
+
+        <!-- ── Step 1: Email + Name ── -->
+        {#if setupStep === 1}
+          <div class="step-content" style="animation: fadeSlideIn 0.35s ease-out">
+            <h2 class="card-title">Welcome to Radiant</h2>
+            <p class="card-subtitle">Let's get you set up</p>
+
+            <div class="form-group">
+              <label class="form-label" for="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                class="form-input"
+                placeholder="you@example.com"
+                bind:value={email}
+                disabled={loading}
+                autocomplete="email"
+              />
+            </div>
+
+            <div class="name-row">
+              <div class="form-group">
+                <label class="form-label" for="first-name">First Name</label>
+                <input
+                  id="first-name"
+                  type="text"
+                  class="form-input"
+                  placeholder="John"
+                  bind:value={firstName}
+                  disabled={loading}
+                  autocomplete="given-name"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="last-name">Last Name</label>
+                <input
+                  id="last-name"
+                  type="text"
+                  class="form-input"
+                  placeholder="Doe"
+                  bind:value={lastName}
+                  disabled={loading}
+                  autocomplete="family-name"
+                />
               </div>
             </div>
-            <h2 class="card-title">
-              Welcome back{userInfo?.firstName ? `, ${userInfo.firstName}` : ''}
-            </h2>
-            <p class="card-subtitle">Enter your code to continue</p>
+
+            {#if error}
+              <p class="error-msg">{error}</p>
+            {/if}
+
+            <button class="btn-primary" onclick={goToCodeStep} disabled={loading}>
+              Continue
+              <svg
+                class="btn-arrow"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
           </div>
 
-          <!-- PIN code entry -->
-          <div class="form-fields">
-            <div class="form-group">
-              <div class="code-label">Access Code</div>
+          <!-- ── Step 2: PIN Creation ── -->
+        {:else}
+          <div class="step-content" style="animation: fadeSlideIn 0.35s ease-out">
+            <button class="back-link" onclick={goBackToNameStep} type="button">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              Back
+            </button>
+
+            <h2 class="card-title">Create Your Code</h2>
+            <p class="card-subtitle">
+              Choose a 6-digit code to secure your account, {firstName.trim()}
+            </p>
+
+            <div class="pin-section">
+              <!-- svelte-ignore a11y_label_has_associated_control -->
+              <label class="pin-label">Your Code</label>
+              <div class="pin-row">
+                {#each codeDigits as _, i (i)}
+                  <input
+                    type="tel"
+                    inputmode="numeric"
+                    maxlength="1"
+                    class="pin-digit"
+                    bind:this={codeInputs[i]}
+                    oninput={(e) =>
+                      handleDigitInput(codeDigits, i, e, codeInputs, autoFocusConfirm)}
+                    onkeydown={(e) => handleDigitKeydown(codeDigits, i, e, codeInputs)}
+                    onpaste={(e) => handleDigitPaste(codeDigits, e, codeInputs, autoFocusConfirm)}
+                    disabled={loading}
+                  />
+                {/each}
+              </div>
+            </div>
+
+            <div class="pin-section">
+              <!-- svelte-ignore a11y_label_has_associated_control -->
+              <label class="pin-label">Confirm Code</label>
+              <div class="pin-row">
+                {#each confirmDigits as _, i (i)}
+                  <input
+                    type="tel"
+                    inputmode="numeric"
+                    maxlength="1"
+                    class="pin-digit"
+                    bind:this={confirmInputs[i]}
+                    oninput={(e) =>
+                      handleDigitInput(confirmDigits, i, e, confirmInputs, autoSubmitSetup)}
+                    onkeydown={(e) => handleDigitKeydown(confirmDigits, i, e, confirmInputs)}
+                    onpaste={(e) =>
+                      handleDigitPaste(confirmDigits, e, confirmInputs, autoSubmitSetup)}
+                    disabled={loading}
+                  />
+                {/each}
+              </div>
+            </div>
+
+            {#if error}
+              <p class="error-msg">{error}</p>
+            {/if}
+
+            <button
+              class="btn-primary"
+              onclick={handleSetup}
+              disabled={loading || code.length !== 6 || confirmCode.length !== 6}
+            >
               {#if loading}
-                <div class="code-loading">
-                  <span class="loading-spinner"></span>
-                </div>
+                <span class="spinner"></span> Creating...
               {:else}
-                <div class="code-input-group">
-                  {#each unlockDigits as digit, i (i)}
-                    <div class="code-digit-wrapper" class:filled={digit !== ''}>
-                      <input
-                        class="code-digit"
-                        type="tel"
-                        inputmode="numeric"
-                        pattern="[0-9]"
-                        maxlength="1"
-                        bind:this={unlockInputs[i]}
-                        value={digit}
-                        oninput={(e) =>
-                          handleDigitInput(unlockDigits, i, e, unlockInputs, autoSubmitUnlock)}
-                        onkeydown={(e) => handleDigitKeydown(unlockDigits, i, e, unlockInputs)}
-                        onpaste={(e) =>
-                          handleDigitPaste(unlockDigits, e, unlockInputs, autoSubmitUnlock)}
-                        disabled={loading || retryCountdown > 0}
-                        autocomplete="off"
-                      />
-                    </div>
-                  {/each}
-                </div>
+                Get Started
               {/if}
-            </div>
-
-            <!-- Error message with retry countdown -->
-            {#if error}
-              <div class="message error">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                <span>{error}{retryCountdown > 0 ? ` (${retryCountdown}s)` : ''}</span>
-              </div>
-            {/if}
+            </button>
           </div>
-        </div>
+        {/if}
       </div>
+    </div>
 
-      <!-- Mode: Link Device (new device, existing remote user) -->
-    {:else if linkMode && remoteUser}
-      <div class="login-card" class:shake={shaking}>
-        <div class="card-glow"></div>
-        <div class="card-inner">
-          <!-- Remote user avatar + welcome message -->
-          <div class="unlock-user-info">
-            <div class="avatar-wrapper">
-              <div class="avatar-ring-outer"></div>
-              <div class="avatar-ring-inner"></div>
-              <div class="avatar">
-                {((remoteUser.profile?.firstName as string) || 'U').charAt(0).toUpperCase()}
-              </div>
-            </div>
-            <h2 class="card-title">
-              Welcome back{remoteUser.profile?.firstName ? `, ${remoteUser.profile.firstName}` : ''}
-            </h2>
-            <p class="card-subtitle">Enter your code to link this device</p>
-          </div>
+    <!-- ================================================================= -->
+    <!--                     UNLOCK MODE (Returning User)                  -->
+    <!-- ================================================================= -->
+  {:else if deviceLinked}
+    <div class="center-stage" class:mounted>
+      <div class="auth-card" class:shaking>
+        <div class="card-gem-accent"></div>
 
-          <!-- PIN code entry for device linking -->
-          <div class="form-fields">
-            <div class="form-group">
-              <div class="code-label">Access Code</div>
-              {#if linkLoading}
-                <div class="code-loading">
-                  <span class="loading-spinner"></span>
-                </div>
-              {:else}
-                <div class="code-input-group">
-                  {#each linkDigits as digit, i (i)}
-                    <div class="code-digit-wrapper" class:filled={digit !== ''}>
-                      <input
-                        class="code-digit"
-                        type="tel"
-                        inputmode="numeric"
-                        pattern="[0-9]"
-                        maxlength="1"
-                        bind:this={linkInputs[i]}
-                        value={digit}
-                        oninput={(e) =>
-                          handleDigitInput(linkDigits, i, e, linkInputs, autoSubmitLink)}
-                        onkeydown={(e) => handleDigitKeydown(linkDigits, i, e, linkInputs)}
-                        onpaste={(e) => handleDigitPaste(linkDigits, e, linkInputs, autoSubmitLink)}
-                        disabled={linkLoading || retryCountdown > 0}
-                        autocomplete="off"
-                      />
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-
-            <!-- Error message with retry countdown -->
-            {#if error}
-              <div class="message error">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                <span>{error}{retryCountdown > 0 ? ` (${retryCountdown}s)` : ''}</span>
-              </div>
-            {/if}
-          </div>
-        </div>
-      </div>
-
-      <!-- Mode: Offline, No Setup -->
-    {:else if offlineNoSetup}
-      <div class="login-card">
-        <div class="card-glow"></div>
-        <div class="card-inner">
-          <div class="unlock-user-info">
-            <h2 class="card-title">Setup Required</h2>
-            <p class="card-subtitle">An internet connection is required to set up this device</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Mode: Setup (first-time account creation) -->
-    {:else}
-      <div class="login-card">
-        <div class="card-glow"></div>
-        <div class="card-inner">
-          <!-- Step 1: Email + Name -->
-          {#if setupStep === 1}
-            <div class="setup-step">
-              <!-- Step indicator dots (1 active, 2 pending) -->
-              <div class="step-indicator">
-                <div class="step-dot active"></div>
-                <div class="step-line"></div>
-                <div class="step-dot"></div>
-              </div>
-
-              <h2 class="card-title">Welcome to Radiant</h2>
-              <p class="card-subtitle">Let's get you set up</p>
-
-              <div class="form-fields">
-                <!-- Email input -->
-                <div class="form-group">
-                  <label for="email">Email</label>
-                  <div class="input-wrapper">
-                    <input
-                      type="email"
-                      id="email"
-                      bind:value={email}
-                      required
-                      disabled={loading}
-                      placeholder="you@example.com"
-                    />
-                    <div class="input-glow"></div>
-                  </div>
-                </div>
-
-                <!-- First / Last name side-by-side -->
-                <div class="name-row">
-                  <div class="form-group">
-                    <label for="firstName">First Name</label>
-                    <div class="input-wrapper">
-                      <input
-                        type="text"
-                        id="firstName"
-                        bind:value={firstName}
-                        required
-                        disabled={loading}
-                        placeholder="John"
-                      />
-                      <div class="input-glow"></div>
-                    </div>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="lastName">Last Name</label>
-                    <div class="input-wrapper">
-                      <input
-                        type="text"
-                        id="lastName"
-                        bind:value={lastName}
-                        disabled={loading}
-                        placeholder="Doe"
-                      />
-                      <div class="input-glow"></div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Validation error -->
-                {#if error}
-                  <div class="message error">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                    <span>{error}</span>
-                  </div>
-                {/if}
-
-                <!-- Continue button → advance to step 2 -->
-                <button type="button" class="btn btn-primary submit-btn" onclick={goToCodeStep}>
-                  Continue
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M5 12h14" />
-                    <path d="M12 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <!-- Step 2: PIN Code Creation + Confirmation -->
+        <div class="welcome-avatar">
+          {#if userInfo?.firstName}
+            {userInfo.firstName.charAt(0).toUpperCase()}
           {:else}
-            <div class="setup-step" class:shake={shaking}>
-              <!-- Step indicator dots (1 completed, 2 active) -->
-              <div class="step-indicator">
-                <div class="step-dot completed">
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <div class="step-line active"></div>
-                <div class="step-dot active"></div>
-              </div>
-
-              <!-- Back button to return to step 1 -->
-              <button type="button" class="back-link" onclick={goBackToNameStep}>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M19 12H5" />
-                  <path d="M12 19l-7-7 7-7" />
-                </svg>
-                Back
-              </button>
-
-              <h2 class="card-title">Create Your Code</h2>
-              <p class="card-subtitle">
-                Choose a 6-digit code to secure your account, {firstName.trim()}
-              </p>
-
-              <div class="form-fields">
-                <!-- Primary code entry -->
-                <div class="form-group">
-                  <div class="code-label">Your Code</div>
-                  <div class="code-input-group">
-                    {#each codeDigits as digit, i (i)}
-                      <div class="code-digit-wrapper" class:filled={digit !== ''}>
-                        <input
-                          class="code-digit"
-                          type="tel"
-                          inputmode="numeric"
-                          pattern="[0-9]"
-                          maxlength="1"
-                          bind:this={codeInputs[i]}
-                          value={digit}
-                          oninput={(e) =>
-                            handleDigitInput(codeDigits, i, e, codeInputs, autoFocusConfirm)}
-                          onkeydown={(e) => handleDigitKeydown(codeDigits, i, e, codeInputs)}
-                          onpaste={(e) =>
-                            handleDigitPaste(codeDigits, e, codeInputs, autoFocusConfirm)}
-                          disabled={loading}
-                          autocomplete="off"
-                        />
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-
-                <!-- Confirmation code entry -->
-                <div class="form-group">
-                  <div class="code-label">Confirm Code</div>
-                  {#if loading}
-                    <div class="code-loading">
-                      <span class="loading-spinner"></span>
-                    </div>
-                  {:else}
-                    <div class="code-input-group">
-                      {#each confirmDigits as digit, i (i)}
-                        <div class="code-digit-wrapper" class:filled={digit !== ''}>
-                          <input
-                            class="code-digit"
-                            type="tel"
-                            inputmode="numeric"
-                            pattern="[0-9]"
-                            maxlength="1"
-                            bind:this={confirmInputs[i]}
-                            value={digit}
-                            oninput={(e) =>
-                              handleDigitInput(confirmDigits, i, e, confirmInputs, autoSubmitSetup)}
-                            onkeydown={(e) =>
-                              handleDigitKeydown(confirmDigits, i, e, confirmInputs)}
-                            onpaste={(e) =>
-                              handleDigitPaste(confirmDigits, e, confirmInputs, autoSubmitSetup)}
-                            disabled={loading}
-                            autocomplete="off"
-                          />
-                        </div>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-
-                <!-- Error message -->
-                {#if error}
-                  <div class="message error">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                    <span>{error}</span>
-                  </div>
-                {/if}
-              </div>
-            </div>
+            ?
           {/if}
         </div>
-      </div>
-    {/if}
-  </div>
 
-  <!-- Email Confirmation Modal (after setup) -->
-  {#if showConfirmationModal}
-    <div class="modal-overlay">
-      <div class="modal-card">
-        <div class="card-glow"></div>
-        <div class="card-inner">
-          <!-- Mail icon -->
-          <div class="modal-icon">
-            <svg
-              width="48"
-              height="48"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="url(#mailGrad)"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="2" y="4" width="20" height="16" rx="2" />
-              <path d="M22 7l-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7" />
-              <defs>
-                <linearGradient id="mailGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#d4a039" />
-                  <stop offset="100%" stop-color="#2ec4a6" />
-                </linearGradient>
-              </defs>
-            </svg>
+        <h2 class="card-title">
+          Welcome back{#if userInfo?.firstName}, {userInfo.firstName}{/if}
+        </h2>
+        <p class="card-subtitle">Enter your code to continue</p>
+
+        <div class="pin-section">
+          <div class="pin-row">
+            {#each unlockDigits as _, i (i)}
+              <input
+                type="tel"
+                inputmode="numeric"
+                maxlength="1"
+                class="pin-digit"
+                bind:this={unlockInputs[i]}
+                oninput={(e) =>
+                  handleDigitInput(unlockDigits, i, e, unlockInputs, autoSubmitUnlock)}
+                onkeydown={(e) => handleDigitKeydown(unlockDigits, i, e, unlockInputs)}
+                onpaste={(e) => handleDigitPaste(unlockDigits, e, unlockInputs, autoSubmitUnlock)}
+                disabled={loading || retryCountdown > 0}
+              />
+            {/each}
           </div>
-          <h2 class="card-title">Check your email</h2>
-          <p class="card-subtitle">
-            We sent a confirmation link to <strong>{email}</strong>. Click it to activate your
-            account.
-          </p>
-          <!-- Resend button with cooldown -->
-          <button
-            type="button"
-            class="btn btn-primary submit-btn"
-            onclick={handleResendEmail}
-            disabled={resendCooldown > 0}
-          >
-            {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend email'}
-          </button>
         </div>
+
+        {#if error}
+          <p class="error-msg">{error}</p>
+        {/if}
+
+        {#if retryCountdown > 0}
+          <p class="countdown-msg">Try again in {retryCountdown}s</p>
+        {/if}
+
+        {#if loading}
+          <div class="unlock-loading">
+            <span class="spinner"></span>
+            <span>Unlocking...</span>
+          </div>
+        {/if}
       </div>
     </div>
-  {/if}
 
-  <!-- Device Verification Modal (after unlock on untrusted device) -->
-  {#if showDeviceVerificationModal}
-    <div class="modal-overlay">
-      <div class="modal-card">
-        <div class="card-glow"></div>
-        <div class="card-inner">
-          <!-- Shield icon -->
-          <div class="modal-icon">
-            <svg
-              width="48"
-              height="48"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="url(#shieldGrad)"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              <defs>
-                <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#e85d75" />
-                  <stop offset="100%" stop-color="#d4a039" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          <h2 class="card-title">New device detected</h2>
-          <p class="card-subtitle">
-            We sent a verification link to <strong>{maskedEmail}</strong>. Click it to trust this
-            device.
-          </p>
-          <p class="card-hint">This page will update automatically once verified.</p>
-          <!-- Resend button with cooldown -->
-          <button
-            type="button"
-            class="btn btn-primary submit-btn"
-            onclick={handleResendEmail}
-            disabled={resendCooldown > 0}
-          >
-            {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend email'}
-          </button>
+    <!-- ================================================================= -->
+    <!--                     LINK DEVICE MODE                              -->
+    <!-- ================================================================= -->
+  {:else if linkMode && remoteUser}
+    <div class="center-stage" class:mounted>
+      <div class="auth-card" class:shaking>
+        <div class="card-gem-accent"></div>
+
+        <div class="welcome-avatar">
+          {#if remoteUser.profile?.firstName}
+            {String(remoteUser.profile.firstName).charAt(0).toUpperCase()}
+          {:else}
+            ?
+          {/if}
         </div>
+
+        <h2 class="card-title">
+          Welcome back{#if remoteUser.profile?.firstName}, {remoteUser.profile.firstName}{/if}
+        </h2>
+        <p class="card-subtitle">Enter your code to link this device</p>
+
+        <div class="pin-section">
+          <div class="pin-row">
+            {#each { length: remoteUser.codeLength } as _, i (i)}
+              <input
+                type="tel"
+                inputmode="numeric"
+                maxlength="1"
+                class="pin-digit"
+                bind:this={linkInputs[i]}
+                oninput={(e) => handleDigitInput(linkDigits, i, e, linkInputs, autoSubmitLink)}
+                onkeydown={(e) => handleDigitKeydown(linkDigits, i, e, linkInputs)}
+                onpaste={(e) => handleDigitPaste(linkDigits, e, linkInputs, autoSubmitLink)}
+                disabled={linkLoading || retryCountdown > 0}
+              />
+            {/each}
+          </div>
+        </div>
+
+        {#if error}
+          <p class="error-msg">{error}</p>
+        {/if}
+
+        {#if retryCountdown > 0}
+          <p class="countdown-msg">Try again in {retryCountdown}s</p>
+        {/if}
+
+        {#if linkLoading}
+          <div class="unlock-loading">
+            <span class="spinner"></span>
+            <span>Linking...</span>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
 </div>
 
+<!-- ================================================================= -->
+<!--                EMAIL CONFIRMATION MODAL                           -->
+<!-- ================================================================= -->
+{#if showConfirmationModal}
+  <div class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-gem-icon">
+        <svg
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+          <polyline points="22,6 12,13 2,6" />
+        </svg>
+      </div>
+      <h3 class="modal-title">Check your email</h3>
+      <p class="modal-text">
+        We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
+      </p>
+      <button class="btn-secondary" onclick={handleResendEmail} disabled={resendCooldown > 0}>
+        {#if resendCooldown > 0}
+          Resend in {resendCooldown}s
+        {:else}
+          Resend email
+        {/if}
+      </button>
+    </div>
+  </div>
+{/if}
+
+<!-- ================================================================= -->
+<!--              DEVICE VERIFICATION MODAL                            -->
+<!-- ================================================================= -->
+{#if showDeviceVerificationModal}
+  <div class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-gem-icon verification-icon">
+        <svg
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      </div>
+      <h3 class="modal-title">New device detected</h3>
+      <p class="modal-text">
+        We sent a verification link to <strong>{maskedEmail}</strong>. Click it to trust this
+        device.
+      </p>
+      <p class="modal-hint">This page will update automatically once verified.</p>
+      <div class="modal-poll-indicator">
+        <span class="spinner"></span>
+        <span>Waiting for verification...</span>
+      </div>
+      <button class="btn-secondary" onclick={handleResendEmail} disabled={resendCooldown > 0}>
+        {#if resendCooldown > 0}
+          Resend in {resendCooldown}s
+        {:else}
+          Resend email
+        {/if}
+      </button>
+    </div>
+  </div>
+{/if}
+
 <style>
-  /* =================================================================================
-     CSS CUSTOM PROPERTIES — Radiant warm gold / citrine / ruby palette
-     ================================================================================= */
+  /* ================================================================= */
+  /*                     CSS CUSTOM PROPERTIES                         */
+  /* ================================================================= */
 
   :root {
-    --r-void: #0a0806;
-    --r-surface: rgba(20, 16, 10, 0.92);
-    --r-surface-border: rgba(180, 140, 50, 0.15);
-    --r-gold: #d4a039;
-    --r-gold-light: #e8b94a;
-    --r-gold-deep: #b8862e;
-    --r-gold-pale: #f0d080;
-    --r-ruby: #e85d75;
-    --r-teal: #2ec4a6;
-    --r-emerald: #34d399;
-    --r-text: #f0e8d0;
-    --r-text-muted: #a09478;
-    --r-text-dim: #706450;
-    --r-error: #fb7185;
-    --r-radius-2xl: 24px;
-    --r-radius-lg: 14px;
-    --r-font:
-      'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
-      sans-serif;
+    --login-void: #0a0806;
+    --login-surface: rgba(20, 16, 10, 0.85);
+    --login-surface-border: rgba(180, 140, 50, 0.15);
+    --login-gem-primary: #e8b94a;
+    --login-gem-secondary: #f0d080;
+    --login-gem-accent: #b8862e;
+    --login-gem-ruby: #e85d75;
+    --login-gem-teal: #2ec4a6;
+    --login-text: #f0e8d0;
+    --login-text-muted: #a09478;
+    --login-text-dim: #706450;
+    --login-error: #fb7185;
+    --login-success: #34d399;
+    --login-radius: 20px;
+    --login-radius-sm: 12px;
   }
 
-  /* =================================================================================
-     LOGIN PAGE CONTAINER
-     ================================================================================= */
+  /* ================================================================= */
+  /*                     FULL-SCREEN BACKGROUND                        */
+  /* ================================================================= */
 
-  .login-page {
-    inset: 0;
-    z-index: 200;
+  .login-bg {
     position: fixed;
-    height: calc(100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
-    margin-top: calc(-1 * env(safe-area-inset-top, 0px));
+    inset: 0;
+    background: var(--login-void);
+    background-image:
+      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(184, 134, 46, 0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 20%, rgba(232, 185, 74, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(46, 196, 166, 0.04) 0%, transparent 40%);
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden auto;
-    background: radial-gradient(
-      ellipse at center,
-      rgba(20, 16, 10, 1) 0%,
-      rgba(10, 8, 6, 1) 50%,
-      rgba(5, 4, 2, 1) 100%
+  }
+
+  /* ── Crystal Shard Decorations ── */
+
+  .crystal-shard {
+    position: absolute;
+    border: 1px solid rgba(232, 185, 74, 0.08);
+    pointer-events: none;
+  }
+
+  .shard-1 {
+    width: 300px;
+    height: 300px;
+    top: -60px;
+    right: -80px;
+    background: linear-gradient(135deg, rgba(184, 134, 46, 0.06) 0%, transparent 70%);
+    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+    animation: shardFloat 20s ease-in-out infinite;
+  }
+
+  .shard-2 {
+    width: 200px;
+    height: 200px;
+    bottom: 10%;
+    left: -40px;
+    background: linear-gradient(225deg, rgba(46, 196, 166, 0.05) 0%, transparent 70%);
+    clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+    animation: shardFloat 25s ease-in-out infinite reverse;
+  }
+
+  .shard-3 {
+    width: 160px;
+    height: 160px;
+    top: 30%;
+    left: 15%;
+    background: linear-gradient(315deg, rgba(240, 200, 122, 0.04) 0%, transparent 70%);
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    animation: shardFloat 18s ease-in-out infinite;
+    animation-delay: -5s;
+  }
+
+  .refraction-overlay {
+    position: absolute;
+    inset: 0;
+    background: repeating-conic-gradient(
+      from 0deg at 50% 50%,
+      transparent 0deg 88deg,
+      rgba(232, 185, 74, 0.015) 88deg 92deg
     );
-  }
-
-  .background-effects {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
     pointer-events: none;
   }
 
-  /* =================================================================================
-     STARFIELD — Crystal facet grid (angular refraction lines instead of stars)
-     ================================================================================= */
-
-  .starfield {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  .stars {
-    position: absolute;
-    inset: 0;
-    background-repeat: repeat;
-  }
-
-  /* Fine facet-refraction pinpoints */
-  .stars-small {
-    background-image:
-      radial-gradient(1px 1px at 10% 20%, rgba(240, 208, 128, 0.5) 0%, transparent 100%),
-      radial-gradient(1px 1px at 30% 70%, rgba(240, 208, 128, 0.35) 0%, transparent 100%),
-      radial-gradient(1px 1px at 50% 10%, rgba(232, 185, 74, 0.45) 0%, transparent 100%),
-      radial-gradient(1px 1px at 70% 50%, rgba(212, 160, 57, 0.3) 0%, transparent 100%),
-      radial-gradient(1px 1px at 90% 80%, rgba(240, 208, 128, 0.35) 0%, transparent 100%),
-      radial-gradient(1px 1px at 15% 90%, rgba(184, 134, 46, 0.25) 0%, transparent 100%),
-      radial-gradient(1px 1px at 85% 15%, rgba(232, 185, 74, 0.3) 0%, transparent 100%),
-      radial-gradient(1px 1px at 45% 45%, rgba(240, 208, 128, 0.35) 0%, transparent 100%);
-    background-size: 200px 200px;
-    animation: starsDrift 100s linear infinite;
-  }
-
-  /* Colored crystal gleams */
-  .stars-medium {
-    background-image:
-      radial-gradient(1.5px 1.5px at 20% 30%, rgba(212, 160, 57, 0.7) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 60% 80%, rgba(232, 93, 117, 0.5) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 80% 20%, rgba(46, 196, 166, 0.5) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 40% 60%, rgba(232, 185, 74, 0.4) 0%, transparent 100%);
-    background-size: 300px 300px;
-    animation: starsDrift 150s linear infinite reverse;
-  }
-
-  /* Bright crystal highlights */
-  .stars-large {
-    background-image:
-      radial-gradient(2px 2px at 25% 25%, rgba(240, 232, 208, 0.8) 0%, transparent 100%),
-      radial-gradient(2.5px 2.5px at 75% 75%, rgba(212, 160, 57, 0.9) 0%, transparent 100%),
-      radial-gradient(2px 2px at 50% 90%, rgba(232, 93, 117, 0.6) 0%, transparent 100%);
-    background-size: 400px 400px;
-    animation:
-      starsTwinkle 4s ease-in-out infinite,
-      starsDrift 200s linear infinite;
-  }
-
-  @keyframes starsDrift {
-    from {
-      transform: translateY(0) translateX(0);
-    }
-    to {
-      transform: translateY(-100px) translateX(-50px);
-    }
-  }
-
-  @keyframes starsTwinkle {
+  @keyframes shardFloat {
     0%,
     100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.6;
-    }
-  }
-
-  /* =================================================================================
-     NEBULA — Prismatic light bands (warm gold / ruby / teal washes)
-     ================================================================================= */
-
-  .nebula {
-    position: fixed;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.5;
-    pointer-events: none;
-  }
-
-  .nebula-1 {
-    width: 700px;
-    height: 700px;
-    top: -250px;
-    right: -200px;
-    background: radial-gradient(ellipse, rgba(212, 160, 57, 0.45) 0%, transparent 70%);
-    animation:
-      nebulaPulse 8s ease-in-out infinite,
-      nebulaFloat 20s ease-in-out infinite;
-  }
-
-  .nebula-2 {
-    width: 600px;
-    height: 600px;
-    bottom: -200px;
-    left: -150px;
-    background: radial-gradient(ellipse, rgba(232, 93, 117, 0.35) 0%, transparent 70%);
-    animation:
-      nebulaPulse 10s ease-in-out infinite 2s,
-      nebulaFloat 25s ease-in-out infinite reverse;
-  }
-
-  .nebula-3 {
-    width: 500px;
-    height: 500px;
-    top: 40%;
-    left: 60%;
-    transform: translate(-50%, -50%);
-    background: radial-gradient(ellipse, rgba(46, 196, 166, 0.2) 0%, transparent 70%);
-    animation: nebulaPulse 12s ease-in-out infinite 4s;
-  }
-
-  @keyframes nebulaPulse {
-    0%,
-    100% {
-      opacity: 0.35;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.55;
-      transform: scale(1.1);
-    }
-  }
-
-  @keyframes nebulaFloat {
-    0%,
-    100% {
-      transform: translate(0, 0);
+      transform: translateY(0) rotate(0deg);
     }
     33% {
-      transform: translate(30px, -20px);
+      transform: translateY(-12px) rotate(1.5deg);
     }
     66% {
-      transform: translate(-20px, 30px);
+      transform: translateY(8px) rotate(-1deg);
     }
   }
 
-  /* =================================================================================
-     ORBITAL SYSTEM — Angular facet refraction lines (hexagonal rotation paths)
-     ================================================================================= */
+  /* ================================================================= */
+  /*                       CENTER STAGE                                */
+  /* ================================================================= */
 
-  .orbital-system {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-  }
-
-  .orbit {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    border: 1px solid rgba(212, 160, 57, 0.08);
-    transform: translate(-50%, -50%);
-    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-  }
-
-  .orbit-1 {
-    width: 400px;
-    height: 400px;
-    animation: orbitRotate 40s linear infinite;
-  }
-  .orbit-2 {
-    width: 600px;
-    height: 600px;
-    border-color: rgba(232, 93, 117, 0.06);
-    animation: orbitRotate 60s linear infinite reverse;
-  }
-  .orbit-3 {
-    width: 800px;
-    height: 800px;
-    border-color: rgba(46, 196, 166, 0.04);
-    animation: orbitRotate 80s linear infinite;
-  }
-
-  @keyframes orbitRotate {
-    from {
-      transform: translate(-50%, -50%) rotate(0deg);
-    }
-    to {
-      transform: translate(-50%, -50%) rotate(360deg);
-    }
-  }
-
-  .orbit-particle {
-    position: absolute;
-    width: 6px;
-    height: 6px;
-    top: 50%;
-    left: 50%;
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  }
-
-  .particle-1 {
-    background: var(--r-gold);
-    box-shadow:
-      0 0 15px rgba(212, 160, 57, 0.5),
-      0 0 30px rgba(212, 160, 57, 0.25);
-    animation: orbitParticle1 40s linear infinite;
-  }
-
-  .particle-2 {
-    background: var(--r-ruby);
-    box-shadow:
-      0 0 15px rgba(232, 93, 117, 0.4),
-      0 0 30px rgba(232, 93, 117, 0.2);
-    animation: orbitParticle2 60s linear infinite reverse;
-    width: 4px;
-    height: 4px;
-  }
-
-  .particle-3 {
-    background: var(--r-teal);
-    box-shadow:
-      0 0 15px rgba(46, 196, 166, 0.4),
-      0 0 30px rgba(46, 196, 166, 0.2);
-    animation: orbitParticle3 80s linear infinite;
-    width: 5px;
-    height: 5px;
-  }
-
-  @keyframes orbitParticle1 {
-    from {
-      transform: rotate(0deg) translateX(200px) rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg) translateX(200px) rotate(-360deg);
-    }
-  }
-  @keyframes orbitParticle2 {
-    from {
-      transform: rotate(0deg) translateX(300px) rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg) translateX(300px) rotate(-360deg);
-    }
-  }
-  @keyframes orbitParticle3 {
-    from {
-      transform: rotate(0deg) translateX(400px) rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg) translateX(400px) rotate(-360deg);
-    }
-  }
-
-  /* =================================================================================
-     SHOOTING STARS — Prismatic light streaks (gold/ruby angular flares)
-     ================================================================================= */
-
-  .shooting-star {
-    position: absolute;
-    width: 120px;
-    height: 2px;
-    background: linear-gradient(
-      90deg,
-      rgba(240, 208, 128, 0) 0%,
-      rgba(240, 208, 128, 0.6) 50%,
-      rgba(212, 160, 57, 1) 100%
-    );
-    border-radius: 100px;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .shooting-star-1 {
-    top: 20%;
-    left: 5%;
-    transform: rotate(-35deg);
-    animation: shootingStar 10s ease-in-out infinite;
-  }
-
-  .shooting-star-2 {
-    top: 40%;
-    right: 10%;
-    transform: rotate(-40deg);
-    animation: shootingStar 14s ease-in-out infinite 5s;
-  }
-
-  @keyframes shootingStar {
-    0%,
-    90%,
-    100% {
-      opacity: 0;
-      transform: rotate(-35deg) translateX(0);
-    }
-    92% {
-      opacity: 1;
-    }
-    95% {
-      opacity: 1;
-      transform: rotate(-35deg) translateX(350px);
-    }
-    96% {
-      opacity: 0;
-      transform: rotate(-35deg) translateX(400px);
-    }
-  }
-
-  /* =================================================================================
-     FLOATING PARTICLES — Tiny crystal shard shapes
-     ================================================================================= */
-
-  .particles {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    overflow: hidden;
-  }
-
-  .particle {
-    position: absolute;
-    left: var(--x-start);
-    top: var(--y-start);
-    width: var(--size);
-    height: var(--size);
-    background: var(--r-gold-pale);
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-    opacity: var(--opacity);
-    animation: particleFloat var(--duration) ease-in-out var(--delay) infinite;
-  }
-
-  @keyframes particleFloat {
-    0%,
-    100% {
-      transform: translateY(0) translateX(0);
-      opacity: var(--opacity);
-    }
-    25% {
-      transform: translateY(-30px) translateX(15px);
-    }
-    50% {
-      transform: translateY(-50px) translateX(-10px);
-      opacity: calc(var(--opacity) * 1.5);
-    }
-    75% {
-      transform: translateY(-20px) translateX(20px);
-    }
-  }
-
-  /* =================================================================================
-     LOGIN CONTENT — Centered card area with entrance animation
-     ================================================================================= */
-
-  .login-content {
-    position: relative;
-    z-index: 10;
+  .center-stage {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2rem;
-    padding: calc(2rem + env(safe-area-inset-top, 0px)) 2rem
-      calc(2rem + env(safe-area-inset-bottom, 0px));
     width: 100%;
-    max-width: 440px;
-    margin: auto;
+    max-width: 420px;
+    padding: 24px;
     opacity: 0;
-    transform: translateY(40px) scale(0.95);
+    transform: translateY(16px) scale(0.97);
+    transition:
+      opacity 0.5s ease-out,
+      transform 0.5s ease-out;
+    z-index: 1;
   }
 
-  .mounted .login-content {
-    animation: contentReveal 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  .center-stage.mounted {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 
-  @keyframes contentReveal {
-    0% {
-      opacity: 0;
-      transform: translateY(40px) scale(0.95);
-    }
-    100% {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
+  /* ================================================================= */
+  /*                        AUTH CARD                                   */
+  /* ================================================================= */
 
-  /* =================================================================================
-     BRAND — Logo icon, title with shimmer gradient, tagline
-     ================================================================================= */
-
-  .brand {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .brand-icon {
+  .auth-card {
     position: relative;
-    animation: brandFloat 4s ease-in-out infinite;
-    filter: drop-shadow(0 0 30px rgba(212, 160, 57, 0.4));
-  }
-
-  .brand-glow {
-    position: absolute;
-    inset: -20px;
-    background: radial-gradient(circle, rgba(212, 160, 57, 0.35) 0%, transparent 70%);
-    border-radius: 50%;
-    animation: brandGlowPulse 3s ease-in-out infinite;
-  }
-
-  @keyframes brandGlowPulse {
-    0%,
-    100% {
-      opacity: 0.5;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.8;
-      transform: scale(1.2);
-    }
-  }
-
-  @keyframes brandFloat {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-8px);
-    }
-  }
-
-  .brand-title {
-    font-family: var(--r-font);
-    font-size: 2.5rem;
-    font-weight: 800;
-    background: linear-gradient(
-      135deg,
-      var(--r-text) 0%,
-      var(--r-gold-light) 50%,
-      var(--r-text) 100%
-    );
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    letter-spacing: -0.03em;
-    animation: textShimmer 6s linear infinite;
-    margin: 0;
-  }
-
-  @keyframes textShimmer {
-    0% {
-      background-position: 0% center;
-    }
-    100% {
-      background-position: 200% center;
-    }
-  }
-
-  .brand-tagline {
-    font-family: var(--r-font);
-    color: var(--r-text-muted);
-    font-size: 1rem;
-    font-weight: 500;
-    margin: 0;
-    opacity: 0.8;
-  }
-
-  /* =================================================================================
-     LOGIN CARD — Glassmorphism card with animated gold gradient border
-     ================================================================================= */
-
-  .login-card {
     width: 100%;
-    position: relative;
-    border-radius: var(--r-radius-2xl);
-    padding: 2px;
-    background: linear-gradient(
-      135deg,
-      rgba(212, 160, 57, 0.5),
-      rgba(232, 93, 117, 0.3),
-      rgba(46, 196, 166, 0.2),
-      rgba(232, 185, 74, 0.3),
-      rgba(212, 160, 57, 0.5)
-    );
-    background-size: 300% 300%;
-    animation: borderGlow 6s ease-in-out infinite;
-  }
-
-  @keyframes borderGlow {
-    0%,
-    100% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
-    }
-  }
-
-  /* Ambient glow behind the card */
-  .card-glow {
-    position: absolute;
-    inset: -40px;
-    background: radial-gradient(ellipse at center, rgba(212, 160, 57, 0.12) 0%, transparent 70%);
-    border-radius: 50%;
-    pointer-events: none;
-    animation: cardGlowPulse 4s ease-in-out infinite;
-  }
-
-  @keyframes cardGlowPulse {
-    0%,
-    100% {
-      opacity: 0.5;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
-
-  /* Inner card surface — glassmorphism with frosted backdrop */
-  .card-inner {
-    background: linear-gradient(165deg, var(--r-surface) 0%, rgba(16, 13, 8, 0.92) 100%);
-    border-radius: calc(var(--r-radius-2xl) - 2px);
-    padding: 2.5rem;
+    background: var(--login-surface);
+    border: 1px solid var(--login-surface-border);
+    border-radius: var(--login-radius);
+    padding: 36px 28px 32px;
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     box-shadow:
-      0 32px 80px rgba(0, 0, 0, 0.5),
-      0 0 0 1px rgba(240, 208, 128, 0.05) inset;
-    position: relative;
-    overflow: hidden;
+      0 4px 32px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(232, 185, 74, 0.06) inset;
+    overflow: visible;
   }
 
-  /* Subtle inner light streak at the top edge */
-  .card-inner::before {
+  .auth-card::before {
     content: '';
     position: absolute;
     top: 0;
@@ -1980,139 +1331,149 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(240, 208, 128, 0.15),
-      rgba(212, 160, 57, 0.3),
-      rgba(240, 208, 128, 0.15),
+      var(--login-gem-secondary) 30%,
+      rgba(255, 255, 255, 0.3) 50%,
+      var(--login-gem-secondary) 70%,
       transparent
     );
+    z-index: 2;
+    border-radius: 1px;
   }
 
-  /* Subtle inner light streak at the bottom edge */
-  .card-inner::after {
+  .auth-card::after {
     content: '';
     position: absolute;
-    bottom: 0;
-    left: 20%;
-    right: 20%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(232, 93, 117, 0.15), transparent);
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      var(--border-angle, 0deg),
+      var(--login-gem-primary, #e8b94a),
+      var(--login-gem-ruby, #e85d75),
+      var(--login-gem-teal, #2ec4a6),
+      var(--login-gem-primary, #e8b94a)
+    );
+    background-size: 300% 300%;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.4;
+    animation: cardBorderGlow 6s ease-in-out infinite;
   }
 
-  .card-title {
-    font-family: var(--r-font);
-    text-align: center;
-    margin: 0 0 0.5rem 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--r-text);
-    letter-spacing: -0.02em;
+  @keyframes cardBorderGlow {
+    0%,
+    100% {
+      background-position: 0% 50%;
+      opacity: 0.25;
+    }
+    50% {
+      background-position: 100% 50%;
+      opacity: 0.5;
+    }
   }
 
-  .card-subtitle {
-    font-family: var(--r-font);
-    text-align: center;
-    color: var(--r-text-muted);
-    font-size: 0.9375rem;
-    margin: 0 0 2rem 0;
-    opacity: 0.8;
-    line-height: 1.5;
+  .card-gem-accent {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 3px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--login-gem-primary),
+      var(--login-gem-teal),
+      var(--login-gem-primary),
+      transparent
+    );
+    border-radius: 0 0 4px 4px;
   }
 
-  .card-hint {
-    font-family: var(--r-font);
-    text-align: center;
-    color: var(--r-text-muted);
-    font-size: 0.8125rem;
-    margin: -1rem 0 1.5rem 0;
-    opacity: 0.5;
-    font-style: italic;
+  /* ── Shake Animation ── */
+
+  .auth-card.shaking {
+    animation: shake 0.5s ease-in-out;
   }
 
-  /* =================================================================================
-     UNLOCK MODE — Avatar with hexagonal gem bezel
-     ================================================================================= */
-
-  .unlock-user-info {
-    text-align: center;
-    margin-bottom: 1.5rem;
+  @keyframes shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    15% {
+      transform: translateX(-8px);
+    }
+    30% {
+      transform: translateX(7px);
+    }
+    45% {
+      transform: translateX(-6px);
+    }
+    60% {
+      transform: translateX(4px);
+    }
+    75% {
+      transform: translateX(-2px);
+    }
   }
 
-  .avatar-wrapper {
-    position: relative;
-    width: 80px;
-    height: 80px;
-    margin: 0 auto 1.25rem;
-  }
+  /* ================================================================= */
+  /*                      STEP INDICATOR                               */
+  /* ================================================================= */
 
-  .avatar {
-    width: 80px;
-    height: 80px;
+  .step-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--r-gold-deep), var(--r-gold));
-    color: white;
-    font-family: var(--r-font);
-    font-weight: 700;
-    font-size: 2rem;
-    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-    position: relative;
-    z-index: 2;
-    box-shadow:
-      0 4px 20px rgba(212, 160, 57, 0.4),
-      0 0 40px rgba(212, 160, 57, 0.15);
+    gap: 0;
+    margin-bottom: 24px;
   }
 
-  /* Hexagonal gem bezel — outer ring */
-  .avatar-ring-outer {
-    position: absolute;
-    inset: -12px;
-    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-    background: linear-gradient(
-      135deg,
-      rgba(212, 160, 57, 0.3),
-      rgba(232, 93, 117, 0.2),
-      rgba(46, 196, 166, 0.2),
-      rgba(212, 160, 57, 0.3)
-    );
-    animation: avatarRingPulse 3s ease-in-out infinite;
+  .step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--login-text-dim);
+    transition:
+      background 0.3s ease,
+      box-shadow 0.3s ease;
   }
 
-  /* Hexagonal gem bezel — inner ring */
-  .avatar-ring-inner {
-    position: absolute;
-    inset: -6px;
-    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-    background: linear-gradient(
-      135deg,
-      rgba(212, 160, 57, 0.45),
-      rgba(232, 185, 74, 0.3),
-      rgba(212, 160, 57, 0.45)
-    );
-    animation: avatarRingPulse 3s ease-in-out infinite 0.5s;
+  .step-dot.active {
+    background: var(--login-gem-primary);
+    box-shadow: 0 0 10px rgba(232, 185, 74, 0.5);
   }
 
-  @keyframes avatarRingPulse {
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 0.6;
-    }
-    50% {
-      transform: scale(1.05);
-      opacity: 0.3;
-    }
+  .step-dot.done {
+    background: var(--login-gem-teal);
+    box-shadow: 0 0 8px rgba(46, 196, 166, 0.4);
   }
 
-  /* =================================================================================
-     SETUP MODE — Step Indicator & Transitions
-     ================================================================================= */
-
-  .setup-step {
-    animation: stepFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  .step-line {
+    width: 48px;
+    height: 2px;
+    background: var(--login-text-dim);
+    transition: background 0.3s ease;
   }
 
-  @keyframes stepFadeIn {
+  .step-line.filled {
+    background: linear-gradient(90deg, var(--login-gem-teal), var(--login-gem-primary));
+  }
+
+  /* ================================================================= */
+  /*                     STEP CONTENT ANIMATION                        */
+  /* ================================================================= */
+
+  @keyframes fadeSlideIn {
     from {
       opacity: 0;
       transform: translateX(20px);
@@ -2123,348 +1484,496 @@
     }
   }
 
-  .step-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-    margin-bottom: 1.75rem;
-  }
-
-  .step-dot {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: rgba(212, 160, 57, 0.1);
-    border: 2px solid rgba(212, 160, 57, 0.25);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-    position: relative;
-  }
-
-  .step-dot.active {
-    background: linear-gradient(135deg, var(--r-gold-deep), var(--r-gold));
-    border-color: rgba(212, 160, 57, 0.6);
-    box-shadow: 0 0 20px rgba(212, 160, 57, 0.3);
-  }
-
-  .step-dot.completed {
-    background: linear-gradient(135deg, rgba(46, 196, 166, 0.8), rgba(52, 211, 153, 0.6));
-    border-color: rgba(46, 196, 166, 0.6);
-    box-shadow: 0 0 15px rgba(46, 196, 166, 0.3);
-    color: white;
-  }
-
-  .step-line {
-    width: 60px;
-    height: 2px;
-    background: rgba(212, 160, 57, 0.15);
-    transition: all 0.3s ease;
-  }
-
-  .step-line.active {
-    background: linear-gradient(90deg, rgba(46, 196, 166, 0.6), rgba(212, 160, 57, 0.6));
-  }
-
-  .back-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    color: var(--r-text-muted);
-    font-family: var(--r-font);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0.25rem 0;
-    margin-bottom: 1rem;
-    transition: color 0.2s ease;
-  }
-
-  .back-link:hover {
-    color: var(--r-gold-light);
-  }
-
-  /* =================================================================================
-     FORM ELEMENTS — Text inputs, labels, layout
-     ================================================================================= */
-
-  .form-fields {
+  .step-content {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
   }
 
-  .name-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+  /* ================================================================= */
+  /*                     CARD TYPOGRAPHY                                */
+  /* ================================================================= */
+
+  .card-title {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--login-text);
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+    text-align: center;
   }
+
+  .card-subtitle {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.875rem;
+    color: var(--login-text-muted);
+    margin: 0 0 28px;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  .card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    color: var(--login-gem-primary);
+    animation: brandIconPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes brandIconPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 8px rgba(184, 134, 46, 0.3));
+    }
+    50% {
+      transform: scale(1.06);
+      filter: drop-shadow(0 0 16px rgba(184, 134, 46, 0.5));
+    }
+  }
+
+  .offline-icon {
+    color: var(--login-text-muted);
+  }
+
+  /* ================================================================= */
+  /*                     FORM INPUTS                                   */
+  /* ================================================================= */
 
   .form-group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 6px;
+    margin-bottom: 16px;
+    flex: 1;
   }
 
-  label {
-    font-family: var(--r-font);
-    font-weight: 700;
-    color: var(--r-text-muted);
-    font-size: 0.6875rem;
+  .form-label {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--login-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.06em;
   }
 
-  .input-wrapper {
-    position: relative;
-  }
-
-  /* Glow effect behind focused inputs */
-  .input-glow {
-    position: absolute;
-    inset: -1px;
-    border-radius: var(--r-radius-lg);
-    opacity: 0;
-    background: linear-gradient(135deg, rgba(212, 160, 57, 0.35), rgba(232, 93, 117, 0.2));
-    filter: blur(8px);
-    transition: opacity 0.3s ease;
-    pointer-events: none;
-    z-index: -1;
-  }
-
-  .input-wrapper:focus-within .input-glow {
-    opacity: 1;
-  }
-
-  input {
+  .form-input {
     width: 100%;
-    padding: 0.875rem 1rem;
-    font-size: 16px; /* Prevents iOS zoom */
-    font-family: var(--r-font);
-    color: var(--r-text);
-    background: rgba(14, 11, 6, 0.6);
-    border: 1px solid rgba(212, 160, 57, 0.15);
-    border-radius: var(--r-radius-lg);
-    transition: all 0.3s ease;
-    position: relative;
-  }
-
-  input:focus {
+    padding: 12px 14px;
+    background: rgba(14, 12, 8, 0.6);
+    border: 1px solid rgba(180, 140, 50, 0.12);
+    border-radius: var(--login-radius-sm);
+    color: var(--login-text);
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.9375rem;
     outline: none;
-    border-color: rgba(212, 160, 57, 0.45);
-    box-shadow: 0 0 24px rgba(212, 160, 57, 0.15);
-    background: rgba(14, 11, 6, 0.8);
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+    box-sizing: border-box;
   }
 
-  input::placeholder {
-    color: var(--r-text-dim);
+  .form-input::placeholder {
+    color: var(--login-text-dim);
   }
 
-  input:disabled {
-    opacity: 0.6;
+  .form-input:focus {
+    border-color: var(--login-gem-primary);
+    box-shadow: 0 0 0 3px rgba(232, 185, 74, 0.1);
+  }
+
+  .form-input:disabled {
+    opacity: 0.5;
+  }
+
+  .name-row {
+    display: flex;
+    gap: 12px;
+  }
+
+  /* ================================================================= */
+  /*                     PIN DIGIT INPUTS                               */
+  /* ================================================================= */
+
+  .pin-section {
+    margin-bottom: 20px;
+  }
+
+  .pin-label {
+    display: block;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--login-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+
+  .pin-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .pin-digit {
+    width: 44px;
+    height: 52px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--login-text);
+    background: rgba(14, 12, 8, 0.7);
+    border: 1.5px solid rgba(180, 140, 50, 0.15);
+    border-radius: 10px;
+    outline: none;
+    caret-color: var(--login-gem-primary);
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      background 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  .pin-digit:focus {
+    border-color: var(--login-gem-primary);
+    box-shadow:
+      0 0 0 3px rgba(184, 134, 46, 0.2),
+      0 0 20px rgba(184, 134, 46, 0.1);
+    transform: scale(1.08);
+    background: rgba(184, 134, 46, 0.06);
+  }
+
+  .pin-digit:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
-  /* =================================================================================
-     PIN CODE INPUTS — Glowing digit boxes with focus/filled states
-     ================================================================================= */
-
-  .code-input-group {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
-  }
-
-  .code-digit-wrapper {
-    position: relative;
-  }
-
-  /* Glow pseudo-element behind filled digit boxes */
-  .code-digit-wrapper::after {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    border-radius: calc(var(--r-radius-lg) + 2px);
-    background: linear-gradient(135deg, rgba(212, 160, 57, 0.3), rgba(232, 93, 117, 0.2));
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    z-index: -1;
-    filter: blur(6px);
-  }
-
-  .code-digit-wrapper.filled::after {
-    opacity: 1;
-  }
-
-  .code-digit {
-    width: 48px;
-    height: 56px;
-    text-align: center;
-    font-size: 1.375rem;
-    font-weight: 700;
-    letter-spacing: 0;
-    caret-color: var(--r-gold-light);
-    padding: 0;
-    transition: all 0.3s ease;
-  }
-
-  .code-digit:focus {
-    border-color: rgba(212, 160, 57, 0.5);
-    box-shadow:
-      0 0 24px rgba(212, 160, 57, 0.2),
-      0 0 0 2px rgba(212, 160, 57, 0.15);
-    transform: translateY(-2px);
-  }
-
-  .code-digit-wrapper.filled .code-digit {
-    border-color: rgba(212, 160, 57, 0.35);
-    background: rgba(212, 160, 57, 0.06);
-  }
-
-  .code-label {
-    font-family: var(--r-font);
-    text-align: center;
-    font-weight: 700;
-    color: var(--r-text-muted);
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-bottom: 0.75rem;
-  }
-
-  .code-loading {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 56px;
-  }
-
-  /* =================================================================================
-     MESSAGES — Error feedback with fade-in animation
-     ================================================================================= */
-
-  .message {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 1rem;
-    border-radius: var(--r-radius-lg);
-    font-family: var(--r-font);
-    font-size: 0.875rem;
-    font-weight: 600;
-    backdrop-filter: blur(16px);
-    animation: messageFadeIn 0.3s ease-out;
-  }
-
-  @keyframes messageFadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .error {
-    background: linear-gradient(
-      135deg,
-      rgba(251, 113, 133, 0.15) 0%,
-      rgba(251, 113, 133, 0.05) 100%
-    );
-    color: var(--r-error);
-    border: 1px solid rgba(251, 113, 133, 0.3);
-    box-shadow: 0 0 20px rgba(251, 113, 133, 0.08);
-  }
-
-  /* =================================================================================
-     BUTTONS — Primary submit with shimmer overlay
-     ================================================================================= */
-
-  .btn {
-    font-family: var(--r-font);
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
+  /* ================================================================= */
+  /*                     BUTTONS                                       */
+  /* ================================================================= */
 
   .btn-primary {
-    background: linear-gradient(135deg, var(--r-gold-deep), var(--r-gold));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 20px;
+    margin-top: 8px;
+    background: linear-gradient(135deg, var(--login-gem-accent), var(--login-gem-primary));
     color: #fff;
-    font-weight: 700;
-    border-radius: var(--r-radius-lg);
+    border: none;
+    border-radius: var(--login-radius-sm);
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     letter-spacing: 0.01em;
   }
 
   .btn-primary:hover:not(:disabled) {
+    opacity: 0.92;
     transform: translateY(-2px) scale(1.02);
     box-shadow:
-      0 8px 32px rgba(212, 160, 57, 0.35),
-      0 0 40px rgba(212, 160, 57, 0.15);
+      0 8px 24px rgba(184, 134, 46, 0.3),
+      0 0 40px rgba(184, 134, 46, 0.15);
   }
 
   .btn-primary:active:not(:disabled) {
     transform: translateY(0) scale(0.98);
   }
 
-  .submit-btn {
-    width: 100%;
-    padding: 1rem;
-    margin-top: 0.75rem;
-    font-size: 1rem;
+  .btn-primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn-arrow {
+    transition: transform 0.2s ease;
+  }
+
+  .btn-primary:hover:not(:disabled) .btn-arrow {
+    transform: translateX(3px);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    background: rgba(232, 185, 74, 0.1);
+    color: var(--login-gem-secondary);
+    border: 1px solid rgba(232, 185, 74, 0.2);
+    border-radius: var(--login-radius-sm);
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: rgba(232, 185, 74, 0.18);
+    border-color: rgba(232, 185, 74, 0.35);
+  }
+
+  .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--login-text-muted);
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 16px;
+    transition: color 0.2s ease;
+    align-self: flex-start;
+  }
+
+  .back-link:hover {
+    color: var(--login-text);
+  }
+
+  /* ================================================================= */
+  /*                     WELCOME AVATAR                                */
+  /* ================================================================= */
+
+  .welcome-avatar {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--login-gem-accent), var(--login-gem-primary));
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    position: relative;
-    overflow: hidden;
+    margin: 0 auto 20px;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 0 24px rgba(184, 134, 46, 0.25);
   }
 
-  /* Animated shimmer overlay on the button surface */
-  .submit-btn::after {
+  .welcome-avatar::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    animation: buttonShimmer 3s ease-in-out infinite;
-  }
-
-  @keyframes buttonShimmer {
-    0% {
-      left: -100%;
-    }
-    50%,
-    100% {
-      left: 100%;
-    }
-  }
-
-  .submit-btn:disabled {
+    inset: -12px;
+    background: linear-gradient(
+      135deg,
+      rgba(232, 185, 74, 0.5),
+      rgba(46, 196, 166, 0.35),
+      rgba(232, 93, 117, 0.3),
+      rgba(232, 185, 74, 0.5)
+    );
+    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
     opacity: 0.5;
-    cursor: not-allowed;
-    transform: none !important;
-    box-shadow: none !important;
+    animation: loginGemBezelGlow 4s ease-in-out infinite;
   }
 
-  .submit-btn:disabled::after {
-    display: none;
-  }
-
-  .loading-spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
+  .welcome-avatar::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    background: linear-gradient(
+      135deg,
+      transparent 0%,
+      rgba(232, 185, 74, 0.5) 20%,
+      rgba(46, 196, 166, 0.4) 40%,
+      transparent 50%,
+      rgba(232, 93, 117, 0.4) 70%,
+      rgba(245, 158, 11, 0.3) 85%,
+      transparent 100%
+    );
+    background-size: 300% 300%;
+    mask: radial-gradient(circle, transparent 76%, black 78%);
+    -webkit-mask: radial-gradient(circle, transparent 76%, black 78%);
+    animation: loginGemShimmerSweep 5s ease-in-out infinite;
+  }
+
+  @keyframes loginGemBezelGlow {
+    0%,
+    100% {
+      opacity: 0.35;
+      filter: brightness(1);
+    }
+    50% {
+      opacity: 0.65;
+      filter: brightness(1.3);
+    }
+  }
+
+  @keyframes loginGemShimmerSweep {
+    0% {
+      background-position: 100% 100%;
+    }
+    50% {
+      background-position: 0% 0%;
+    }
+    100% {
+      background-position: 100% 100%;
+    }
+  }
+
+  /* ================================================================= */
+  /*                     ERROR / STATUS MESSAGES                       */
+  /* ================================================================= */
+
+  .error-msg {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    color: var(--login-error);
+    text-align: center;
+    margin: 4px 0 8px;
+    padding: 8px 12px;
+    background: rgba(251, 113, 133, 0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(251, 113, 133, 0.12);
+  }
+
+  .countdown-msg {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    color: var(--login-text-muted);
+    text-align: center;
+    margin: 4px 0 0;
+  }
+
+  .unlock-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.875rem;
+    color: var(--login-text-muted);
+  }
+
+  /* ================================================================= */
+  /*                     SPINNER                                       */
+  /* ================================================================= */
+
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(232, 185, 74, 0.2);
+    border-top-color: var(--login-gem-primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
   }
 
   @keyframes spin {
@@ -2473,415 +1982,311 @@
     }
   }
 
-  /* =================================================================================
-     RESOLVING STATE — Crystal loader while initial auth state resolves
-     ================================================================================= */
+  /* ================================================================= */
+  /*                     CRYSTAL LOADER                                */
+  /* ================================================================= */
 
-  .resolving-card {
-    animation:
-      borderGlow 6s ease-in-out infinite,
-      resolvingFadeIn 0.6s ease-out;
-  }
-
-  .resolving-loader {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem;
-    padding: 2rem 0;
-  }
-
-  .resolving-orb {
+  .crystal-loader {
     position: relative;
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
   }
 
-  .resolving-orb-core {
-    position: absolute;
-    inset: 16px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(212, 160, 57, 0.9), rgba(232, 93, 117, 0.5));
-    box-shadow:
-      0 0 20px rgba(212, 160, 57, 0.6),
-      0 0 40px rgba(212, 160, 57, 0.3);
-    animation: resolvingOrbPulse 2s ease-in-out infinite;
-  }
-
-  .resolving-orb-ring {
+  .facet {
     position: absolute;
     inset: 0;
-    border-radius: 50%;
     border: 2px solid transparent;
-    border-top-color: rgba(212, 160, 57, 0.8);
-    border-right-color: rgba(232, 93, 117, 0.4);
-    animation: spin 1.5s linear infinite;
+    border-radius: 50%;
   }
 
-  .resolving-orb-ring-2 {
-    inset: 4px;
-    border-top-color: rgba(46, 196, 166, 0.6);
-    border-right-color: rgba(52, 211, 153, 0.3);
-    animation-direction: reverse;
-    animation-duration: 2s;
+  .facet-1 {
+    border-top-color: var(--login-gem-primary);
+    animation: spin 1.2s linear infinite;
   }
 
-  .resolving-shimmer-line {
-    width: 140px;
-    height: 10px;
-    border-radius: 5px;
-    background: linear-gradient(
-      90deg,
-      rgba(212, 160, 57, 0.1) 0%,
-      rgba(212, 160, 57, 0.3) 50%,
-      rgba(212, 160, 57, 0.1) 100%
+  .facet-2 {
+    inset: 6px;
+    border-right-color: var(--login-gem-teal);
+    animation: spin 1.8s linear infinite reverse;
+  }
+
+  .facet-3 {
+    inset: 12px;
+    border-bottom-color: var(--login-gem-ruby);
+    animation: spin 1s linear infinite;
+  }
+
+  .resolving-text {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
     );
-    background-size: 200% 100%;
-    animation: resolvingShimmer 1.5s ease-in-out infinite;
+    font-size: 0.875rem;
+    color: var(--login-text-muted);
+    text-align: center;
+    letter-spacing: 0.04em;
   }
 
-  .resolving-shimmer-short {
-    width: 90px;
-    height: 8px;
-    animation-delay: 0.3s;
+  /* ================================================================= */
+  /*                     MODAL BACKDROP + CARD                         */
+  /* ================================================================= */
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 8, 6, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+    animation: fadeIn 0.25s ease-out;
   }
 
-  @keyframes resolvingFadeIn {
+  @keyframes fadeIn {
     from {
       opacity: 0;
-      transform: translateY(8px);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
     }
   }
 
-  @keyframes resolvingOrbPulse {
-    0%,
-    100% {
-      transform: scale(1);
-      box-shadow:
-        0 0 20px rgba(212, 160, 57, 0.6),
-        0 0 40px rgba(212, 160, 57, 0.3);
+  .modal-card {
+    background: var(--login-surface);
+    border: 1px solid var(--login-surface-border);
+    border-radius: var(--login-radius);
+    padding: 36px 28px 28px;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.5);
+    animation: modalSlideUp 0.3s ease-out;
+  }
+
+  @keyframes modalSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.96);
     }
-    50% {
-      transform: scale(1.15);
-      box-shadow:
-        0 0 30px rgba(212, 160, 57, 0.8),
-        0 0 60px rgba(232, 93, 117, 0.4);
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
   }
 
-  @keyframes resolvingShimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
+  .modal-gem-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    background: rgba(232, 185, 74, 0.1);
+    color: var(--login-gem-primary);
+    border: 1px solid rgba(232, 185, 74, 0.15);
   }
 
-  /* =================================================================================
-     SHAKE ANIMATION — Error feedback for incorrect codes
-     ================================================================================= */
-
-  @keyframes shake {
-    0%,
-    100% {
-      transform: translateX(0);
-    }
-    10%,
-    30%,
-    50%,
-    70%,
-    90% {
-      transform: translateX(-6px);
-    }
-    20%,
-    40%,
-    60%,
-    80% {
-      transform: translateX(6px);
-    }
+  .modal-gem-icon.verification-icon {
+    background: rgba(46, 196, 166, 0.08);
+    color: var(--login-gem-teal);
+    border-color: rgba(46, 196, 166, 0.15);
   }
 
-  .shake {
-    animation: shake 0.5s ease-in-out;
+  .modal-title {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--login-text);
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
   }
 
-  /* =================================================================================
-     RESPONSIVE — Large Screens (1200px+)
-     ================================================================================= */
-
-  @media (min-width: 1200px) {
-    .login-content {
-      max-width: 480px;
-    }
-    .brand-icon svg {
-      width: 56px;
-      height: 56px;
-    }
-    .brand-title {
-      font-size: 3rem;
-    }
-    .brand-tagline {
-      font-size: 1.125rem;
-    }
-    .card-inner {
-      padding: 3rem;
-    }
-    .orbit-1 {
-      width: 500px;
-      height: 500px;
-    }
-    .orbit-2 {
-      width: 750px;
-      height: 750px;
-    }
-    .orbit-3 {
-      width: 1000px;
-      height: 1000px;
-    }
-    .nebula-1 {
-      width: 800px;
-      height: 800px;
-    }
-    .nebula-2 {
-      width: 700px;
-      height: 700px;
-    }
-    .nebula-3 {
-      width: 600px;
-      height: 600px;
-    }
+  .modal-text {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.875rem;
+    color: var(--login-text-muted);
+    margin: 0 0 8px;
+    line-height: 1.6;
   }
 
-  /* =================================================================================
-     RESPONSIVE — Tablets (768px - 1199px)
-     ================================================================================= */
-
-  @media (min-width: 768px) and (max-width: 1199px) {
-    .login-content {
-      max-width: 460px;
-    }
-    .brand-icon svg {
-      width: 52px;
-      height: 52px;
-    }
-    .brand-title {
-      font-size: 2.75rem;
-    }
-    .card-inner {
-      padding: 2.75rem;
-    }
+  .modal-text strong {
+    color: var(--login-gem-secondary);
+    font-weight: 500;
   }
 
-  /* =================================================================================
-     RESPONSIVE — Mobile Devices (< 768px)
-     ================================================================================= */
+  .modal-hint {
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    color: var(--login-text-dim);
+    margin: 0 0 24px;
+    line-height: 1.5;
+  }
 
-  @media (max-width: 767px) {
-    .login-content {
+  .modal-poll-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.8125rem;
+    color: var(--login-text-muted);
+  }
+
+  /* ================================================================= */
+  /*                     RESPONSIVE                                    */
+  /* ================================================================= */
+
+  @media (max-width: 480px) {
+    .center-stage {
       padding: 1.5rem;
-      gap: 1.5rem;
     }
-    .brand-icon svg {
-      width: 44px;
-      height: 44px;
+
+    .auth-card {
+      padding: 1.5rem;
     }
-    .brand-title {
-      font-size: 2.25rem;
-    }
-    .brand-tagline {
-      font-size: 0.9375rem;
-    }
-    .card-inner {
-      padding: 2rem;
-    }
+
     .card-title {
       font-size: 1.375rem;
     }
 
-    /* Smaller hexagonal rings for mobile viewports */
-    .orbit-1 {
-      width: 320px;
-      height: 320px;
-    }
-    .orbit-2 {
-      width: 480px;
-      height: 480px;
-    }
-    .orbit-3 {
-      width: 640px;
-      height: 640px;
+    .pin-digit {
+      width: 40px;
+      height: 48px;
+      font-size: 1.125rem;
     }
 
-    /* Re-scoped orbit particle radii for smaller rings */
-    @keyframes orbitParticle1 {
-      from {
-        transform: rotate(0deg) translateX(160px) rotate(0deg);
-      }
-      to {
-        transform: rotate(360deg) translateX(160px) rotate(-360deg);
-      }
-    }
-    @keyframes orbitParticle2 {
-      from {
-        transform: rotate(0deg) translateX(240px) rotate(0deg);
-      }
-      to {
-        transform: rotate(360deg) translateX(240px) rotate(-360deg);
-      }
-    }
-    @keyframes orbitParticle3 {
-      from {
-        transform: rotate(0deg) translateX(320px) rotate(0deg);
-      }
-      to {
-        transform: rotate(360deg) translateX(320px) rotate(-360deg);
-      }
+    .pin-row {
+      gap: 6px;
     }
 
-    .nebula-1 {
-      width: 500px;
-      height: 500px;
+    .shard-1 {
+      width: 200px;
+      height: 200px;
     }
-    .nebula-2 {
-      width: 450px;
-      height: 450px;
-    }
-    .nebula-3 {
-      width: 400px;
-      height: 400px;
+
+    .crystal-shard.shard-3 {
+      display: none;
     }
   }
 
-  /* =================================================================================
-     RESPONSIVE — iPhone 16 Pro / 15 Pro / 14 Pro (~393px width)
-     ================================================================================= */
+  /* ── iPhone 16 Pro / 15 Pro / 14 Pro (390px–429px) ── */
 
   @media (min-width: 390px) and (max-width: 429px) {
-    .login-content {
+    .center-stage {
       padding: 1.25rem;
       gap: 1.75rem;
     }
-    .brand-icon svg {
-      width: 48px;
-      height: 48px;
-    }
-    .brand-title {
-      font-size: 2.5rem;
-    }
-    .brand-tagline {
-      font-size: 1rem;
-    }
-    .card-inner {
+    .auth-card {
       padding: 2rem;
       border-radius: 22px;
     }
     .card-title {
       font-size: 1.5rem;
     }
-    .login-card {
-      border-radius: 24px;
-    }
-
-    input {
+    .form-input {
       padding: 1rem 1.125rem;
       border-radius: 14px;
     }
-
-    .submit-btn {
+    .btn-primary {
       padding: 1.125rem;
       font-size: 1.0625rem;
       border-radius: 14px;
     }
-
-    .avatar-wrapper {
-      width: 72px;
-      height: 72px;
-    }
-    .avatar {
+    .welcome-avatar {
       width: 72px;
       height: 72px;
       font-size: 1.75rem;
     }
-
-    .code-digit {
+    .pin-digit {
       width: 40px;
       height: 48px;
       font-size: 1.25rem;
     }
-    .code-input-group {
+    .pin-row {
       gap: 0.375rem;
     }
   }
 
-  /* =================================================================================
-     RESPONSIVE — iPhone 16 Pro Max / 15 Pro Max (~430px width)
-     ================================================================================= */
+  /* ── iPhone 16 Pro Max / 15 Pro Max (430px–480px) ── */
 
   @media (min-width: 430px) and (max-width: 480px) {
-    .login-content {
+    .center-stage {
       padding: 1.5rem;
       gap: 2rem;
     }
-    .brand-icon svg {
-      width: 52px;
-      height: 52px;
-    }
-    .brand-title {
-      font-size: 2.75rem;
-    }
-    .card-inner {
+    .auth-card {
       padding: 2.25rem;
     }
     .card-title {
       font-size: 1.5rem;
     }
-
-    .avatar-wrapper {
-      width: 80px;
-      height: 80px;
-    }
-    .avatar {
+    .welcome-avatar {
       width: 80px;
       height: 80px;
       font-size: 2rem;
     }
-
-    .code-digit {
+    .pin-digit {
       width: 44px;
       height: 52px;
       font-size: 1.375rem;
     }
-    .code-input-group {
+    .pin-row {
       gap: 0.4375rem;
     }
   }
 
-  /* =================================================================================
-     RESPONSIVE — Small Devices (iPhone SE, older phones < 390px)
-     ================================================================================= */
+  /* ── Small phones / iPhone SE (≤389px) ── */
 
   @media (max-width: 389px) {
-    .login-content {
+    .center-stage {
       padding: 1rem;
       gap: 1.25rem;
     }
-    .brand-icon svg {
-      width: 40px;
-      height: 40px;
-    }
-    .brand-title {
-      font-size: 2rem;
-    }
-    .brand-tagline {
-      font-size: 0.8125rem;
-    }
-    .card-inner {
-      padding: 1.5rem;
+    .auth-card {
+      padding: 1.25rem;
     }
     .card-title {
       font-size: 1.25rem;
@@ -2889,214 +2294,48 @@
     .card-subtitle {
       font-size: 0.8125rem;
     }
-
     .name-row {
       grid-template-columns: 1fr;
     }
-
-    .submit-btn {
+    .btn-primary {
       padding: 0.875rem;
       font-size: 0.9375rem;
     }
-
-    .avatar-wrapper {
-      width: 60px;
-      height: 60px;
-    }
-    .avatar {
+    .welcome-avatar {
       width: 60px;
       height: 60px;
       font-size: 1.5rem;
     }
-
-    .code-digit {
+    .pin-digit {
       width: 36px;
       height: 44px;
       font-size: 1.125rem;
     }
-    .code-input-group {
+    .pin-row {
       gap: 0.25rem;
     }
-
-    .step-line {
-      width: 40px;
-    }
-
-    /* Even smaller hexagonal rings */
-    .orbit-1 {
-      width: 240px;
-      height: 240px;
-    }
-    .orbit-2 {
-      width: 360px;
-      height: 360px;
-    }
-    .orbit-3 {
-      width: 480px;
-      height: 480px;
-    }
-
-    @keyframes orbitParticle1 {
-      from {
-        transform: rotate(0deg) translateX(120px) rotate(0deg);
-      }
-      to {
-        transform: rotate(360deg) translateX(120px) rotate(-360deg);
-      }
-    }
-    @keyframes orbitParticle2 {
-      from {
-        transform: rotate(0deg) translateX(180px) rotate(0deg);
-      }
-      to {
-        transform: rotate(360deg) translateX(180px) rotate(-360deg);
-      }
-    }
-    @keyframes orbitParticle3 {
-      from {
-        transform: rotate(0deg) translateX(240px) rotate(0deg);
-      }
-      to {
-        transform: rotate(360deg) translateX(240px) rotate(-360deg);
-      }
-    }
-
-    .nebula-1 {
-      width: 350px;
-      height: 350px;
-    }
-    .nebula-2 {
-      width: 300px;
-      height: 300px;
-    }
-    .nebula-3 {
-      width: 250px;
-      height: 250px;
-    }
-  }
-
-  /* =================================================================================
-     REDUCED MOTION — Respect prefers-reduced-motion preference
-     ================================================================================= */
-
-  @media (prefers-reduced-motion: reduce) {
-    .stars,
-    .nebula,
-    .orbit,
-    .orbit-particle,
-    .shooting-star,
-    .particle,
-    .brand-icon,
-    .brand-glow,
-    .card-glow,
-    .avatar-ring-outer,
-    .avatar-ring-inner {
-      animation: none;
-    }
-
-    .brand-title {
-      animation: none;
-    }
-    .login-card {
-      animation: none;
-      background: rgba(212, 160, 57, 0.3);
-    }
-    .submit-btn::after {
-      animation: none;
+    .crystal-shard.shard-2,
+    .crystal-shard.shard-3 {
       display: none;
     }
-    .setup-step {
+  }
+
+  /* ================================================================= */
+  /*                     REDUCED MOTION                                */
+  /* ================================================================= */
+
+  @media (prefers-reduced-motion: reduce) {
+    .auth-card::after {
       animation: none;
-      opacity: 1;
+      opacity: 0.3;
     }
-
-    .login-content,
-    .mounted .login-content {
+    .welcome-avatar::before,
+    .welcome-avatar::after {
       animation: none;
-      opacity: 1;
-      transform: none;
+      opacity: 0.4;
     }
-
-    .code-digit:focus {
-      transform: none;
+    .card-icon {
+      animation: none;
     }
-  }
-
-  /* =================================================================================
-     MODAL OVERLAY — Confirmation / Device Verification
-     ================================================================================= */
-
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 300;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(10, 8, 6, 0.75);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    padding: 1.5rem;
-    animation: modalFadeIn 0.3s ease-out;
-  }
-
-  @keyframes modalFadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  /* Modal card — reuses the same glass card styling as the login card */
-  .modal-card {
-    width: 100%;
-    max-width: 400px;
-    position: relative;
-    border-radius: var(--r-radius-2xl);
-    padding: 2px;
-    background: linear-gradient(
-      135deg,
-      rgba(212, 160, 57, 0.5),
-      rgba(232, 93, 117, 0.3),
-      rgba(46, 196, 166, 0.25),
-      rgba(212, 160, 57, 0.5)
-    );
-    background-size: 300% 300%;
-    animation: borderGlow 6s ease-in-out infinite;
-  }
-
-  .modal-card .card-inner {
-    text-align: center;
-  }
-
-  /* Circular icon badge in the modal header */
-  .modal-icon {
-    margin: 0 auto 1.25rem;
-    width: 72px;
-    height: 72px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(212, 160, 57, 0.1);
-    border-radius: 50%;
-    border: 1px solid rgba(212, 160, 57, 0.2);
-    animation: modalIconPulse 3s ease-in-out infinite;
-  }
-
-  @keyframes modalIconPulse {
-    0%,
-    100% {
-      box-shadow: 0 0 20px rgba(212, 160, 57, 0.2);
-    }
-    50% {
-      box-shadow: 0 0 40px rgba(212, 160, 57, 0.4);
-    }
-  }
-
-  .modal-card .card-subtitle strong {
-    color: var(--r-text);
-    font-weight: 600;
   }
 </style>
