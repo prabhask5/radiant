@@ -85,20 +85,16 @@
 
   /**
    * Derived booleans for controlling navigation visibility.
-   * Auth/public pages hide the app shell chrome (nav bars, etc.).
+   * Navbar only shows on the four main app pages (dashboard, transactions,
+   * accounts, profile). All other routes hide the app shell chrome.
    */
-  const isOnLoginPage = $derived($page.url.pathname.startsWith('/login'));
-  const isOnSetupPage = $derived($page.url.pathname.startsWith('/setup'));
-  const isOnDemoPage = $derived($page.url.pathname === '/demo');
-  const isOnPolicyPage = $derived($page.url.pathname.startsWith('/policy'));
-  const isOnConfirmPage = $derived($page.url.pathname.startsWith('/confirm'));
-  const isSetupNoAuth = $derived(isOnSetupPage && data.authMode === 'none');
-  const isAuthPage = $derived(
-    isOnLoginPage || isSetupNoAuth || isOnDemoPage || isOnPolicyPage || isOnConfirmPage
+  const NAV_ROUTES = ['/', '/transactions', '/accounts', '/profile'];
+  const isNavPage = $derived(
+    NAV_ROUTES.some((r) =>
+      r === '/' ? $page.url.pathname === '/' : $page.url.pathname.startsWith(r)
+    )
   );
-  const isAuthenticated = $derived(
-    data.authMode !== 'none' && !isAuthPage && !$authState.isLoading
-  );
+  const isAuthenticated = $derived(data.authMode !== 'none' && isNavPage && !$authState.isLoading);
 
   /** User's first name for the greeting. */
   const greeting = $derived(resolveFirstName(data.session, data.offlineProfile, 'there'));
