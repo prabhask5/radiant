@@ -253,13 +253,15 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       console.log('[TELLER] Initial fetch: no last_synced_at — fetching up to 500 per account');
     }
 
-    // Look up existing transactions scoped to the fetch window
+    // Look up existing transactions scoped to the fetch window.
+    // transactions is a child table (no user_id) — query by account_id instead.
+    const accountIds = [...acctIdMap.values()];
     let txnIdMap: Map<string, { id: string; deleted: boolean }>;
     if (bufferDate) {
       const { data: existingTxns } = await admin
         .from('transactions')
         .select('id, teller_transaction_id, deleted')
-        .eq('user_id', userId)
+        .in('account_id', accountIds)
         .gte('date', bufferDate);
       txnIdMap = new Map(
         (existingTxns ?? []).map(
@@ -273,7 +275,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       const { data: existingTxns } = await admin
         .from('transactions')
         .select('id, teller_transaction_id, deleted')
-        .eq('user_id', userId);
+        .in('account_id', accountIds);
       txnIdMap = new Map(
         (existingTxns ?? []).map(
           (t: { id: string; teller_transaction_id: string; deleted: boolean }) => [
@@ -290,15 +292,26 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
 
     for (const account of tellerAccounts) {
       try {
-        const transactions = await listTransactions(accessToken, account.id, fetchOptions);
-        console.log(
-          `[TELLER] Webhook: fetched ${transactions.length} transactions for ${account.id}`
-        );
+        // Paginate through all transactions (cursor-based via from_id)
+        const allTxns: Awaited<ReturnType<typeof listTransactions>> = [];
+        let fromId: string | undefined;
+        let hasMore = true;
+        while (hasMore) {
+          const opts = { ...fetchOptions, count: 500, ...(fromId ? { from_id: fromId } : {}) };
+          const page = await listTransactions(accessToken, account.id, opts);
+          allTxns.push(...page);
+          if (page.length < 500) {
+            hasMore = false;
+          } else {
+            fromId = page[page.length - 1].id;
+          }
+        }
+        console.log(`[TELLER] Webhook: fetched ${allTxns.length} transactions for ${account.id}`);
 
         const accountId = acctIdMap.get(account.id);
         if (!accountId) continue;
 
-        for (const txn of transactions) {
+        for (const txn of allTxns) {
           const existing = txnIdMap.get(txn.id);
 
           if (existing?.deleted) {
@@ -323,7 +336,6 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
             // New transaction — full insert
             insertRows.push({
               id: crypto.randomUUID(),
-              user_id: userId,
               account_id: accountId,
               teller_transaction_id: txn.id,
               amount: txn.amount,

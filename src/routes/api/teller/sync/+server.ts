@@ -25,7 +25,7 @@ import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
-    const { accessToken, lastSyncedAt } = await request.json();
+    const { accessToken } = await request.json();
 
     if (!accessToken) {
       return json({ error: 'Missing accessToken' }, { status: 400 });
@@ -48,22 +48,28 @@ export const POST: RequestHandler = async ({ request }) => {
       })
     );
 
-    /* ── Fetch transactions (incremental or full) ── */
-    let bufferDate: string | null = null;
-    if (lastSyncedAt) {
-      const d = new Date(lastSyncedAt);
-      d.setDate(d.getDate() - 7);
-      bufferDate = d.toISOString().slice(0, 10);
-    }
-
+    /* ── Fetch ALL transactions (full sync with pagination) ──
+       Manual sync always does a full fetch. Paginates using cursor-based
+       `from_id` to get beyond the 500-per-request Teller limit.
+       Only the webhook uses incremental 7-day buffer logic. */
     const transactions: Array<Record<string, unknown>> = [];
     for (const account of tellerAccounts) {
       try {
-        const fetchOpts = bufferDate ? { start_date: bufferDate } : { count: 500 };
-        const txns = await listTransactions(accessToken, account.id, fetchOpts);
-        for (const txn of txns) {
-          const { links: _, ...rest } = txn;
-          transactions.push(rest);
+        let fromId: string | undefined;
+        let hasMore = true;
+        while (hasMore) {
+          const opts: { count: number; from_id?: string } = { count: 500 };
+          if (fromId) opts.from_id = fromId;
+          const txns = await listTransactions(accessToken, account.id, opts);
+          for (const txn of txns) {
+            const { links: _, ...rest } = txn;
+            transactions.push(rest);
+          }
+          if (txns.length < 500) {
+            hasMore = false;
+          } else {
+            fromId = txns[txns.length - 1].id;
+          }
         }
       } catch {
         // Transaction fetch can fail for some account types — non-fatal

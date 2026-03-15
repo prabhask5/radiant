@@ -271,11 +271,13 @@
       allLocalAccounts.filter((a) => a.teller_account_id).map((a) => [a.teller_account_id, a])
     );
 
-    const allLocalTxns = (await engineGetAll('transactions')) as unknown as Array<{
-      id: string;
-      teller_transaction_id: string | null;
-      deleted?: boolean;
-    }>;
+    const allLocalTxns = (await engineGetAll('transactions')) as unknown as Array<
+      Record<string, unknown> & {
+        id: string;
+        teller_transaction_id: string | null;
+        deleted?: boolean;
+      }
+    >;
     const localTxnMap = new Map(
       allLocalTxns.filter((t) => t.teller_transaction_id).map((t) => [t.teller_transaction_id!, t])
     );
@@ -381,21 +383,32 @@
         // User deleted this transaction — respect their decision
         continue;
       } else {
-        // Existing active transaction — update Teller-owned fields only
+        // Existing active transaction — update Teller-owned fields only if changed
         const details = tellerTxn.details as
           | { counterparty?: { name?: string; type?: string }; category?: string }
           | undefined;
         const updateFields: Record<string, unknown> = {};
+        const existingRecord = existing;
         for (const field of TELLER_OWNED_FIELDS) {
-          if (field === 'counterparty_name')
-            updateFields[field] = details?.counterparty?.name ?? null;
-          else if (field === 'counterparty_type')
-            updateFields[field] = details?.counterparty?.type ?? null;
-          else if (field === 'teller_category') updateFields[field] = details?.category ?? null;
-          else updateFields[field] = tellerTxn[field] ?? null;
+          let newVal: unknown;
+          if (field === 'counterparty_name') newVal = details?.counterparty?.name ?? null;
+          else if (field === 'counterparty_type') newVal = details?.counterparty?.type ?? null;
+          else if (field === 'teller_category') newVal = details?.category ?? null;
+          else newVal = tellerTxn[field] ?? null;
+          // Only include fields that actually changed
+          if (String(newVal ?? '') !== String(existingRecord[field] ?? '')) {
+            updateFields[field] = newVal;
+          }
         }
-        ops.push({ type: 'update', table: 'transactions', id: existing.id, fields: updateFields });
-        remoteChangesStore.recordLocalChange(existing.id, 'transactions', 'update');
+        if (Object.keys(updateFields).length > 0) {
+          ops.push({
+            type: 'update',
+            table: 'transactions',
+            id: existing.id,
+            fields: updateFields
+          });
+          remoteChangesStore.recordLocalChange(existing.id, 'transactions', 'update');
+        }
       }
     }
 
@@ -511,8 +524,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accessToken: enrollment.accessToken,
-          lastSyncedAt: null
+          accessToken: enrollment.accessToken
         })
       });
 
@@ -572,8 +584,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accessToken: enrollment.access_token,
-          lastSyncedAt: enrollment.last_synced_at ?? null
+          accessToken: enrollment.access_token
         })
       });
 
