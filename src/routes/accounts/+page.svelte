@@ -1652,10 +1652,10 @@
                         }}
                       >
                         {account.name}
+                        {#if account.last_four}
+                          <span class="acct-last4">{account.last_four}</span>
+                        {/if}
                       </button>
-                      {#if account.last_four}
-                        <span class="acct-last4">{account.last_four}</span>
-                      {/if}
                     {/if}
                     <span class="acct-type-badge type-{account.type}">
                       {subtypeLabel(account.subtype)}
@@ -2264,7 +2264,6 @@
     justify-content: space-between;
     gap: 1rem;
     margin-bottom: 2rem;
-    flex-wrap: wrap;
   }
 
   .page-title {
@@ -2293,13 +2292,6 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    width: 100%;
-  }
-
-  .header-actions .connect-btn,
-  .header-actions .manual-btn {
-    flex: 1;
-    justify-content: center;
   }
 
   /* ── Connect Button ─────────────────────────────────────────────────────── */
@@ -2682,14 +2674,13 @@
     background: var(--surface-card);
     border: 1px solid var(--border-subtle);
     border-radius: 14px 14px 4px 4px;
+    flex-wrap: wrap;
   }
 
   .inst-info {
     display: flex;
     align-items: center;
     gap: 0.65rem;
-    min-width: 0;
-    flex: 1;
   }
 
   .inst-icon {
@@ -2733,7 +2724,6 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    flex-shrink: 0;
   }
 
   /* ── Status Badge ───────────────────────────────────────────────────────── */
@@ -2983,8 +2973,8 @@
   .acct-top {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
+    gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
   .acct-name {
@@ -2995,8 +2985,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-width: 0;
-    flex-shrink: 1;
     cursor: text;
     border-radius: 4px;
     padding: 1px 4px;
@@ -3070,9 +3058,8 @@
     font-weight: 400;
     color: var(--text-muted);
     font-size: 0.8rem;
-    flex-shrink: 0;
+    margin-left: 0.15rem;
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
   }
 
   .acct-last4::before {
@@ -3207,7 +3194,18 @@
       font-size: 1.1rem;
     }
 
+    .header-actions {
+      width: 100%;
+    }
+
+    .header-actions .connect-btn,
+    .header-actions .manual-btn {
+      flex: 1;
+      justify-content: center;
+    }
+
     .institution-header {
+      flex-wrap: nowrap;
       gap: 0.5rem;
       padding: 0.65rem 0.85rem;
     }
@@ -3215,6 +3213,25 @@
     .inst-info {
       min-width: 0;
       flex: 1;
+    }
+
+    .inst-actions {
+      flex-shrink: 0;
+    }
+
+    .acct-top {
+      flex-wrap: nowrap;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
+    .acct-name {
+      min-width: 0;
+      flex-shrink: 1;
+    }
+
+    .acct-last4 {
+      flex-shrink: 0;
     }
 
     .account-card {
@@ -3271,13 +3288,21 @@
 
   /* ── Teller Connect Backdrop ──────────────────────────────────────────── */
   .teller-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 99;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    animation: backdrop-in 0.25s ease-out;
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .teller-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 101;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      animation: backdrop-in 0.25s ease-out;
+      pointer-events: none;
+    }
   }
 
   /* ── Teller Connect iframe constraint ──────────────────────────────────── */
@@ -3293,6 +3318,7 @@
       700px
     ) !important;
     top: env(safe-area-inset-top, 47px) !important;
+    z-index: 102 !important;
   }
 
   :global(.syncable-item) {

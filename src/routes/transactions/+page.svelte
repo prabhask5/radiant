@@ -458,44 +458,44 @@
   <!-- ─── Header ─── -->
   <header class="page-header">
     <h1 class="page-title">Transactions</h1>
-  </header>
-
-  <!-- ─── Month Navigation ─── -->
-  <div class="month-nav-group">
-    {#if !isCurrentMonth}
-      <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}> Today </button>
-    {/if}
-    <div class="month-nav">
-      <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M12.5 15L7.5 10L12.5 5"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-      <span class="month-label">{formatMonth(selectedMonth)}</span>
-      <button
-        class="month-arrow"
-        onclick={nextMonth}
-        disabled={isCurrentMonth}
-        aria-label="Next month"
-      >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M7.5 15L12.5 10L7.5 5"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
+    <div class="month-nav-group">
+      {#if !isCurrentMonth}
+        <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}>
+          Today
+        </button>
+      {/if}
+      <div class="month-nav">
+        <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M12.5 15L7.5 10L12.5 5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <span class="month-label">{formatMonth(selectedMonth)}</span>
+        <button
+          class="month-arrow"
+          onclick={nextMonth}
+          disabled={isCurrentMonth}
+          aria-label="Next month"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M7.5 15L12.5 10L7.5 5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
-  </div>
+  </header>
 
   <!-- ─── Search & Filter Bar ─── -->
   <div class="filter-bar">
@@ -1092,7 +1092,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 0 0.5rem;
+    padding: 0 0 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .page-title {
@@ -1114,6 +1116,7 @@
   }
 
   .month-arrow {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1129,6 +1132,12 @@
       color 0.2s,
       border-color 0.2s;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .month-arrow::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
   }
 
   .month-arrow:hover:not(:disabled) {
@@ -1155,7 +1164,6 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding-bottom: 0.75rem;
   }
 
   .today-btn {
@@ -1181,6 +1189,11 @@
   }
 
   @media (max-width: 640px) {
+    .month-nav-group {
+      width: 100%;
+      justify-content: space-between;
+    }
+
     .today-btn {
       order: 1;
     }
@@ -2275,13 +2288,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    min-width: 32px;
-    height: 32px;
-    max-height: 32px;
-    aspect-ratio: 1;
-    flex-shrink: 0;
-    flex-grow: 0;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    flex: 0 0 36px;
+    align-self: center;
     border-radius: 50%;
     box-sizing: border-box;
     border: 1px solid var(--txn-border);
