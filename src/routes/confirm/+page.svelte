@@ -12,7 +12,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { handleEmailConfirmation, broadcastAuthConfirmed } from 'stellar-drive/kit';
-  import { isDemoMode } from 'stellar-drive';
+  import { isDemoMode } from 'stellar-drive/demo';
 
   let status: 'verifying' | 'success' | 'error' | 'redirecting' | 'can_close' = 'verifying';
   let errorMessage = '';

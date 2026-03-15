@@ -21,7 +21,8 @@
     fetchRemoteGateConfig,
     linkSingleUserDevice
   } from 'stellar-drive/auth';
-  import { sendDeviceVerification, isDemoMode } from 'stellar-drive';
+  import { sendDeviceVerification } from 'stellar-drive/auth';
+  import { isDemoMode } from 'stellar-drive/demo';
   import { isSafeRedirect } from 'stellar-drive/utils';
 
   // ==========================================================================

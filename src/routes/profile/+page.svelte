@@ -26,15 +26,12 @@
   } from 'stellar-drive/auth';
   import { authState } from 'stellar-drive/stores';
   import { isDebugMode, setDebugMode, getDiagnostics } from 'stellar-drive/utils';
-  import {
-    resetDatabase,
-    getTrustedDevices,
-    removeTrustedDevice,
-    getCurrentDeviceId,
-    isDemoMode
-  } from 'stellar-drive';
-  import type { TrustedDevice, DiagnosticsSnapshot } from 'stellar-drive';
-  import { getDemoConfig } from 'stellar-drive';
+  import { resetDatabase } from 'stellar-drive/config';
+  import { repairSyncQueue } from 'stellar-drive/engine';
+  import { getTrustedDevices, removeTrustedDevice, getCurrentDeviceId } from 'stellar-drive/auth';
+  import { isDemoMode, getDemoConfig } from 'stellar-drive/demo';
+  import type { TrustedDevice } from 'stellar-drive/types';
+  import type { DiagnosticsSnapshot } from 'stellar-drive/types';
   import { onMount, onDestroy } from 'svelte';
 
   /** Whether the app is in demo mode — shows a simplified read-only profile. */
@@ -101,6 +98,7 @@
   let forceSyncing = $state(false);
   let triggeringSyncManual = $state(false);
   let resettingCursor = $state(false);
+  let repairingSyncQueue = $state(false);
 
   let viewingTombstones = $state(false);
   let cleaningTombstones = $state(false);
@@ -738,6 +736,28 @@
       alert('Tombstone cleanup failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
     cleaningTombstones = false;
+  }
+
+  /** Scan IndexedDB for records missing from the sync queue and re-queue them. */
+  async function handleRepairSyncQueue() {
+    if (inDemoMode) {
+      showDemoToast('Not available in demo mode');
+      return;
+    }
+    if (
+      !confirm(
+        'This will scan all local records and re-queue any that are missing from the sync queue. Continue?'
+      )
+    )
+      return;
+    repairingSyncQueue = true;
+    try {
+      const count = await repairSyncQueue();
+      alert(`Repair complete. Re-queued ${count} record${count === 1 ? '' : 's'}.`);
+    } catch (err) {
+      alert('Repair failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+    repairingSyncQueue = false;
   }
 
   // =============================================================================
@@ -1459,6 +1479,9 @@
           </button>
           <button class="btn-debug" onclick={handleCleanupTombstones} disabled={cleaningTombstones}>
             {#if cleaningTombstones}<span class="spinner"></span>{:else}Cleanup Tombstones{/if}
+          </button>
+          <button class="btn-debug" onclick={handleRepairSyncQueue} disabled={repairingSyncQueue}>
+            {#if repairingSyncQueue}<span class="spinner"></span>{:else}Repair Sync Queue{/if}
           </button>
         </div>
       </section>

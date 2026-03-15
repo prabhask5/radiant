@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { isDemoMode, setDemoMode, cleanupDemoDatabase } from 'stellar-drive';
+  import { isDemoMode, setDemoMode, cleanupDemoDatabase } from 'stellar-drive/demo';
 
   let demoActive = $state(isDemoMode());
   let toggling = $state(false);

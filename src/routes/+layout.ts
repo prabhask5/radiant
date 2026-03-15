@@ -31,10 +31,10 @@
 import { browser } from '$app/environment';
 import { redirect } from '@sveltejs/kit';
 import { goto } from '$app/navigation';
-import { debug, initEngine, supabase, probeNetworkReachability } from 'stellar-drive';
+import { initEngine, supabase, probeNetworkReachability, getConfig } from 'stellar-drive/config';
+import { debug } from 'stellar-drive/utils';
 import { lockSingleUser } from 'stellar-drive/auth';
 import { resolveRootLayout } from 'stellar-drive/kit';
-import { getConfig } from 'stellar-drive/config';
 import { isSafeRedirect } from 'stellar-drive/utils';
 import { schema } from '$lib/schema';
 import { demoConfig } from '$lib/demo/config';

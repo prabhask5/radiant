@@ -18,7 +18,7 @@
 //                                  IMPORTS
 // =============================================================================
 
-import type { DemoConfig } from 'stellar-drive';
+import type { DemoConfig } from 'stellar-drive/demo';
 import { seedDemoData } from './mockData';
 
 // =============================================================================

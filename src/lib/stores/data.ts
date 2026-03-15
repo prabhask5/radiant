@@ -17,14 +17,13 @@ import {
   engineUpdate,
   engineDelete,
   engineBatchWrite,
-  engineGetAll,
-  generateId
-} from 'stellar-drive';
+  engineGetAll
+} from 'stellar-drive/data';
+import type { BatchOperation } from 'stellar-drive/data';
+import { generateId, now } from 'stellar-drive/utils';
 import { createCollectionStore, onSyncComplete, remoteChangesStore } from 'stellar-drive/stores';
 import { debug } from 'stellar-drive/utils';
 import type { Account, Transaction, Category, TellerEnrollment } from '$lib/types';
-import type { BatchOperation } from 'stellar-drive';
-import { now } from 'stellar-drive';
 
 /** System columns managed by stellar-drive — omit these from create payloads. */
 type SystemKeys =
