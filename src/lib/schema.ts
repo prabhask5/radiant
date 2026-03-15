@@ -313,37 +313,6 @@ export const schema: SchemaDefinition = {
   },
 
   /* ═══════════════════════════════════════════════════════════════════════
-     USER SETTINGS — Singleton app preferences
-     ═══════════════════════════════════════════════════════════════════════
-
-     A single-row table storing the user's app-wide preferences. Marked as
-     `singleton: true` so stellar-drive enforces exactly one row. Controls
-     display formatting (currency, locale, cents), Teller API configuration,
-     sync behavior, and budgeting calendar settings.
-
-     Relationships:
-       - Standalone — read by all views for formatting/behavior config
-
-     Indexes:
-       - None (singleton table — always fetched by its single row ID)
-     ═══════════════════════════════════════════════════════════════════════ */
-  user_settings: {
-    singleton: true,
-    fields: {
-      currency: 'string',
-      locale: 'string',
-      teller_app_id: 'string?',
-      teller_environment: 'string?',
-      teller_cert_path: 'string?',
-      auto_sync_enabled: 'boolean',
-      auto_sync_interval_minutes: 'number',
-      auto_categorize: 'boolean',
-      show_cents: 'boolean',
-      fiscal_month_start_day: 'number'
-    }
-  },
-
-  /* ═══════════════════════════════════════════════════════════════════════
      CATEGORY RULES — Auto-categorization rules for transactions
      ═══════════════════════════════════════════════════════════════════════
 

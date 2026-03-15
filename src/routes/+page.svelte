@@ -589,7 +589,7 @@
   .dashboard {
     max-width: 960px;
     margin: 0 auto;
-    padding: 0 16px 100px;
+    padding: 0 12px 80px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -723,6 +723,15 @@
     margin: 0;
   }
 
+  @media (max-width: 480px) {
+    .hero {
+      padding: 28px 16px 24px;
+    }
+    .hero-greeting {
+      font-size: 1.4rem;
+    }
+  }
+
   @media (min-width: 768px) {
     .hero {
       padding: 48px 36px 40px;
@@ -767,7 +776,7 @@
   .overview-card {
     position: relative;
     flex: 0 0 auto;
-    width: 200px;
+    width: 160px;
     min-height: 120px;
     scroll-snap-align: start;
     background: var(--gem-obsidian);
@@ -786,6 +795,21 @@
     box-shadow:
       0 16px 48px rgba(0, 0, 0, 0.4),
       0 0 40px rgba(212, 160, 57, 0.1);
+  }
+
+  @media (max-width: 480px) {
+    .overview-card {
+      width: 140px;
+      min-height: 110px;
+    }
+
+    .card-inner {
+      padding: 14px 12px;
+    }
+
+    .card-value {
+      font-size: 1.15rem;
+    }
   }
 
   @media (min-width: 768px) {
@@ -947,6 +971,12 @@
     border-radius: var(--radius);
     padding: 20px;
     overflow: hidden;
+  }
+
+  @media (max-width: 480px) {
+    .section-panel {
+      padding: 16px;
+    }
   }
 
   @media (min-width: 768px) {
@@ -1186,7 +1216,7 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
-    flex-shrink: 0;
+    flex-shrink: 1;
   }
 
   .cat-dot {
@@ -1206,6 +1236,8 @@
     font-weight: 600;
     color: var(--gem-text);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .cat-right {

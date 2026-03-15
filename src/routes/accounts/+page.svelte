@@ -17,10 +17,10 @@
 
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { accountsStore, enrollmentsStore, settingsStore } from '$lib/stores/data';
+  import { accountsStore, enrollmentsStore } from '$lib/stores/data';
   import { formatCurrency } from '$lib/utils/currency';
   import type { TellerConnectStatic, TellerConnectEnrollment } from '$lib/teller/types';
-  import type { Account, TellerEnrollment, UserSettings } from '$lib/types';
+  import type { Account, TellerEnrollment } from '$lib/types';
 
   // ==========================================================================
   //                           COMPONENT STATE
@@ -66,8 +66,11 @@
   /** All enrollments from the store. */
   const enrollments: TellerEnrollment[] = $derived($enrollmentsStore ?? []);
 
-  /** User settings (singleton stored as collection). */
-  const settings: UserSettings | null = $derived($settingsStore[0] ?? null);
+  /** Teller configuration from environment variables. */
+  const tellerAppId = import.meta.env.PUBLIC_TELLER_APP_ID || '';
+  const tellerEnvironment =
+    (import.meta.env.PUBLIC_TELLER_ENVIRONMENT as 'sandbox' | 'development' | 'production') ||
+    'sandbox';
 
   /**
    * Accounts grouped by institution name.
@@ -144,7 +147,7 @@
   const netPosition = $derived(totalAssets - totalLiabilities);
 
   /** Whether the Teller app ID is configured. */
-  const hasTellerConfig = $derived(!!settings?.teller_app_id);
+  const hasTellerConfig = $derived(!!tellerAppId);
 
   // ==========================================================================
   //                     TELLER CONNECT INTEGRATION
@@ -177,8 +180,8 @@
    * On success, triggers a sync with the received access token.
    */
   async function openTellerConnect() {
-    if (!settings?.teller_app_id) {
-      showFeedback('error', 'Teller app ID not configured. Go to Settings to set it up.');
+    if (!tellerAppId) {
+      showFeedback('error', 'Teller app ID not configured. Deploy with PUBLIC_TELLER_APP_ID set.');
       return;
     }
 
@@ -194,10 +197,9 @@
       }
 
       const tellerConnect = TellerConnect.setup({
-        applicationId: settings.teller_app_id,
+        applicationId: tellerAppId,
         products: ['balance', 'transactions'],
-        environment:
-          (settings.teller_environment as 'sandbox' | 'development' | 'production') ?? 'sandbox',
+        environment: tellerEnvironment,
         onSuccess: async (enrollment: TellerConnectEnrollment) => {
           await handleEnrollmentSuccess(enrollment);
         },
@@ -400,15 +402,11 @@
   // ==========================================================================
 
   onMount(async () => {
-    await Promise.all([
-      accountsStore.refresh(),
-      enrollmentsStore.refresh(),
-      settingsStore.refresh()
-    ]);
+    await Promise.all([accountsStore.refresh(), enrollmentsStore.refresh()]);
     loaded = true;
 
     // Pre-load Teller Connect SDK in the background if configured
-    if (browser && settings?.teller_app_id) {
+    if (browser && tellerAppId) {
       loadTellerConnect().catch(() => {
         // Silent fail — will retry when user clicks Connect
       });
@@ -1374,6 +1372,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
+    min-width: 0;
   }
 
   .inst-name {
@@ -1383,6 +1382,9 @@
     color: var(--text-primary);
     margin: 0;
     letter-spacing: 0.03em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .inst-sync {
@@ -1794,6 +1796,20 @@
 
     .acct-balance {
       font-size: 0.95rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .total-item {
+      min-width: 70px;
+    }
+
+    .total-divider {
+      display: none;
+    }
+
+    .inst-name {
+      font-size: 0.9rem;
     }
   }
 

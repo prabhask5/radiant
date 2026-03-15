@@ -2627,7 +2627,7 @@
       padding-right: 0.25rem;
     }
     .field-row {
-      grid-template-columns: 1fr;
+      flex-direction: column;
     }
     .settings-card {
       padding: 1.25rem;
@@ -2653,15 +2653,49 @@
   }
 
   /* ================================================================= */
-  /*                     RESPONSIVE — iPHONE SE (≤375px)               */
+  /*                     RESPONSIVE — SMALL MOBILE (≤480px)             */
   /* ================================================================= */
+
+  @media (max-width: 480px) {
+    .cards-container {
+      padding: 16px 12px;
+    }
+    .settings-card {
+      padding: 18px 14px;
+    }
+    .avatar-section {
+      padding: 20px 16px 8px;
+      padding-top: calc(20px + env(safe-area-inset-top, 0px));
+    }
+    .field-row {
+      flex-direction: column;
+    }
+    .btn-action,
+    .btn-danger-subtle,
+    .btn-signout {
+      width: 100%;
+      min-height: 48px;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .pin-digit {
+      width: 34px;
+      height: 42px;
+      font-size: 1rem;
+      padding: 0;
+    }
+    .pin-row {
+      gap: 4px;
+    }
+  }
 
   @media (max-width: 375px) {
     .profile-header .header-title {
       font-size: 1.125rem;
     }
     .settings-card {
-      padding: 1rem;
+      padding: 14px 12px;
     }
     .avatar-circle {
       width: 70px;
@@ -2718,7 +2752,7 @@
       padding: 1.75rem;
     }
     .field-row {
-      grid-template-columns: 1fr 1fr;
+      flex-direction: row;
     }
     .avatar-circle {
       width: 100px;

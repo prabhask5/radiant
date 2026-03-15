@@ -30,6 +30,7 @@
   import { setConfig } from 'stellar-drive/config';
   import { isOnline } from 'stellar-drive/stores';
   import { pollForNewServiceWorker } from 'stellar-drive/kit';
+  import Reconfigure from './Reconfigure.svelte';
 
   // =============================================================================
   //  Wizard State
@@ -269,337 +270,353 @@
   <title>Setup - Radiant Finance</title>
 </svelte:head>
 
-<div class="setup-page">
-  <div class="setup-container">
-    <!-- Header -->
-    <h1>Set Up Radiant Finance</h1>
-    <p class="subtitle">Configure Radiant Finance to connect to your own Supabase backend</p>
-
-    <!-- Step indicator -->
-    <div class="step-indicator">
-      {#each [1, 2, 3, 4, 5] as step (step)}
-        {#if step > 1}
-          <div class="step-line" class:completed={currentStep > step - 1}></div>
-        {/if}
-        <div
-          class="step-dot"
-          class:active={currentStep === step}
-          class:completed={currentStep > step}
-        >
-          {#if currentStep > step}
-            <span class="checkmark">&#10003;</span>
-          {:else}
-            {step}
-          {/if}
-        </div>
-      {/each}
+{#if !isFirstSetup}
+  <!-- ═══ Reconfigure Mode ═══ -->
+  <div class="setup-page">
+    <div class="setup-container">
+      <h1>Reconfigure Radiant Finance</h1>
+      <p class="subtitle">Update your credentials and redeploy</p>
+      <Reconfigure />
     </div>
+  </div>
+{:else}
+  <div class="setup-page">
+    <div class="setup-container">
+      <!-- Header -->
+      <h1>Set Up Radiant Finance</h1>
+      <p class="subtitle">Configure Radiant Finance to connect to your own Supabase backend</p>
 
-    <!-- Offline warning -->
-    {#if !$isOnline}
-      <div class="message message-error">
-        You are currently offline. An internet connection is required to complete setup.
+      <!-- Step indicator -->
+      <div class="step-indicator">
+        {#each [1, 2, 3, 4, 5] as step (step)}
+          {#if step > 1}
+            <div class="step-line" class:completed={currentStep > step - 1}></div>
+          {/if}
+          <div
+            class="step-dot"
+            class:active={currentStep === step}
+            class:completed={currentStep > step}
+          >
+            {#if currentStep > step}
+              <span class="checkmark">&#10003;</span>
+            {:else}
+              {step}
+            {/if}
+          </div>
+        {/each}
       </div>
-    {/if}
 
-    <!-- Step cards -->
-    <div class="step-card">
-      {#if currentStep === 1}
-        <h2>Step 1: Create a Supabase Project</h2>
-        <p>
-          Radiant Finance stores data in your own Supabase project. Create one if you don't have one
-          already — the free tier is more than enough.
-        </p>
-        <ol>
-          <li>
-            Go to <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer"
-              >supabase.com/dashboard</a
-            >
-          </li>
-          <li>
-            Click <strong>New Project</strong>, choose a name and database password, then click
-            <strong>Create new project</strong>.
-          </li>
-          <li>Wait for provisioning to finish (usually under a minute).</li>
-        </ol>
-        <p class="info-note">
-          <strong>Note:</strong> Supabase's built-in SMTP works for development. For production you may
-          want to configure a custom SMTP provider under Authentication &gt; Settings.
-        </p>
-      {:else if currentStep === 2}
-        <h2>Step 2: Initialize the Database</h2>
-        <p>
-          The required tables and RLS policies are created automatically during the build process.
-          When your app deploys to Vercel, the schema is pushed to your Supabase database &mdash; no
-          manual SQL is needed.
-        </p>
-      {:else if currentStep === 3}
-        <h2>Step 3: Connect Your Supabase Project</h2>
-        <p>
-          Find these values in your Supabase dashboard under <strong>Settings &gt; API</strong>.
-        </p>
-
-        <div class="form-group">
-          <label for="supabase-url">Project URL</label>
-          <input
-            id="supabase-url"
-            type="url"
-            placeholder="https://your-project.supabase.co"
-            bind:value={supabaseUrl}
-          />
+      <!-- Offline warning -->
+      {#if !$isOnline}
+        <div class="message message-error">
+          You are currently offline. An internet connection is required to complete setup.
         </div>
+      {/if}
 
-        <div class="form-group">
-          <label for="supabase-key">Publishable Key (anon / public)</label>
-          <input
-            id="supabase-key"
-            type="text"
-            placeholder="eyJhbGciOiJIUzI1NiIs..."
-            bind:value={supabasePublishableKey}
-          />
-          <span class="hint">This is the `anon` key — safe to expose in the browser.</span>
-        </div>
-
-        <button
-          class="btn btn-secondary"
-          onclick={handleValidate}
-          disabled={validating || !supabaseUrl || !supabasePublishableKey}
-        >
-          {#if validating}Testing...{:else}Test Connection{/if}
-        </button>
-
-        {#if validateError}
-          <div class="message message-error">{validateError}</div>
-        {/if}
-        {#if validateSuccess}
-          <div class="message message-success">Connection successful! Credentials are valid.</div>
-        {/if}
-      {:else if currentStep === 4}
-        <h2>Step 4: Connect Teller.io</h2>
-        <p>
-          <a href="https://teller.io" target="_blank" rel="noopener noreferrer">Teller.io</a> connects
-          Radiant to your bank accounts for automatic transaction syncing. You'll need a Teller account
-          with an application and mTLS certificate.
-        </p>
-
-        <div class="info-note" style="margin-bottom: 1.25rem;">
-          <strong>How to get your Teller credentials:</strong>
-          <ol style="margin: 0.5rem 0 0; padding-left: 1.25rem;">
-            <li>
-              Sign up at <a
-                href="https://teller.io/signup"
-                target="_blank"
-                rel="noopener noreferrer">teller.io/signup</a
-              > and create an application.
-            </li>
-            <li>
-              Find your <strong>Application ID</strong> on the
-              <a href="https://teller.io/dashboard" target="_blank" rel="noopener noreferrer"
-                >Teller Dashboard</a
-              >
-              (looks like <code>app_xxxxxxxxxx</code>).
-            </li>
-            <li>
-              Download your <strong>mTLS certificate</strong> and <strong>private key</strong> from
-              the dashboard under <strong>Certificates</strong>. Open each file in a text editor and
-              paste the full PEM content below.
-            </li>
-            <li>
-              Under <strong>Webhooks</strong> in the dashboard, set your webhook URL to
-              <code>https://[YOUR_DOMAIN]/api/teller/webhook</code>. Enable all three event types (<strong
-                >enrollment.disconnected</strong
-              >,
-              <strong>transactions.processed</strong>, and
-              <strong>account.number_verification.processed</strong>). Then copy the
-              <strong>Signing Secret</strong> — Radiant uses it to verify that incoming webhooks are genuinely
-              from Teller.
-            </li>
-          </ol>
-        </div>
-
-        <div class="info-note" style="margin-bottom: 1.25rem;">
-          <strong>About the Development environment:</strong> Radiant uses Teller's Development environment,
-          which is free and connects to real banks. It supports up to 100 enrollments — an enrollment
-          is a single bank login (e.g. your Chase login), which can include multiple accounts (checking,
-          savings, credit card) under the same login. 100 enrollments is more than enough for personal
-          use.
-        </div>
-
-        <div class="form-group">
-          <label for="teller-app-id">Application ID</label>
-          <input
-            id="teller-app-id"
-            type="text"
-            placeholder="app_xxxxxxxxxx"
-            bind:value={tellerAppId}
-          />
-          <span class="hint"
-            >Found on your <a
-              href="https://teller.io/dashboard"
-              target="_blank"
-              rel="noopener noreferrer">Teller Dashboard</a
-            >.</span
-          >
-        </div>
-
-        <div class="form-group">
-          <label for="teller-cert">Client Certificate (PEM)</label>
-          <textarea
-            id="teller-cert"
-            placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
-            bind:value={tellerCert}
-            rows="4"
-          ></textarea>
-          <span class="hint"
-            >Paste the full PEM content of your mTLS certificate from the Teller dashboard.</span
-          >
-        </div>
-
-        <div class="form-group">
-          <label for="teller-key">Private Key (PEM)</label>
-          <textarea
-            id="teller-key"
-            placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
-            bind:value={tellerKey}
-            rows="4"
-          ></textarea>
-          <span class="hint">The private key that matches your client certificate above.</span>
-        </div>
-
-        <div class="form-group">
-          <label for="teller-webhook-secret">Webhook Signing Secret</label>
-          <input
-            id="teller-webhook-secret"
-            type="text"
-            placeholder="Paste your Teller signing secret"
-            bind:value={tellerWebhookSecret}
-          />
-          <span class="hint"
-            >Found under Webhooks > Signing secrets on your Teller Dashboard. Used to verify that
-            incoming webhooks are from Teller.</span
-          >
-        </div>
-      {:else if currentStep === 5}
-        <h2>Step 5: Deploy to Vercel</h2>
-        <p>
-          Provide a one-time <a
-            href="https://vercel.com/account/tokens"
-            target="_blank"
-            rel="noopener noreferrer">Vercel API token</a
-          >
-          so Radiant can set environment variables on your project and trigger a redeployment.
-        </p>
-
-        <div class="info-note" style="margin-bottom: 1.25rem;">
-          <strong>How to create a Vercel token:</strong>
-          <ol style="margin: 0.5rem 0 0; padding-left: 1.25rem;">
+      <!-- Step cards -->
+      <div class="step-card">
+        {#if currentStep === 1}
+          <h2>Step 1: Create a Supabase Project</h2>
+          <p>
+            Radiant Finance stores data in your own Supabase project. Create one if you don't have
+            one already — the free tier is more than enough.
+          </p>
+          <ol>
             <li>
               Go to <a
-                href="https://vercel.com/account/tokens"
+                href="https://supabase.com/dashboard"
                 target="_blank"
-                rel="noopener noreferrer">vercel.com/account/tokens</a
-              >.
+                rel="noopener noreferrer">supabase.com/dashboard</a
+              >
             </li>
             <li>
-              Click <strong>Create Token</strong>, give it a name (e.g. "Radiant Setup"), and set an
-              expiration. A short expiration (1 day) is fine — this token is only used once.
+              Click <strong>New Project</strong>, choose a name and database password, then click
+              <strong>Create new project</strong>.
             </li>
-            <li>Copy the token and paste it below.</li>
+            <li>Wait for provisioning to finish (usually under a minute).</li>
           </ol>
-        </div>
+          <p class="info-note">
+            <strong>Note:</strong> Supabase's built-in SMTP works for development. For production you
+            may want to configure a custom SMTP provider under Authentication &gt; Settings.
+          </p>
+        {:else if currentStep === 2}
+          <h2>Step 2: Initialize the Database</h2>
+          <p>
+            The required tables and RLS policies are created automatically during the build process.
+            When your app deploys to Vercel, the schema is pushed to your Supabase database &mdash;
+            no manual SQL is needed.
+          </p>
+        {:else if currentStep === 3}
+          <h2>Step 3: Connect Your Supabase Project</h2>
+          <p>
+            Find these values in your Supabase dashboard under <strong>Settings &gt; API</strong>.
+          </p>
 
-        <div class="form-group">
-          <label for="vercel-token">Vercel API Token</label>
-          <input
-            id="vercel-token"
-            type="password"
-            placeholder="Paste your Vercel token"
-            bind:value={vercelToken}
-          />
-          <span class="hint"
-            >Used once to set env vars and trigger a deploy. Not stored anywhere.</span
+          <div class="form-group">
+            <label for="supabase-url">Project URL</label>
+            <input
+              id="supabase-url"
+              type="url"
+              placeholder="https://your-project.supabase.co"
+              bind:value={supabaseUrl}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="supabase-key">Publishable Key (anon / public)</label>
+            <input
+              id="supabase-key"
+              type="text"
+              placeholder="eyJhbGciOiJIUzI1NiIs..."
+              bind:value={supabasePublishableKey}
+            />
+            <span class="hint">This is the `anon` key — safe to expose in the browser.</span>
+          </div>
+
+          <button
+            class="btn btn-secondary"
+            onclick={handleValidate}
+            disabled={validating || !supabaseUrl || !supabasePublishableKey}
           >
-        </div>
+            {#if validating}Testing...{:else}Test Connection{/if}
+          </button>
 
-        <button class="btn btn-primary" onclick={handleDeploy} disabled={deploying || !vercelToken}>
-          {#if deploying}Deploying...{:else}Deploy{/if}
-        </button>
+          {#if validateError}
+            <div class="message message-error">{validateError}</div>
+          {/if}
+          {#if validateSuccess}
+            <div class="message message-success">Connection successful! Credentials are valid.</div>
+          {/if}
+        {:else if currentStep === 4}
+          <h2>Step 4: Connect Teller.io</h2>
+          <p>
+            <a href="https://teller.io" target="_blank" rel="noopener noreferrer">Teller.io</a> connects
+            Radiant to your bank accounts for automatic transaction syncing. You'll need a Teller account
+            with an application and mTLS certificate.
+          </p>
 
-        {#if deployError}
-          <div class="message message-error">{deployError}</div>
-        {/if}
-
-        <!-- Deployment pipeline stages -->
-        {#if deployStage !== 'idle'}
-          <div class="deploy-stages">
-            <div
-              class="deploy-stage"
-              class:active={deployStage === 'setting-env'}
-              class:done={deployStage === 'deploying' || deployStage === 'ready'}
-            >
-              <span class="stage-icon"
-                >{#if deployStage === 'setting-env'}&#9675;{:else}&#10003;{/if}</span
-              >
-              Setting environment variables
-            </div>
-            <div
-              class="deploy-stage"
-              class:active={deployStage === 'deploying'}
-              class:done={deployStage === 'ready'}
-            >
-              <span class="stage-icon"
-                >{#if deployStage === 'deploying'}&#9675;{:else if deployStage === 'ready'}&#10003;{:else}&#8226;{/if}</span
-              >
-              Deploying to Vercel
-            </div>
-            <div class="deploy-stage" class:active={deployStage === 'ready'}>
-              <span class="stage-icon"
-                >{#if deployStage === 'ready'}&#10003;{:else}&#8226;{/if}</span
-              >
-              Ready
-            </div>
+          <div class="info-note" style="margin-bottom: 1.25rem;">
+            <strong>How to get your Teller credentials:</strong>
+            <ol style="margin: 0.5rem 0 0; padding-left: 1.25rem;">
+              <li>
+                Sign up at <a
+                  href="https://teller.io/signup"
+                  target="_blank"
+                  rel="noopener noreferrer">teller.io/signup</a
+                > and create an application.
+              </li>
+              <li>
+                Find your <strong>Application ID</strong> on the
+                <a href="https://teller.io/dashboard" target="_blank" rel="noopener noreferrer"
+                  >Teller Dashboard</a
+                >
+                (looks like <code>app_xxxxxxxxxx</code>).
+              </li>
+              <li>
+                Download your <strong>mTLS certificate</strong> and <strong>private key</strong>
+                from the dashboard under <strong>Certificates</strong>. Open each file in a text
+                editor and paste the full PEM content below.
+              </li>
+              <li>
+                Under <strong>Webhooks</strong> in the dashboard, set your webhook URL to
+                <code>https://[YOUR_DOMAIN]/api/teller/webhook</code>. Enable all three event types
+                (<strong>enrollment.disconnected</strong>,
+                <strong>transactions.processed</strong>, and
+                <strong>account.number_verification.processed</strong>). Then copy the
+                <strong>Signing Secret</strong> — Radiant uses it to verify that incoming webhooks are
+                genuinely from Teller.
+              </li>
+            </ol>
           </div>
-        {/if}
 
-        {#if deployStage === 'ready'}
-          <div class="message message-success">
-            Deployment complete! Go to <a href="/">Radiant Finance</a> to get started.
+          <div class="info-note" style="margin-bottom: 1.25rem;">
+            <strong>About the Development environment:</strong> Radiant uses Teller's Development environment,
+            which is free and connects to real banks. It supports up to 100 enrollments — an enrollment
+            is a single bank login (e.g. your Chase login), which can include multiple accounts (checking,
+            savings, credit card) under the same login. 100 enrollments is more than enough for personal
+            use.
           </div>
+
+          <div class="form-group">
+            <label for="teller-app-id">Application ID</label>
+            <input
+              id="teller-app-id"
+              type="text"
+              placeholder="app_xxxxxxxxxx"
+              bind:value={tellerAppId}
+            />
+            <span class="hint"
+              >Found on your <a
+                href="https://teller.io/dashboard"
+                target="_blank"
+                rel="noopener noreferrer">Teller Dashboard</a
+              >.</span
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="teller-cert">Client Certificate (PEM)</label>
+            <textarea
+              id="teller-cert"
+              placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+              bind:value={tellerCert}
+              rows="4"
+            ></textarea>
+            <span class="hint"
+              >Paste the full PEM content of your mTLS certificate from the Teller dashboard.</span
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="teller-key">Private Key (PEM)</label>
+            <textarea
+              id="teller-key"
+              placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+              bind:value={tellerKey}
+              rows="4"
+            ></textarea>
+            <span class="hint">The private key that matches your client certificate above.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="teller-webhook-secret">Webhook Signing Secret</label>
+            <input
+              id="teller-webhook-secret"
+              type="text"
+              placeholder="Paste your Teller signing secret"
+              bind:value={tellerWebhookSecret}
+            />
+            <span class="hint"
+              >Found under Webhooks > Signing secrets on your Teller Dashboard. Used to verify that
+              incoming webhooks are from Teller.</span
+            >
+          </div>
+        {:else if currentStep === 5}
+          <h2>Step 5: Deploy to Vercel</h2>
+          <p>
+            Provide a one-time <a
+              href="https://vercel.com/account/tokens"
+              target="_blank"
+              rel="noopener noreferrer">Vercel API token</a
+            >
+            so Radiant can set environment variables on your project and trigger a redeployment.
+          </p>
+
+          <div class="info-note" style="margin-bottom: 1.25rem;">
+            <strong>How to create a Vercel token:</strong>
+            <ol style="margin: 0.5rem 0 0; padding-left: 1.25rem;">
+              <li>
+                Go to <a
+                  href="https://vercel.com/account/tokens"
+                  target="_blank"
+                  rel="noopener noreferrer">vercel.com/account/tokens</a
+                >.
+              </li>
+              <li>
+                Click <strong>Create Token</strong>, give it a name (e.g. "Radiant Setup"), and set
+                an expiration. A short expiration (1 day) is fine — this token is only used once.
+              </li>
+              <li>Copy the token and paste it below.</li>
+            </ol>
+          </div>
+
+          <div class="form-group">
+            <label for="vercel-token">Vercel API Token</label>
+            <input
+              id="vercel-token"
+              type="password"
+              placeholder="Paste your Vercel token"
+              bind:value={vercelToken}
+            />
+            <span class="hint"
+              >Used once to set env vars and trigger a deploy. Not stored anywhere.</span
+            >
+          </div>
+
+          <button
+            class="btn btn-primary"
+            onclick={handleDeploy}
+            disabled={deploying || !vercelToken}
+          >
+            {#if deploying}Deploying...{:else}Deploy{/if}
+          </button>
+
+          {#if deployError}
+            <div class="message message-error">{deployError}</div>
+          {/if}
+
+          <!-- Deployment pipeline stages -->
+          {#if deployStage !== 'idle'}
+            <div class="deploy-stages">
+              <div
+                class="deploy-stage"
+                class:active={deployStage === 'setting-env'}
+                class:done={deployStage === 'deploying' || deployStage === 'ready'}
+              >
+                <span class="stage-icon"
+                  >{#if deployStage === 'setting-env'}&#9675;{:else}&#10003;{/if}</span
+                >
+                Setting environment variables
+              </div>
+              <div
+                class="deploy-stage"
+                class:active={deployStage === 'deploying'}
+                class:done={deployStage === 'ready'}
+              >
+                <span class="stage-icon"
+                  >{#if deployStage === 'deploying'}&#9675;{:else if deployStage === 'ready'}&#10003;{:else}&#8226;{/if}</span
+                >
+                Deploying to Vercel
+              </div>
+              <div class="deploy-stage" class:active={deployStage === 'ready'}>
+                <span class="stage-icon"
+                  >{#if deployStage === 'ready'}&#10003;{:else}&#8226;{/if}</span
+                >
+                Ready
+              </div>
+            </div>
+          {/if}
+
+          {#if deployStage === 'ready'}
+            <div class="message message-success">
+              Deployment complete! Go to <a href="/">Radiant Finance</a> to get started.
+            </div>
+          {/if}
         {/if}
-      {/if}
-    </div>
-
-    <!-- Step navigation -->
-    <div class="step-nav">
-      {#if currentStep > 1}
-        <button class="btn btn-back" onclick={() => currentStep--}>Back</button>
-      {:else}
-        <div></div>
-      {/if}
-
-      {#if currentStep < 3}
-        <button class="btn btn-primary" onclick={() => currentStep++}>Continue</button>
-      {:else if currentStep === 3}
-        <button class="btn btn-primary" onclick={() => currentStep++} disabled={!canContinueStep3}
-          >Continue</button
-        >
-      {:else if currentStep === 4}
-        <button class="btn btn-primary" onclick={() => currentStep++} disabled={!canContinueStep4}
-          >Continue</button
-        >
-      {/if}
-    </div>
-
-    <!-- Security notice (first-time setup only) -->
-    {#if isFirstSetup}
-      <div class="security-notice">
-        <strong>Security:</strong> Your Supabase and Teller credentials are stored as environment variables
-        on Vercel and are never sent to any third-party service. The Vercel token is used once and is
-        not persisted.
       </div>
-    {/if}
+
+      <!-- Step navigation -->
+      <div class="step-nav">
+        {#if currentStep > 1}
+          <button class="btn btn-back" onclick={() => currentStep--}>Back</button>
+        {:else}
+          <div></div>
+        {/if}
+
+        {#if currentStep < 3}
+          <button class="btn btn-primary" onclick={() => currentStep++}>Continue</button>
+        {:else if currentStep === 3}
+          <button class="btn btn-primary" onclick={() => currentStep++} disabled={!canContinueStep3}
+            >Continue</button
+          >
+        {:else if currentStep === 4}
+          <button class="btn btn-primary" onclick={() => currentStep++} disabled={!canContinueStep4}
+            >Continue</button
+          >
+        {/if}
+      </div>
+
+      <!-- Security notice (first-time setup only) -->
+      {#if isFirstSetup}
+        <div class="security-notice">
+          <strong>Security:</strong> Your Supabase and Teller credentials are stored as environment variables
+          on Vercel and are never sent to any third-party service. The Vercel token is used once and is
+          not persisted.
+        </div>
+      {/if}
+    </div>
   </div>
-</div>
+{/if}
 
 <style>
   /* ═══════════════════════════════════════════════════════════════════════════════════

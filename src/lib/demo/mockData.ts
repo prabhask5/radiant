@@ -149,7 +149,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
   // ---------------------------------------------------------------------------
   //  1. Teller Enrollments
   // ---------------------------------------------------------------------------
-  await db.table('teller_enrollments').bulkPut([
+  await db.table('tellerEnrollments').bulkPut([
     {
       ...base(ENROLLMENT_CHASE),
       enrollment_id: 'enr_chase_demo_001',
@@ -769,7 +769,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
   //  6. Budget Periods (current month with varying spend levels)
   // ---------------------------------------------------------------------------
   const month = currentMonth();
-  await db.table('budget_periods').bulkPut([
+  await db.table('budgetPeriods').bulkPut([
     budgetPeriod('01', BUD_GROCERIES, month, '600.00', '408.51'), // 68% — on track
     budgetPeriod('02', BUD_DINING, month, '300.00', '169.67'), // 57% — on track
     budgetPeriod('03', BUD_TRANSPORT, month, '200.00', '108.27'), // 54% — moderate
@@ -781,7 +781,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
   // ---------------------------------------------------------------------------
   //  7. Recurring Transactions
   // ---------------------------------------------------------------------------
-  await db.table('recurring_transactions').bulkPut([
+  await db.table('recurringTransactions').bulkPut([
     {
       ...base('demo-rec-rent'),
       account_id: ACCT_CHASE_CHECKING,
@@ -858,7 +858,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
   //  8. Net Worth Snapshots (6 months, growth trend)
   // ---------------------------------------------------------------------------
   await db
-    .table('net_worth_snapshots')
+    .table('netWorthSnapshots')
     .bulkPut([
       netWorth('01', 5, '30200.00', '2800.00', '27400.00'),
       netWorth('02', 4, '31500.00', '2650.00', '28850.00'),
@@ -869,28 +869,9 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     ]);
 
   // ---------------------------------------------------------------------------
-  //  9. User Settings (singleton)
+  //  9. Category Rules
   // ---------------------------------------------------------------------------
-  await db.table('user_settings').bulkPut([
-    {
-      ...base('demo-settings'),
-      currency: 'USD',
-      locale: 'en-US',
-      teller_app_id: null,
-      teller_environment: 'sandbox',
-      teller_cert_path: null,
-      auto_sync_enabled: true,
-      auto_sync_interval_minutes: 30,
-      auto_categorize: true,
-      show_cents: true,
-      fiscal_month_start_day: 1
-    }
-  ]);
-
-  // ---------------------------------------------------------------------------
-  //  10. Category Rules
-  // ---------------------------------------------------------------------------
-  await db.table('category_rules').bulkPut([
+  await db.table('categoryRules').bulkPut([
     {
       ...base('demo-rule-netflix'),
       category_id: CAT_SUBSCRIPTIONS,

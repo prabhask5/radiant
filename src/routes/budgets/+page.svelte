@@ -2036,6 +2036,44 @@
     }
   }
 
+  @media (max-width: 480px) {
+    .budgets-page {
+      padding: 1rem;
+      padding-bottom: 5rem;
+    }
+
+    .budgets-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .overview-card {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 1rem;
+      gap: 1rem;
+    }
+
+    .overview-ring-container {
+      width: 110px;
+      height: 110px;
+    }
+
+    .overview-details {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .overview-divider {
+      width: 60px;
+      height: 1px;
+    }
+
+    .budget-card {
+      padding: 1rem;
+    }
+  }
+
   @media (max-width: 380px) {
     .toggles-row {
       flex-direction: column;

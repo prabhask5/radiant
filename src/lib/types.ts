@@ -29,7 +29,6 @@ export type {
   RecurringTransaction,
   NetWorthSnapshot,
   SpendingInsight,
-  UserSettings,
   CategoryRule
 } from './types.generated';
 

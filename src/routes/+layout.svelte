@@ -27,6 +27,7 @@
   /* ── SvelteKit Utilities ── */
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
+  import { goto } from '$app/navigation';
 
   /* ── Stellar Engine — Auth & Stores ── */
   import { lockSingleUser, resolveFirstName, resolveAvatarInitial } from 'stellar-drive/auth';
@@ -278,19 +279,13 @@
     // Lock the single-user session (stops engine, resets auth state, does NOT destroy data)
     await lockSingleUser();
 
-    // Inject a raw DOM overlay that survives the full-page navigation.
-    // The Svelte overlay gets destroyed when the page unloads, causing a
-    // brief flash of the blank background. This raw element persists in
-    // the DOM until the browser replaces it with the login page's paint.
-    const persistentOverlay = document.createElement('div');
-    persistentOverlay.style.cssText =
-      'position:fixed;inset:0;z-index:99999;background:#0a0806;display:flex;align-items:center;justify-content:center;';
-    persistentOverlay.innerHTML =
-      '<p style="color:rgba(255,255,255,0.4);font-size:1.1rem;letter-spacing:0.1em;">Locking...</p>';
-    document.body.appendChild(persistentOverlay);
+    // Client-side navigate to login — keeps the layout mounted so the
+    // sign-out overlay persists seamlessly (no flicker between pages).
+    await goto('/login', { invalidateAll: true });
 
-    // Navigate to login
-    window.location.href = '/login';
+    // Dismiss the overlay now that the login page has rendered underneath
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    isSigningOut = false;
   }
 
   /**
@@ -318,7 +313,7 @@
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="app" class:authenticated={isAuthenticated} class:loading={$authState.isLoading}>
   <!-- ── Auth Loading Overlay — crystal-cutting spinner ── -->
-  {#if $authState.isLoading && !isAuthPage}
+  {#if $authState.isLoading}
     <div class="auth-loading-overlay">
       <div class="crystal-loader">
         <div class="crystal-facet facet-1"></div>
@@ -1136,6 +1131,10 @@
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.04);
+    /* Absolutely center the nav regardless of brand/actions widths */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   .nav-link {

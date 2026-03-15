@@ -29,7 +29,6 @@ import type {
   Budget,
   RecurringTransaction,
   NetWorthSnapshot,
-  UserSettings,
   CategoryRule,
   TellerEnrollment
 } from '$lib/types';
@@ -443,74 +442,6 @@ function createNetWorthStore() {
 /** Reactive store of all {@link NetWorthSnapshot} rows. */
 export const netWorthStore = createNetWorthStore();
 onSyncComplete(() => netWorthStore.refresh());
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   USER SETTINGS STORE (SINGLETON)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/**
- * Create the reactive user settings store (singleton).
- *
- * The `user_settings` table holds at most one row per user.
- * The `update` method performs an upsert — updating the existing
- * row if present, or creating one with sensible defaults otherwise.
- *
- * @returns A collection store with a singleton-aware `update` method.
- */
-function createSettingsStore() {
-  const store = createCollectionStore<UserSettings>({
-    load: () => engineGetAll('user_settings') as unknown as Promise<UserSettings[]>
-  });
-
-  return {
-    ...store,
-    /**
-     * Upsert user settings.
-     *
-     * If a settings row already exists it is partially updated.
-     * Otherwise a new row is created with application defaults
-     * merged with the provided overrides.
-     *
-     * @param data - Partial settings to apply.
-     */
-    async update(data: Partial<UserSettings>) {
-      debug('log', '[DATA] user_settings — update (upsert)');
-      const current = (await engineGetAll('user_settings')) as unknown as UserSettings[];
-      if (current.length > 0) {
-        debug('log', '[DATA] user_settings — updating existing row', { id: current[0].id });
-        await engineUpdate('user_settings', current[0].id, data);
-      } else {
-        const id = generateId();
-        debug('log', '[DATA] user_settings — creating default row', { id });
-        await engineCreate('user_settings', {
-          id,
-          currency: 'USD',
-          locale: 'en-US',
-          auto_sync_enabled: true,
-          auto_sync_interval_minutes: 60,
-          auto_categorize: true,
-          show_cents: true,
-          fiscal_month_start_day: 1,
-          ...data
-        });
-      }
-      await store.load();
-      debug('log', '[DATA] user_settings — update complete');
-    },
-    /**
-     * Reload user settings from the local database.
-     */
-    async refresh() {
-      debug('log', '[DATA] user_settings — refreshing');
-      await store.load();
-      debug('log', '[DATA] user_settings — refresh complete');
-    }
-  };
-}
-
-/** Reactive store of the singleton {@link UserSettings} row. */
-export const settingsStore = createSettingsStore();
-onSyncComplete(() => settingsStore.refresh());
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CATEGORY RULES STORE
