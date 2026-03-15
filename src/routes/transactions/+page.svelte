@@ -458,44 +458,44 @@
   <!-- ─── Header ─── -->
   <header class="page-header">
     <h1 class="page-title">Transactions</h1>
-    <div class="month-nav-group">
-      {#if !isCurrentMonth}
-        <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}>
-          Today
-        </button>
-      {/if}
-      <div class="month-nav">
-        <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M12.5 15L7.5 10L12.5 5"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </button>
-        <span class="month-label">{formatMonth(selectedMonth)}</span>
-        <button
-          class="month-arrow"
-          onclick={nextMonth}
-          disabled={isCurrentMonth}
-          aria-label="Next month"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M7.5 15L12.5 10L7.5 5"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </button>
-      </div>
-    </div>
   </header>
+
+  <!-- ─── Month Navigation ─── -->
+  <div class="month-nav-group">
+    {#if !isCurrentMonth}
+      <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}> Today </button>
+    {/if}
+    <div class="month-nav">
+      <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path
+            d="M12.5 15L7.5 10L12.5 5"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+      <span class="month-label">{formatMonth(selectedMonth)}</span>
+      <button
+        class="month-arrow"
+        onclick={nextMonth}
+        disabled={isCurrentMonth}
+        aria-label="Next month"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path
+            d="M7.5 15L12.5 10L7.5 5"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
+  </div>
 
   <!-- ─── Search & Filter Bar ─── -->
   <div class="filter-bar">
@@ -1088,7 +1088,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 0 1rem;
+    padding: 0 0 0.5rem;
   }
 
   .page-title {
@@ -1151,6 +1151,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    padding-bottom: 0.75rem;
   }
 
   .today-btn {
@@ -1278,6 +1279,7 @@
 
   .filter-row {
     display: flex;
+    align-items: center;
     gap: 0.4rem;
   }
 
@@ -1846,7 +1848,7 @@
 
   .detail-row {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 0.75rem;
   }
 
@@ -1887,12 +1889,12 @@
 
   .detail-select {
     width: 100%;
-    height: 32px;
+    height: 28px;
     border-radius: var(--txn-radius-sm);
     border: 1px solid var(--txn-border);
     background: var(--txn-surface);
     color: var(--txn-text);
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     font-family: inherit;
     padding: 0 1.5rem 0 0.5rem;
     outline: none;
@@ -2260,7 +2262,9 @@
     align-items: center;
     justify-content: center;
     width: 32px;
+    min-width: 32px;
     height: 32px;
+    flex-shrink: 0;
     border-radius: 50%;
     border: 1px solid var(--txn-border);
     background: var(--txn-frost);
@@ -2272,6 +2276,7 @@
       border-color 0.2s;
     -webkit-tap-highlight-color: transparent;
     margin-left: 0.5rem;
+    padding: 0;
   }
 
   .select-mode-btn:hover,
@@ -2432,12 +2437,12 @@
 
   .detail-input {
     width: 100%;
-    height: 32px;
+    height: 28px;
     border-radius: var(--txn-radius-sm);
     border: 1px solid var(--txn-border);
     background: var(--txn-surface);
     color: var(--txn-text);
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     font-family: inherit;
     padding: 0 0.5rem;
     outline: none;

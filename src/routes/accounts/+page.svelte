@@ -1105,6 +1105,18 @@
   //                           LIFECYCLE
   // ==========================================================================
 
+  /** Lock body scroll when any modal is open. */
+  const anyModalOpen = $derived(showManualModal || showCSVModal);
+
+  $effect(() => {
+    if (browser && anyModalOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  });
+
   onMount(async () => {
     await Promise.all([accountsStore.refresh(), enrollmentsStore.refresh()]);
     loaded = true;
@@ -1632,10 +1644,10 @@
                         title="Click to rename"
                       >
                         {account.name}
-                        {#if account.last_four}
-                          <span class="acct-last4">{account.last_four}</span>
-                        {/if}
                       </button>
+                      {#if account.last_four}
+                        <span class="acct-last4">{account.last_four}</span>
+                      {/if}
                     {/if}
                     <span class="acct-type-badge type-{account.type}">
                       {subtypeLabel(account.subtype)}
@@ -2265,6 +2277,13 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    width: 100%;
+  }
+
+  .header-actions .connect-btn,
+  .header-actions .manual-btn {
+    flex: 1;
+    justify-content: center;
   }
 
   /* ── Connect Button ─────────────────────────────────────────────────────── */
@@ -2946,8 +2965,8 @@
   .acct-top {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-width: 0;
   }
 
   .acct-name {
@@ -2958,6 +2977,8 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+    flex-shrink: 1;
     cursor: text;
     border-radius: 4px;
     padding: 1px 4px;
@@ -3031,8 +3052,9 @@
     font-weight: 400;
     color: var(--text-muted);
     font-size: 0.8rem;
-    margin-left: 0.15rem;
+    flex-shrink: 0;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .acct-last4::before {
@@ -3229,6 +3251,21 @@
   /* ═══════════════════════════════════════════════════════════════════════════
      REAL-TIME ANIMATION KEYFRAMES
      ═══════════════════════════════════════════════════════════════════════════ */
+
+  /* ── Teller Connect iframe constraint ──────────────────────────────────── */
+  :global(.teller-connect-iframe),
+  :global(iframe[src*='teller.io']) {
+    max-width: 100vw !important;
+    max-height: calc(
+      100vh - env(safe-area-inset-top, 47px) - env(safe-area-inset-bottom, 0px)
+    ) !important;
+    width: min(100vw, 420px) !important;
+    height: min(
+      calc(100vh - env(safe-area-inset-top, 47px) - env(safe-area-inset-bottom, 0px)),
+      700px
+    ) !important;
+    top: env(safe-area-inset-top, 47px) !important;
+  }
 
   :global(.syncable-item) {
     transition:
