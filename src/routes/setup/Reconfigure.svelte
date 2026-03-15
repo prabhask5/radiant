@@ -300,8 +300,10 @@
           spellcheck="false"
         />
         <span class="input-hint"
-          >Found under Settings &gt; API &gt; service_role. Used by the server for bank data writes.
-          Leave blank to keep existing value.</span
+          >Found under Project Settings &gt; Configuration &gt; API Keys &gt; Legacy anon and
+          service role keys tab. Copy the <code>service_role</code> JWT (starts with
+          <code>eyJhbGciOi...</code>). Used by the server for bank data writes. Leave blank to keep
+          existing value.</span
         >
       </div>
 

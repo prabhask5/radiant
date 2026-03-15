@@ -397,11 +397,13 @@
               bind:value={supabaseServiceRoleKey}
             />
             <span class="hint"
-              >Found under <strong>Settings &gt; API &gt; Project API keys &gt; service_role</strong
-              >. This key bypasses Row-Level Security and is used by the server to write bank data
-              (accounts, transactions, balances) to Supabase when webhooks arrive from Teller. It
-              enables real-time sync across all your devices. This key is stored as a Vercel
-              environment variable and is <strong>never</strong> exposed to the browser.</span
+              >Found under <strong>Project Settings &gt; Configuration &gt; API Keys</strong>, then
+              click the <strong>Legacy anon and service role keys</strong> tab. Copy the
+              <code>service_role</code> JWT (starts with <code>eyJhbGciOi...</code>). This key
+              bypasses Row-Level Security and is used by the server to write bank data (accounts,
+              transactions, balances) to Supabase when webhooks arrive from Teller. It enables
+              real-time sync across all your devices. Stored as a Vercel environment variable and
+              <strong>never</strong> exposed to the browser.</span
             >
           </div>
 
