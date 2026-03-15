@@ -1666,7 +1666,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 20px;
+    padding: 0 20px 1rem;
     position: sticky;
     top: 0;
     z-index: 10;
@@ -2774,10 +2774,6 @@
   /* ================================================================= */
 
   @media (max-width: 640px) {
-    .profile-page {
-      padding-left: 0.25rem;
-      padding-right: 0.25rem;
-    }
     .field-row {
       flex-direction: column;
     }
@@ -2868,10 +2864,6 @@
   /* ================================================================= */
 
   @media (min-width: 400px) and (max-width: 430px) {
-    .profile-page {
-      padding-left: 0.5rem;
-      padding-right: 0.5rem;
-    }
     .settings-card {
       padding: 1.5rem;
     }
@@ -2895,10 +2887,6 @@
   /* ================================================================= */
 
   @media (min-width: 430px) and (max-width: 640px) {
-    .profile-page {
-      padding-left: 0.75rem;
-      padding-right: 0.75rem;
-    }
     .settings-card {
       padding: 1.75rem;
     }

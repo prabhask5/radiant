@@ -1424,6 +1424,7 @@
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
+    padding: 2rem;
   }
 
   .main.with-nav {
@@ -1437,9 +1438,23 @@
   }
 
   @media (max-width: 767px) {
+    .main {
+      padding: 1rem;
+      padding-left: max(1rem, env(safe-area-inset-left, 1rem));
+      padding-right: max(1rem, env(safe-area-inset-right, 1rem));
+    }
     .main.with-nav {
       padding-top: calc(env(safe-area-inset-top, 0px) + 28px);
       padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) * 0.6);
+    }
+  }
+
+  @media (max-width: 375px) {
+    .main {
+      padding: 0.875rem;
+    }
+    .main.with-nav {
+      padding-top: calc(env(safe-area-inset-top, 20px) + 16px);
     }
   }
 

@@ -1376,9 +1376,6 @@
           class:negative={netPosition < 0}
         >
           {formatCurrency(Math.abs(netPosition))}
-          {#if netPosition < 0}
-            <span class="net-sign">(deficit)</span>
-          {/if}
         </span>
       </div>
     </div>
@@ -2215,7 +2212,7 @@
     --border-interactive: rgba(180, 150, 80, 0.2);
 
     position: relative;
-    padding: 1rem 1rem 6rem;
+    padding: 0 0 6rem;
     background: transparent;
     font-family: var(
       --font-body,
@@ -2612,13 +2609,6 @@
     color: var(--ruby);
   }
 
-  .net-sign {
-    font-size: 0.7rem;
-    font-weight: 400;
-    opacity: 0.7;
-    margin-left: 0.25rem;
-  }
-
   .total-divider {
     width: 1px;
     height: 36px;
@@ -2741,6 +2731,8 @@
     color: #5c8ce8;
     background: rgba(92, 140, 232, 0.1);
     border-color: rgba(92, 140, 232, 0.2);
+    font-size: 0.68rem;
+    padding: 0.25rem 0.6rem;
   }
 
   /* ── Disconnect Button ──────────────────────────────────────────────────── */
@@ -3148,7 +3140,7 @@
   /* ── Responsive ─────────────────────────────────────────────────────────── */
   @media (max-width: 640px) {
     .accounts-page {
-      padding: 1rem 1rem 5rem;
+      padding-bottom: 5rem;
     }
 
     .page-header {

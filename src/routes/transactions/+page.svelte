@@ -458,63 +458,43 @@
   <!-- ─── Header ─── -->
   <header class="page-header">
     <h1 class="page-title">Transactions</h1>
-    <div class="month-nav">
-      <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M12.5 15L7.5 10L12.5 5"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-      <span class="month-label">{formatMonth(selectedMonth)}</span>
-      <button
-        class="month-arrow"
-        onclick={nextMonth}
-        disabled={isCurrentMonth}
-        aria-label="Next month"
-      >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M7.5 15L12.5 10L7.5 5"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-    </div>
-    <button
-      class="select-mode-btn"
-      class:active={selectionMode}
-      onclick={() => {
-        if (selectionMode) clearSelection();
-        else selectionMode = true;
-      }}
-      aria-label={selectionMode ? 'Exit selection' : 'Select transactions'}
-    >
-      {#if selectionMode}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path
-            d="M4 4L12 12M12 4L4 12"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          />
-        </svg>
-      {:else}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" />
-          <rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" />
-          <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" />
-          <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" />
-        </svg>
+    <div class="month-nav-group">
+      {#if !isCurrentMonth}
+        <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}>
+          Today
+        </button>
       {/if}
-    </button>
+      <div class="month-nav">
+        <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M12.5 15L7.5 10L12.5 5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <span class="month-label">{formatMonth(selectedMonth)}</span>
+        <button
+          class="month-arrow"
+          onclick={nextMonth}
+          disabled={isCurrentMonth}
+          aria-label="Next month"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M7.5 15L12.5 10L7.5 5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
   </header>
 
   <!-- ─── Search & Filter Bar ─── -->
@@ -571,6 +551,66 @@
         <option value="posted">Posted</option>
         <option value="pending">Pending</option>
       </select>
+
+      <button
+        class="select-mode-btn"
+        class:active={selectionMode}
+        onclick={() => {
+          if (selectionMode) clearSelection();
+          else selectionMode = true;
+        }}
+        aria-label={selectionMode ? 'Exit selection' : 'Select transactions'}
+      >
+        {#if selectionMode}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M4 4L12 12M12 4L4 12"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+        {:else}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect
+              x="2"
+              y="2"
+              width="5"
+              height="5"
+              rx="1"
+              stroke="currentColor"
+              stroke-width="1.3"
+            />
+            <rect
+              x="9"
+              y="2"
+              width="5"
+              height="5"
+              rx="1"
+              stroke="currentColor"
+              stroke-width="1.3"
+            />
+            <rect
+              x="2"
+              y="9"
+              width="5"
+              height="5"
+              rx="1"
+              stroke="currentColor"
+              stroke-width="1.3"
+            />
+            <rect
+              x="9"
+              y="9"
+              width="5"
+              height="5"
+              rx="1"
+              stroke="currentColor"
+              stroke-width="1.3"
+            />
+          </svg>
+        {/if}
+      </button>
     </div>
   </div>
 
@@ -932,33 +972,33 @@
       {/if}
     </div>
   {/if}
-
-  <!-- ─── Floating Selection Bar ─── -->
-  {#if selectionMode && selectedIds.size > 0}
-    <div class="selection-bar">
-      <div class="selection-bar-inner">
-        <span class="selection-count">{selectedIds.size}</span>
-        <button class="selection-select-all" onclick={selectAllVisible}>
-          {selectedIds.size === visibleTransactions.length ? 'Deselect all' : 'Select all'}
-        </button>
-        <div class="selection-spacer"></div>
-        <button class="selection-delete" onclick={bulkDeleteSelected}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M2.5 3.5H11.5M5 3.5V2.5C5 2.224 5.224 2 5.5 2H8.5C8.776 2 9 2.224 9 2.5V3.5M5.5 6V10.5M8.5 6V10.5M3.5 3.5L4 11.5C4 11.776 4.224 12 4.5 12H9.5C9.776 12 10 11.776 10 11.5L10.5 3.5"
-              stroke="currentColor"
-              stroke-width="1.1"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          Delete
-        </button>
-        <button class="selection-cancel" onclick={clearSelection}>Cancel</button>
-      </div>
-    </div>
-  {/if}
 </div>
+
+<!-- ─── Floating Selection Bar (outside page container to avoid clipping) ─── -->
+{#if selectionMode && selectedIds.size > 0}
+  <div class="selection-bar">
+    <div class="selection-bar-inner">
+      <span class="selection-count">{selectedIds.size}</span>
+      <button class="selection-select-all" onclick={selectAllVisible}>
+        {selectedIds.size === visibleTransactions.length ? 'Deselect all' : 'Select all'}
+      </button>
+      <div class="selection-spacer"></div>
+      <button class="selection-delete" onclick={bulkDeleteSelected}>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path
+            d="M2.5 3.5H11.5M5 3.5V2.5C5 2.224 5.224 2 5.5 2H8.5C8.776 2 9 2.224 9 2.5V3.5M5.5 6V10.5M8.5 6V10.5M3.5 3.5L4 11.5C4 11.776 4.224 12 4.5 12H9.5C9.776 12 10 11.776 10 11.5L10.5 3.5"
+            stroke="currentColor"
+            stroke-width="1.1"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        Delete
+      </button>
+      <button class="selection-cancel" onclick={clearSelection}>Cancel</button>
+    </div>
+  </div>
+{/if}
 
 <!-- ========================================================================= -->
 <!--                            SCOPED STYLES                                  -->
@@ -997,10 +1037,7 @@
      ═══════════════════════════════════════════════════════════════════════════ */
 
   .txn-page {
-    width: 100%;
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 1rem 1rem 6rem;
+    padding: 0 0 6rem;
     opacity: 0;
     transform: translateY(12px);
     transition:
@@ -1051,7 +1088,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1.25rem 0 1rem;
+    padding: 0 0 1rem;
   }
 
   .page-title {
@@ -1108,6 +1145,34 @@
     min-width: 120px;
     text-align: center;
     letter-spacing: 0.01em;
+  }
+
+  .month-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .today-btn {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--txn-citrine);
+    background: rgba(200, 160, 60, 0.08);
+    border: 1px solid rgba(200, 160, 60, 0.15);
+    border-radius: 6px;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .today-btn:hover {
+    background: rgba(200, 160, 60, 0.15);
+    border-color: rgba(200, 160, 60, 0.25);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -2068,11 +2133,6 @@
   }
 
   @media (min-width: 768px) {
-    .txn-page {
-      padding-left: 1.5rem;
-      padding-right: 1.5rem;
-    }
-
     .page-title {
       font-size: 1.75rem;
     }
@@ -2105,11 +2165,6 @@
      ═══════════════════════════════════════════════════════════════════════════ */
 
   @media (max-width: 480px) {
-    .txn-page {
-      padding-left: 0.75rem;
-      padding-right: 0.75rem;
-    }
-
     .filter-row {
       flex-wrap: wrap;
     }
@@ -2129,11 +2184,6 @@
      ═══════════════════════════════════════════════════════════════════════════ */
 
   @media (max-width: 380px) {
-    .txn-page {
-      padding-left: 0.6rem;
-      padding-right: 0.6rem;
-    }
-
     .page-title {
       font-size: 1.25rem;
     }

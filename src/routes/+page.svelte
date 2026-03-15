@@ -139,10 +139,7 @@
      LAYOUT
      ────────────────────────────────────────────────────────────────────────── */
   .dashboard {
-    max-width: 960px;
-    width: 100%;
-    margin: 0 auto;
-    padding: 1rem 12px 80px;
+    padding: 0 0 80px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -151,7 +148,6 @@
 
   @media (min-width: 768px) {
     .dashboard {
-      padding: 1rem 24px 80px;
       gap: 24px;
     }
   }
