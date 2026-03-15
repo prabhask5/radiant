@@ -1189,6 +1189,20 @@
     color: var(--color-primary-light, #e8b94a);
   }
 
+  .deploy-stage.active .stage-icon {
+    animation: stagePulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes stagePulse {
+    0%,
+    100% {
+      opacity: 0.4;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
   .deploy-stage.done {
     opacity: 1;
     color: #34d399;
