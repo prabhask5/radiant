@@ -8,7 +8,7 @@
  * When the user navigates to `/demo`, the engine activates demo mode:
  * 1. Creates a fake offline auth session using {@link demoConfig.mockProfile}.
  * 2. Calls {@link seedDemoData} to populate IndexedDB with realistic
- *    financial data (accounts, transactions, budgets, etc.).
+ *    financial data (enrollments, accounts, categories, transactions).
  * 3. The app runs fully offline — no Supabase calls, no sync.
  *
  * Demo mode persists until the user explicitly signs out or clears storage.
@@ -29,8 +29,7 @@ import { seedDemoData } from './mockData';
  * Demo-mode configuration for Radiant Finance.
  *
  * @property seedData - Async function that populates the Dexie database with
- *   mock financial records (enrollments, accounts, transactions, budgets,
- *   recurring transactions, net-worth snapshots, settings, and category rules).
+ *   mock financial records (enrollments, accounts, categories, transactions).
  * @property mockProfile - The fake user profile displayed in demo mode.
  *   Uses a themed email and generic name so the demo feels branded.
  */

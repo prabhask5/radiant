@@ -18,6 +18,7 @@
  * @see https://teller.io/docs/api/authentication
  */
 
+import https from 'node:https';
 import type {
   TellerAccount,
   TellerAccountBalances,
@@ -34,31 +35,100 @@ import type {
 const TELLER_API_BASE = 'https://api.teller.io';
 
 /**
- * Build the fetch options for a Teller API request.
+ * Create an HTTPS agent with mTLS client certificate if available.
  *
- * Constructs a `RequestInit` with Basic auth headers using the enrollment's
- * access token as the username (password is empty). The mTLS client certificate
- * is handled at the infrastructure layer, not in application code.
+ * Teller requires mutual TLS in `development` and `production` environments.
+ * The `TELLER_CERT` and `TELLER_KEY` env vars must contain the PEM-encoded
+ * client certificate and private key respectively.
  *
- * @param accessToken - The enrollment-specific access token from Teller Connect.
- * @returns A `RequestInit` object with authorization and content-type headers.
+ * In `sandbox` mode, mTLS is not required and the agent is created without
+ * certificate configuration.
  */
-function tellerFetchOptions(accessToken: string): RequestInit {
+function getTellerAgent(): https.Agent | undefined {
+  const cert = process.env.TELLER_CERT;
+  const key = process.env.TELLER_KEY;
+
+  if (!cert || !key) {
+    return undefined;
+  }
+
+  return new https.Agent({
+    cert,
+    key,
+    keepAlive: true
+  });
+}
+
+/** Cached HTTPS agent — created once, reused across requests. */
+let _agent: https.Agent | undefined | null = null;
+
+function getAgent(): https.Agent | undefined {
+  if (_agent === null) {
+    _agent = getTellerAgent();
+  }
+  return _agent;
+}
+
+/**
+ * Make an authenticated request to the Teller API with mTLS support.
+ *
+ * Uses Node.js `https.request` to support client certificates, since the
+ * built-in `fetch` does not support custom TLS configuration.
+ *
+ * @param url - The full Teller API URL.
+ * @param accessToken - The enrollment-specific access token from Teller Connect.
+ * @param method - HTTP method (default: GET).
+ * @returns The parsed JSON response.
+ * @throws {TellerApiError} If the Teller API returns a non-2xx response.
+ */
+async function tellerRequest<T>(
+  url: string,
+  accessToken: string,
+  method: string = 'GET'
+): Promise<{ status: number; data: T }> {
   const credentials = Buffer.from(`${accessToken}:`).toString('base64');
+  const agent = getAgent();
+  const parsed = new URL(url);
 
-  const options: RequestInit = {
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      'Content-Type': 'application/json'
-    }
-  };
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: parsed.hostname,
+        port: 443,
+        path: parsed.pathname + parsed.search,
+        method,
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          'Content-Type': 'application/json'
+        },
+        ...(agent ? { agent } : {})
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf-8');
+          const status = res.statusCode ?? 500;
 
-  // In production, mTLS is handled by the deployment environment
-  // (e.g., Vercel Edge Functions with client certificates configured)
-  // The TELLER_CERT and TELLER_KEY env vars provide the certificate chain
-  // For Node.js environments, you'd use an https.Agent with cert/key
+          if (status >= 200 && status < 300) {
+            try {
+              resolve({ status, data: status === 204 ? (undefined as T) : JSON.parse(body) });
+            } catch {
+              resolve({ status, data: undefined as T });
+            }
+          } else {
+            reject(new TellerApiError(status, body));
+          }
+        });
+      }
+    );
 
-  return options;
+    req.on('error', (err) => {
+      reject(new Error(`Teller request failed: ${err.message}`));
+    });
+
+    req.end();
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -78,11 +148,12 @@ function tellerFetchOptions(accessToken: string): RequestInit {
  */
 export async function listAccounts(accessToken: string): Promise<TellerAccount[]> {
   console.log('[TELLER] Fetching accounts for enrollment');
-  const res = await fetch(`${TELLER_API_BASE}/accounts`, tellerFetchOptions(accessToken));
-  if (!res.ok) throw new TellerApiError(res.status, await res.text());
-  const accounts: TellerAccount[] = await res.json();
-  console.log(`[TELLER] Fetched ${accounts.length} accounts (status ${res.status})`);
-  return accounts;
+  const { status, data } = await tellerRequest<TellerAccount[]>(
+    `${TELLER_API_BASE}/accounts`,
+    accessToken
+  );
+  console.log(`[TELLER] Fetched ${data.length} accounts (status ${status})`);
+  return data;
 }
 
 /**
@@ -95,13 +166,12 @@ export async function listAccounts(accessToken: string): Promise<TellerAccount[]
  */
 export async function getAccount(accessToken: string, accountId: string): Promise<TellerAccount> {
   console.log(`[TELLER] Fetching account ${accountId}`);
-  const res = await fetch(
+  const { status, data } = await tellerRequest<TellerAccount>(
     `${TELLER_API_BASE}/accounts/${accountId}`,
-    tellerFetchOptions(accessToken)
+    accessToken
   );
-  if (!res.ok) throw new TellerApiError(res.status, await res.text());
-  console.log(`[TELLER] Fetched account ${accountId} (status ${res.status})`);
-  return res.json();
+  console.log(`[TELLER] Fetched account ${accountId} (status ${status})`);
+  return data;
 }
 
 /**
@@ -122,13 +192,12 @@ export async function getAccountBalances(
   accountId: string
 ): Promise<TellerAccountBalances> {
   console.log(`[TELLER] Fetching balances for account ${accountId}`);
-  const res = await fetch(
+  const { status, data } = await tellerRequest<TellerAccountBalances>(
     `${TELLER_API_BASE}/accounts/${accountId}/balances`,
-    tellerFetchOptions(accessToken)
+    accessToken
   );
-  if (!res.ok) throw new TellerApiError(res.status, await res.text());
-  console.log(`[TELLER] Fetched balances for account ${accountId} (status ${res.status})`);
-  return res.json();
+  console.log(`[TELLER] Fetched balances for account ${accountId} (status ${status})`);
+  return data;
 }
 
 /**
@@ -149,13 +218,12 @@ export async function getAccountDetails(
   accountId: string
 ): Promise<TellerAccountDetails> {
   console.log(`[TELLER] Fetching details for account ${accountId}`);
-  const res = await fetch(
+  const { status, data } = await tellerRequest<TellerAccountDetails>(
     `${TELLER_API_BASE}/accounts/${accountId}/details`,
-    tellerFetchOptions(accessToken)
+    accessToken
   );
-  if (!res.ok) throw new TellerApiError(res.status, await res.text());
-  console.log(`[TELLER] Fetched details for account ${accountId} (status ${res.status})`);
-  return res.json();
+  console.log(`[TELLER] Fetched details for account ${accountId} (status ${status})`);
+  return data;
 }
 
 /**
@@ -194,16 +262,14 @@ export async function listTransactions(
 
   const qs = params.toString() ? `?${params.toString()}` : '';
   console.log(`[TELLER] Fetching transactions for account ${accountId}${qs ? ` (${qs})` : ''}`);
-  const res = await fetch(
+  const { status, data } = await tellerRequest<TellerTransaction[]>(
     `${TELLER_API_BASE}/accounts/${accountId}/transactions${qs}`,
-    tellerFetchOptions(accessToken)
+    accessToken
   );
-  if (!res.ok) throw new TellerApiError(res.status, await res.text());
-  const transactions: TellerTransaction[] = await res.json();
   console.log(
-    `[TELLER] Fetched ${transactions.length} transactions for account ${accountId} (status ${res.status})`
+    `[TELLER] Fetched ${data.length} transactions for account ${accountId} (status ${status})`
   );
-  return transactions;
+  return data;
 }
 
 /**
@@ -221,15 +287,14 @@ export async function getTransaction(
   transactionId: string
 ): Promise<TellerTransaction> {
   console.log(`[TELLER] Fetching transaction ${transactionId} for account ${accountId}`);
-  const res = await fetch(
+  const { status, data } = await tellerRequest<TellerTransaction>(
     `${TELLER_API_BASE}/accounts/${accountId}/transactions/${transactionId}`,
-    tellerFetchOptions(accessToken)
+    accessToken
   );
-  if (!res.ok) throw new TellerApiError(res.status, await res.text());
   console.log(
-    `[TELLER] Fetched transaction ${transactionId} for account ${accountId} (status ${res.status})`
+    `[TELLER] Fetched transaction ${transactionId} for account ${accountId} (status ${status})`
   );
-  return res.json();
+  return data;
 }
 
 /**
@@ -246,11 +311,12 @@ export async function getTransaction(
  */
 export async function getIdentity(accessToken: string): Promise<TellerIdentity[]> {
   console.log('[TELLER] Fetching identity information');
-  const res = await fetch(`${TELLER_API_BASE}/identity`, tellerFetchOptions(accessToken));
-  if (!res.ok) throw new TellerApiError(res.status, await res.text());
-  const identities: TellerIdentity[] = await res.json();
-  console.log(`[TELLER] Fetched ${identities.length} identity records (status ${res.status})`);
-  return identities;
+  const { status, data } = await tellerRequest<TellerIdentity[]>(
+    `${TELLER_API_BASE}/identity`,
+    accessToken
+  );
+  console.log(`[TELLER] Fetched ${data.length} identity records (status ${status})`);
+  return data;
 }
 
 /**
@@ -266,12 +332,12 @@ export async function getIdentity(accessToken: string): Promise<TellerIdentity[]
  */
 export async function deleteAccount(accessToken: string, accountId: string): Promise<void> {
   console.log(`[TELLER] Deleting account ${accountId}`);
-  const res = await fetch(`${TELLER_API_BASE}/accounts/${accountId}`, {
-    ...tellerFetchOptions(accessToken),
-    method: 'DELETE'
-  });
-  if (!res.ok && res.status !== 204) throw new TellerApiError(res.status, await res.text());
-  console.log(`[TELLER] Deleted account ${accountId} (status ${res.status})`);
+  const { status } = await tellerRequest<void>(
+    `${TELLER_API_BASE}/accounts/${accountId}`,
+    accessToken,
+    'DELETE'
+  );
+  console.log(`[TELLER] Deleted account ${accountId} (status ${status})`);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

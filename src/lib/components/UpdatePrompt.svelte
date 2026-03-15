@@ -190,12 +190,21 @@
 
   @media (max-width: 480px) {
     .update-toast {
-      flex-direction: column;
-      gap: 0.75rem;
       bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
-      left: 0.75rem;
-      right: 0.75rem;
+      left: 0;
+      right: 0;
       transform: none;
+      max-width: 100vw;
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      padding: 0.875rem 1rem;
+      background: rgba(14, 12, 8, 0.96);
+      border-top: 1px solid rgba(212, 160, 57, 0.2);
+      border-bottom: 1px solid rgba(212, 160, 57, 0.12);
+      box-shadow:
+        0 -4px 24px rgba(0, 0, 0, 0.5),
+        0 0 20px rgba(212, 160, 57, 0.08);
     }
 
     @keyframes toastSlideUp {
@@ -211,6 +220,7 @@
 
     .update-text {
       white-space: normal;
+      font-size: 0.8rem;
     }
   }
 </style>

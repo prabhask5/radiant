@@ -9,11 +9,6 @@
  * - **Accounts** — five accounts across checking, savings, and credit cards.
  * - **Categories** — twelve expense/income/transfer categories with icons.
  * - **Transactions** — thirty entries spanning the last 30 days.
- * - **Budgets & Budget Periods** — six monthly budgets with current-month spend.
- * - **Recurring Transactions** — five repeating bills and subscriptions.
- * - **Net Worth Snapshots** — six months of growth-trending snapshots.
- * - **User Settings** — sensible defaults (USD, auto-sync, auto-categorize).
- * - **Category Rules** — three auto-categorization rules.
  *
  * All IDs are prefixed with `demo-` and are deterministic, so `bulkPut` is
  * idempotent — re-running the seed on the same DB is a safe no-op.
@@ -49,30 +44,6 @@ function daysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().slice(0, 10);
-}
-
-/**
- * Return an ISO date string (YYYY-MM-DD) for a date `months` months in the past.
- *
- * @param months - Number of months to subtract from today.
- * @returns Date-only ISO string (e.g. `'2025-12-14'`).
- */
-function monthsAgo(months: number): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() - months);
-  return d.toISOString().slice(0, 10);
-}
-
-/**
- * Return the current month as a `YYYY-MM` string.
- *
- * Used to key budget periods to the current calendar month.
- *
- * @returns Month string (e.g. `'2026-03'`).
- */
-function currentMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /**
@@ -120,14 +91,6 @@ const CAT_SUBSCRIPTIONS = 'demo-cat-subscriptions';
 const CAT_INSURANCE = 'demo-cat-insurance';
 const CAT_TRANSFER = 'demo-cat-transfer';
 
-// Budgets
-const BUD_GROCERIES = 'demo-bud-groceries';
-const BUD_DINING = 'demo-bud-dining';
-const BUD_TRANSPORT = 'demo-bud-transport';
-const BUD_SHOPPING = 'demo-bud-shopping';
-const BUD_ENTERTAINMENT = 'demo-bud-entertainment';
-const BUD_SUBSCRIPTIONS = 'demo-bud-subscriptions';
-
 // =============================================================================
 //                            SEED FUNCTION
 // =============================================================================
@@ -135,9 +98,8 @@ const BUD_SUBSCRIPTIONS = 'demo-bud-subscriptions';
 /**
  * Populate the demo Dexie database with realistic financial mock data.
  *
- * Called once when demo mode is activated. Seeds 10 Dexie tables in sequence
- * (enrollments, accounts, categories, transactions, budgets, budget periods,
- * recurring transactions, net-worth snapshots, user settings, category rules).
+ * Called once when demo mode is activated. Seeds four Dexie tables in sequence
+ * (enrollments, accounts, categories, transactions).
  *
  * Uses `bulkPut` with deterministic `demo-` prefixed IDs, so the function is
  * fully idempotent — calling it multiple times on the same DB is a no-op.
@@ -742,161 +704,6 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'posted'
     )
   ]);
-
-  // ---------------------------------------------------------------------------
-  //  5. Budgets
-  // ---------------------------------------------------------------------------
-  await db
-    .table('budgets')
-    .bulkPut([
-      budget(BUD_GROCERIES, CAT_GROCERIES, 'Groceries', '600.00', '#10b981', 'cart', 1),
-      budget(BUD_DINING, CAT_DINING, 'Dining', '300.00', '#f59e0b', 'utensils', 2),
-      budget(BUD_TRANSPORT, CAT_TRANSPORT, 'Transportation', '200.00', '#3b82f6', 'car', 3),
-      budget(BUD_SHOPPING, CAT_SHOPPING, 'Shopping', '400.00', '#8b5cf6', 'bag', 4),
-      budget(BUD_ENTERTAINMENT, CAT_ENTERTAINMENT, 'Entertainment', '150.00', '#ec4899', 'film', 5),
-      budget(
-        BUD_SUBSCRIPTIONS,
-        CAT_SUBSCRIPTIONS,
-        'Subscriptions',
-        '100.00',
-        '#a855f7',
-        'repeat',
-        6
-      )
-    ]);
-
-  // ---------------------------------------------------------------------------
-  //  6. Budget Periods (current month with varying spend levels)
-  // ---------------------------------------------------------------------------
-  const month = currentMonth();
-  await db.table('budgetPeriods').bulkPut([
-    budgetPeriod('01', BUD_GROCERIES, month, '600.00', '408.51'), // 68% — on track
-    budgetPeriod('02', BUD_DINING, month, '300.00', '169.67'), // 57% — on track
-    budgetPeriod('03', BUD_TRANSPORT, month, '200.00', '108.27'), // 54% — moderate
-    budgetPeriod('04', BUD_SHOPPING, month, '400.00', '240.70'), // 60% — moderate
-    budgetPeriod('05', BUD_ENTERTAINMENT, month, '150.00', '84.98'), // 57% — on track
-    budgetPeriod('06', BUD_SUBSCRIPTIONS, month, '100.00', '41.97') // 42% — under
-  ]);
-
-  // ---------------------------------------------------------------------------
-  //  7. Recurring Transactions
-  // ---------------------------------------------------------------------------
-  await db.table('recurringTransactions').bulkPut([
-    {
-      ...base('demo-rec-rent'),
-      account_id: ACCT_CHASE_CHECKING,
-      category_id: CAT_HOUSING,
-      name: 'Rent - Avalon Apartments',
-      amount: '2200.00',
-      frequency: 'monthly',
-      next_expected_date: nextMonthDay(1),
-      last_occurrence_date: daysAgo(2),
-      is_active: true,
-      is_bill: true,
-      merchant_name: 'Avalon Apartments',
-      notes: null
-    },
-    {
-      ...base('demo-rec-netflix'),
-      account_id: ACCT_CHASE_CREDIT,
-      category_id: CAT_SUBSCRIPTIONS,
-      name: 'Netflix Premium',
-      amount: '15.99',
-      frequency: 'monthly',
-      next_expected_date: nextMonthDay(5),
-      last_occurrence_date: daysAgo(5),
-      is_active: true,
-      is_bill: false,
-      merchant_name: 'Netflix',
-      notes: null
-    },
-    {
-      ...base('demo-rec-spotify'),
-      account_id: ACCT_CHASE_CREDIT,
-      category_id: CAT_SUBSCRIPTIONS,
-      name: 'Spotify Premium',
-      amount: '10.99',
-      frequency: 'monthly',
-      next_expected_date: nextMonthDay(8),
-      last_occurrence_date: daysAgo(8),
-      is_active: true,
-      is_bill: false,
-      merchant_name: 'Spotify',
-      notes: null
-    },
-    {
-      ...base('demo-rec-insurance'),
-      account_id: ACCT_CHASE_CHECKING,
-      category_id: CAT_INSURANCE,
-      name: 'GEICO Auto Insurance',
-      amount: '189.00',
-      frequency: 'monthly',
-      next_expected_date: nextMonthDay(3),
-      last_occurrence_date: daysAgo(3),
-      is_active: true,
-      is_bill: true,
-      merchant_name: 'GEICO',
-      notes: null
-    },
-    {
-      ...base('demo-rec-internet'),
-      account_id: ACCT_CHASE_CHECKING,
-      category_id: CAT_UTILITIES,
-      name: 'AT&T Internet',
-      amount: '65.00',
-      frequency: 'monthly',
-      next_expected_date: nextMonthDay(12),
-      last_occurrence_date: daysAgo(12),
-      is_active: true,
-      is_bill: true,
-      merchant_name: 'AT&T',
-      notes: null
-    }
-  ]);
-
-  // ---------------------------------------------------------------------------
-  //  8. Net Worth Snapshots (6 months, growth trend)
-  // ---------------------------------------------------------------------------
-  await db
-    .table('netWorthSnapshots')
-    .bulkPut([
-      netWorth('01', 5, '30200.00', '2800.00', '27400.00'),
-      netWorth('02', 4, '31500.00', '2650.00', '28850.00'),
-      netWorth('03', 3, '32800.00', '2500.00', '30300.00'),
-      netWorth('04', 2, '33400.00', '2400.00', '31000.00'),
-      netWorth('05', 1, '34100.00', '2300.00', '31800.00'),
-      netWorth('06', 0, '36651.25', '2370.63', '34280.62')
-    ]);
-
-  // ---------------------------------------------------------------------------
-  //  9. Category Rules
-  // ---------------------------------------------------------------------------
-  await db.table('categoryRules').bulkPut([
-    {
-      ...base('demo-rule-netflix'),
-      category_id: CAT_SUBSCRIPTIONS,
-      match_field: 'description',
-      match_type: 'contains',
-      match_value: 'NETFLIX',
-      priority: 1
-    },
-    {
-      ...base('demo-rule-uber'),
-      category_id: CAT_TRANSPORT,
-      match_field: 'description',
-      match_type: 'contains',
-      match_value: 'UBER',
-      priority: 2
-    },
-    {
-      ...base('demo-rule-grocery'),
-      category_id: CAT_GROCERIES,
-      match_field: 'description',
-      match_type: 'contains',
-      match_value: 'GROCERY',
-      priority: 3
-    }
-  ]);
 }
 
 // =============================================================================
@@ -948,115 +755,4 @@ function txn(
     is_excluded: false,
     notes: null
   };
-}
-
-/**
- * Build a budget record for demo seeding.
- *
- * @param id - Deterministic budget ID (e.g. `'demo-bud-groceries'`).
- * @param categoryId - Foreign key to the category this budget tracks.
- * @param name - Human-readable budget name.
- * @param amount - Monthly budget limit as a decimal string (e.g. `'600.00'`).
- * @param color - Hex colour used in the budget progress bar UI.
- * @param icon - Icon identifier rendered alongside the budget name.
- * @param order - Display order in the budget list.
- * @returns A fully-formed budget object ready for `bulkPut`.
- */
-function budget(
-  id: string,
-  categoryId: string,
-  name: string,
-  amount: string,
-  color: string,
-  icon: string,
-  order: number
-) {
-  return {
-    ...base(id),
-    category_id: categoryId,
-    name,
-    amount,
-    period_type: 'monthly',
-    start_date: null,
-    is_active: true,
-    color,
-    icon,
-    rollover: false,
-    order
-  };
-}
-
-/**
- * Build a budget period record for a specific month.
- *
- * Budget periods track how much of a budget has been spent within a given
- * calendar month. The demo seeds one period per budget for the current month.
- *
- * @param seq - Two-digit sequence number for the ID (e.g. `'01'`).
- * @param budgetId - Foreign key to the parent budget.
- * @param month - Month string in `YYYY-MM` format.
- * @param budgetedAmount - Allocated amount for the month as a decimal string.
- * @param spentAmount - Amount spent so far as a decimal string.
- * @returns A fully-formed budget period object ready for `bulkPut`.
- */
-function budgetPeriod(
-  seq: string,
-  budgetId: string,
-  month: string,
-  budgetedAmount: string,
-  spentAmount: string
-) {
-  return {
-    ...base(`demo-bp-${seq}`),
-    budget_id: budgetId,
-    month,
-    budgeted_amount: budgetedAmount,
-    spent_amount: spentAmount,
-    rollover_amount: null
-  };
-}
-
-/**
- * Build a net-worth snapshot record for a point in the past.
- *
- * Snapshots record total assets, liabilities, and net worth at month-end.
- * The demo seeds six months of data showing a positive growth trend.
- *
- * @param seq - Two-digit sequence number for the ID (e.g. `'01'`).
- * @param monthsBack - How many months in the past this snapshot represents.
- * @param totalAssets - Sum of all depository balances as a decimal string.
- * @param totalLiabilities - Sum of all credit balances as a decimal string.
- * @param netWorthValue - `totalAssets - totalLiabilities` as a decimal string.
- * @returns A fully-formed net-worth snapshot object ready for `bulkPut`.
- */
-function netWorth(
-  seq: string,
-  monthsBack: number,
-  totalAssets: string,
-  totalLiabilities: string,
-  netWorthValue: string
-) {
-  return {
-    ...base(`demo-nw-${seq}`),
-    date: monthsAgo(monthsBack),
-    total_assets: totalAssets,
-    total_liabilities: totalLiabilities,
-    net_worth: netWorthValue,
-    breakdown: null
-  };
-}
-
-/**
- * Return an ISO date string (YYYY-MM-DD) for day `d` of next month.
- *
- * Used to set `next_expected_date` on recurring transactions — the next
- * occurrence is always projected into the following calendar month.
- *
- * @param d - Day of the month (1-31).
- * @returns Date-only ISO string (e.g. `'2026-04-01'`).
- */
-function nextMonthDay(d: number): string {
-  const now = new Date();
-  const next = new Date(now.getFullYear(), now.getMonth() + 1, d);
-  return next.toISOString().slice(0, 10);
 }

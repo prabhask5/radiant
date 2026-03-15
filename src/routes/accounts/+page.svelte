@@ -250,7 +250,10 @@
       const response = await fetch('/api/teller/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: enrollment.accessToken })
+        body: JSON.stringify({
+          accessToken: enrollment.accessToken,
+          enrollmentId: enrollment.enrollment.id
+        })
       });
 
       if (!response.ok) {
@@ -267,6 +270,44 @@
       );
     } catch (err) {
       console.error('Enrollment sync error:', err);
+      showFeedback('error', err instanceof Error ? err.message : 'Sync failed. Please try again.');
+    } finally {
+      syncing = false;
+    }
+  }
+
+  /**
+   * Retry sync for an existing enrollment using its stored access token.
+   */
+  async function retrySyncEnrollment(enrollmentId: string) {
+    const enrollment = enrollments.find((e) => e.id === enrollmentId);
+    if (!enrollment?.access_token) {
+      showFeedback('error', 'No access token stored for this enrollment.');
+      return;
+    }
+
+    syncing = true;
+    showFeedback('success', `Re-syncing ${enrollment.institution_name}...`);
+
+    try {
+      const response = await fetch('/api/teller/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: enrollment.access_token,
+          enrollmentId: enrollment.enrollment_id
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Sync failed with status ${response.status}`);
+      }
+
+      await Promise.all([accountsStore.refresh(), enrollmentsStore.refresh()]);
+      showFeedback('success', `${enrollment.institution_name} accounts synced successfully.`);
+    } catch (err) {
+      console.error('Retry sync error:', err);
       showFeedback('error', err instanceof Error ? err.message : 'Sync failed. Please try again.');
     } finally {
       syncing = false;
@@ -708,6 +749,26 @@
                   </button>
                 </div>
               {:else}
+                <button
+                  class="sync-btn"
+                  onclick={() => retrySyncEnrollment(group.enrollmentId)}
+                  disabled={syncing}
+                  aria-label="Re-sync {group.institutionName}"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><polyline points="23 4 23 10 17 10" /><path
+                      d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
+                    /></svg
+                  >
+                </button>
                 <button
                   class="disconnect-btn"
                   onclick={() => (confirmDisconnectId = group.enrollmentId)}
@@ -1429,6 +1490,31 @@
   }
 
   /* ── Disconnect Button ──────────────────────────────────────────────────── */
+  .sync-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .sync-btn:hover {
+    background: rgba(212, 160, 57, 0.08);
+    border-color: rgba(212, 160, 57, 0.2);
+    color: var(--gold);
+  }
+
+  .sync-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   .disconnect-btn {
     display: flex;
     align-items: center;

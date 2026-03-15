@@ -107,25 +107,11 @@
   const avatarInitial = $derived(resolveAvatarInitial(data.session, data.offlineProfile, '?'));
 
   /**
-   * Derive the current page title from the URL path for the mobile header.
-   */
-  const pageTitle = $derived.by(() => {
-    const path = $page.url.pathname;
-    if (path === '/') return 'Dashboard';
-    if (path.startsWith('/transactions')) return 'Transactions';
-    if (path.startsWith('/budgets')) return 'Budgets';
-    if (path.startsWith('/accounts')) return 'Accounts';
-    if (path.startsWith('/profile')) return 'Profile';
-    return 'Radiant';
-  });
-
-  /**
    * Navigation items for both the desktop top-nav and mobile bottom tab bar.
    */
   const navItems = [
     { href: '/', label: 'Dashboard', icon: 'grid' },
     { href: '/transactions', label: 'Transactions', icon: 'list' },
-    { href: '/budgets', label: 'Budgets', icon: 'pie-chart' },
     { href: '/accounts', label: 'Accounts', icon: 'credit-card' }
   ];
 
@@ -419,30 +405,41 @@
        ═══════════════════════════════════════════════════════════════════════ -->
   {#if isAuthenticated}
     <header class="island-header">
-      <!-- Left: gem logo + brand -->
+      <!-- Left: Radiant brand icon + name -->
       <div class="island-left">
         <a href="/" class="island-brand-link">
           <span class="island-brand">
-            <svg class="island-logo" viewBox="0 0 100 100" fill="none">
-              <polygon
-                points="50,8 65,38 95,38 72,58 80,90 50,70 20,90 28,58 5,38 35,38"
-                stroke="url(#islandGemGrad)"
-                stroke-width="5"
-                fill="url(#islandGemFill)"
-              />
+            <svg class="island-logo" viewBox="0 0 512 512" fill="none">
               <defs>
-                <linearGradient id="islandGemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="var(--color-primary, #d4a039)" />
-                  <stop offset="100%" stop-color="#e056a0" />
+                <linearGradient id="islandGemGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#e8b94a" />
+                  <stop offset="50%" stop-color="#d4a039" />
+                  <stop offset="100%" stop-color="#e85d75" />
                 </linearGradient>
-                <linearGradient id="islandGemFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="rgba(212, 160, 57, 0.15)" />
-                  <stop offset="100%" stop-color="rgba(224, 86, 160, 0.05)" />
+                <linearGradient id="islandGemFill" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#f0d88a" />
+                  <stop offset="100%" stop-color="#e8b94a" />
                 </linearGradient>
               </defs>
+              <polygon
+                points="256,72 370,140 414,256 370,372 256,436 142,372 98,256 142,140"
+                fill="url(#islandGemGrad)"
+                stroke="#b8862e"
+                stroke-width="2.5"
+              />
+              <polygon
+                points="256,164 326,208 348,234 348,278 280,328 168,328 168,278 186,208"
+                fill="url(#islandGemFill)"
+                opacity="0.8"
+              />
+              <polygon
+                points="256,192 306,220 324,256 306,292 256,308 206,292 188,256 206,220"
+                fill="#f5e6b8"
+                opacity="0.5"
+              />
             </svg>
           </span>
-          <span class="island-page-title">{pageTitle}</span>
+          <span class="island-brand-text">Radiant</span>
         </a>
       </div>
       <!-- Center: reserved gap for iPhone Dynamic Island -->
@@ -537,21 +534,6 @@
                     <line x1="3" y1="12" x2="3.01" y2="12"></line>
                     <line x1="3" y1="18" x2="3.01" y2="18"></line>
                   </svg>
-                {:else if item.icon === 'pie-chart'}
-                  <!-- Budgets / pie-chart icon -->
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                    <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-                  </svg>
                 {:else if item.icon === 'credit-card'}
                   <!-- Accounts / credit-card icon -->
                   <svg
@@ -628,6 +610,9 @@
             class:active={isActive(item.href)}
             style="--tab-index: {index};"
           >
+            {#if isActive(item.href)}
+              <span class="tab-active-indicator"></span>
+            {/if}
             <span class="tab-glow"></span>
             <span class="tab-icon">
               {#if item.icon === 'grid'}
@@ -664,20 +649,6 @@
                   <line x1="3" y1="12" x2="3.01" y2="12"></line>
                   <line x1="3" y1="18" x2="3.01" y2="18"></line>
                 </svg>
-              {:else if item.icon === 'pie-chart'}
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                  <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-                </svg>
               {:else if item.icon === 'credit-card'}
                 <svg
                   width="22"
@@ -695,22 +666,24 @@
               {/if}
             </span>
             <span class="tab-label">{item.label}</span>
-            {#if isActive(item.href)}
-              <span class="tab-active-dot"></span>
-            {/if}
           </a>
         {/each}
 
         <!-- ── Profile Tab — avatar with first-letter initial ── -->
-        <a href="/profile" class="tab-item tab-profile" class:active={isActive('/profile')}>
+        <a
+          href="/profile"
+          class="tab-item tab-profile"
+          class:active={isActive('/profile')}
+          style="--tab-index: 4;"
+        >
+          {#if isActive('/profile')}
+            <span class="tab-active-indicator"></span>
+          {/if}
           <span class="tab-glow"></span>
           <span class="tab-icon">
             <span class="mobile-avatar">{avatarInitial}</span>
           </span>
           <span class="tab-label">Profile</span>
-          {#if isActive('/profile')}
-            <span class="tab-active-dot"></span>
-          {/if}
         </a>
       </div>
     </nav>
@@ -986,54 +959,128 @@
 
   .island-header {
     display: none;
+    position: fixed;
+    top: calc(-1 * env(safe-area-inset-top, 0px));
+    left: 0;
+    right: 0;
+    z-index: 150;
+    height: calc(env(safe-area-inset-top, 47px) * 2 + 24px);
+    padding-top: calc(env(safe-area-inset-top, 47px) * 2);
+    background: linear-gradient(
+      180deg,
+      rgba(14, 12, 8, 0.3) 0%,
+      rgba(14, 12, 8, 0.6) 40%,
+      rgba(14, 12, 8, 0.85) 70%,
+      rgba(14, 12, 8, 0.7) 100%
+    );
+    pointer-events: none;
+    animation: islandFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
+  }
+
+  @keyframes islandFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .island-header > * {
+    pointer-events: auto;
+  }
+
+  .island-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: max(12px, env(safe-area-inset-left, 12px));
+    padding-right: max(12px, env(safe-area-inset-right, 12px));
+    padding-bottom: 0;
   }
 
   @media (max-width: 767px) {
     .island-header {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 100;
-      height: calc(48px + var(--safe-area-top));
-      padding: var(--safe-area-top) 16px 0 16px;
-      background: var(--color-glass);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--color-glass-border);
     }
   }
 
   .island-left {
     display: flex;
     align-items: center;
+    padding-left: 4px;
+    animation: islandItemFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.2s backwards;
+  }
+
+  @keyframes islandItemFadeIn {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
   .island-brand-link {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
     text-decoration: none;
-    color: var(--color-text);
+    -webkit-tap-highlight-color: transparent;
   }
 
   .island-brand {
     display: flex;
     align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 6px rgba(212, 160, 57, 0.4));
+    animation: brandFloatMobile 4s ease-in-out infinite;
+  }
+
+  @keyframes brandFloatMobile {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-2px);
+    }
   }
 
   .island-logo {
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
   }
 
-  .island-page-title {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
+  .island-brand-text {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    background: linear-gradient(
+      135deg,
+      var(--color-text, #f5efe0) 0%,
+      var(--color-primary-light, #e8b94a) 50%,
+      var(--color-text, #f5efe0) 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: brandTextShimmer 8s linear infinite;
+  }
+
+  @keyframes brandTextShimmer {
+    0% {
+      background-position: 0% center;
+    }
+    100% {
+      background-position: 200% center;
+    }
   }
 
   .island-center {
@@ -1150,52 +1197,119 @@
     font-weight: 500;
     letter-spacing: 0.02em;
     transition:
-      color 0.2s,
-      background 0.2s;
+      color 0.3s,
+      background 0.3s;
     white-space: nowrap;
+  }
+
+  /* Faceted background reveal on hover */
+  .nav-link::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgba(212, 160, 57, 0.12);
+    opacity: 0;
+    transform: scale(0.8);
+    transition:
+      opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+      transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: -1;
+  }
+
+  .nav-link:hover::before {
+    opacity: 1;
+    transform: scale(1);
   }
 
   .nav-link:hover {
     color: var(--color-text);
-    background: rgba(212, 160, 57, 0.08);
   }
 
   .nav-link.active {
     color: var(--color-primary-light);
-    background: rgba(212, 160, 57, 0.12);
+  }
+
+  .nav-link.active::before {
+    opacity: 1;
+    transform: scale(1);
+    background: linear-gradient(145deg, rgba(212, 160, 57, 0.18) 0%, rgba(232, 93, 117, 0.08) 100%);
+    box-shadow:
+      0 4px 20px rgba(212, 160, 57, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  /* ── Nav link shimmer sweep on active ── */
+  .nav-link.active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(232, 185, 74, 0.15), transparent);
+    border-radius: inherit;
+    animation: navGemShimmer 4s ease-in-out infinite;
+  }
+
+  @keyframes navGemShimmer {
+    0% {
+      left: -100%;
+    }
+    50%,
+    100% {
+      left: 100%;
+    }
   }
 
   .link-icon {
     display: flex;
     align-items: center;
     opacity: 0.7;
-    transition: opacity 0.2s;
+    transition:
+      opacity 0.3s,
+      transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+      filter 0.3s;
+  }
+
+  .nav-link:hover .link-icon {
+    opacity: 1;
+    transform: scale(1.15) rotate(-5deg);
   }
 
   .nav-link.active .link-icon {
     opacity: 1;
-    filter: drop-shadow(0 0 4px rgba(212, 160, 57, 0.5));
+    filter: drop-shadow(0 0 6px rgba(212, 160, 57, 0.7));
+    transform: scale(1.1);
+  }
+
+  .nav-link.active:hover .link-icon {
+    transform: scale(1.2) rotate(-5deg);
   }
 
   .link-text {
     display: inline;
   }
 
-  /* ── Active indicator — animated gem glow underline ── */
+  /* ── Active indicator — gem facet glow dot ── */
 
   .active-indicator {
     position: absolute;
-    bottom: 2px;
+    bottom: -8px;
     left: 50%;
-    transform: translateX(-50%);
-    width: 20px;
-    height: 3px;
-    border-radius: 2px;
-    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
+    transform: translateX(-50%) scale(0);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--color-primary-light, #e8b94a);
     box-shadow:
-      0 0 8px rgba(212, 160, 57, 0.6),
-      0 0 16px rgba(212, 160, 57, 0.3);
-    animation: gem-glow-pulse 2s ease-in-out infinite;
+      0 0 8px rgba(212, 160, 57, 0.8),
+      0 0 16px rgba(212, 160, 57, 0.4);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .nav-link.active .active-indicator {
+    transform: translateX(-50%) scale(1);
   }
 
   @keyframes gem-glow-pulse {
@@ -1327,8 +1441,8 @@
 
   @media (max-width: 767px) {
     .main.with-nav {
-      padding-top: calc(48px + var(--safe-area-top));
-      padding-bottom: calc(var(--tab-height) + var(--safe-area-bottom));
+      padding-top: calc(env(safe-area-inset-top, 47px) * 2 + 24px);
+      padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) * 0.6);
     }
   }
 
@@ -1338,36 +1452,100 @@
 
   .nav-mobile {
     display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) * 0.6);
+    background: var(--color-obsidian, #0e0c08);
   }
 
   @media (max-width: 767px) {
     .nav-mobile {
       display: block;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 100;
     }
   }
 
   .nav-mobile-bg {
     position: absolute;
-    inset: 0;
-    background: var(--color-glass);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border-top: 1px solid var(--color-glass-border);
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(14, 12, 8, 0.95) 0%,
+      rgba(14, 12, 8, 0.98) 50%,
+      #0e0c08 100%
+    );
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border-top: 1px solid rgba(212, 160, 57, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 -10px 40px rgba(0, 0, 0, 0.3);
   }
+
+  /* Animated gem-light shine at top of bottom nav */
+  .nav-mobile-bg::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 5%;
+    right: 5%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(212, 160, 57, 0.3) 20%,
+      rgba(232, 185, 74, 0.6) 40%,
+      rgba(232, 93, 117, 0.3) 60%,
+      rgba(212, 160, 57, 0.3) 80%,
+      transparent 100%
+    );
+    animation: navGemGlowShift 6s ease-in-out infinite;
+  }
+
+  @keyframes navGemGlowShift {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* Subtle warm glow accent above the bar */
+  .nav-mobile-bg::after {
+    content: '';
+    position: absolute;
+    top: -20px;
+    left: 20%;
+    right: 20%;
+    height: 40px;
+    background: radial-gradient(ellipse at center, rgba(212, 160, 57, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ── Tab Bar Container ── */
 
   .tab-bar {
     position: relative;
     display: flex;
-    align-items: stretch;
+    align-items: center;
     justify-content: space-around;
-    height: var(--tab-height);
-    padding-bottom: var(--safe-area-bottom);
+    height: 64px;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 0 0.75rem;
+    padding-left: max(0.75rem, env(safe-area-inset-left, 0));
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0));
+    z-index: 1;
   }
+
+  /* ── Individual Tab Item ── */
 
   .tab-item {
     position: relative;
@@ -1375,87 +1553,128 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    flex: 1;
-    gap: 2px;
-    text-decoration: none;
+    gap: 0.375rem;
+    padding: 0.625rem 0.875rem;
     color: var(--color-text-muted);
-    transition: color 0.2s;
-    padding: 6px 0;
+    text-decoration: none;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border: none;
+    background: none;
+    cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    min-width: 56px;
+    animation: tabItemEnter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    animation-delay: calc(var(--tab-index, 0) * 0.05s);
   }
 
-  .tab-item.active {
-    color: var(--color-primary-light);
+  @keyframes tabItemEnter {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
+  /* Gem glow background for tabs */
   .tab-glow {
     position: absolute;
-    top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 32px;
-    border-radius: 12px;
+    inset: 4px;
+    border-radius: 14px;
     background: transparent;
-    transition: background 0.25s;
-    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: -1;
   }
 
   .tab-item.active .tab-glow {
+    background: linear-gradient(145deg, rgba(212, 160, 57, 0.18) 0%, rgba(212, 160, 57, 0.04) 100%);
+    box-shadow: 0 0 20px rgba(212, 160, 57, 0.2);
+  }
+
+  .tab-item:active {
+    transform: scale(0.9);
+    transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .tab-item:active .tab-glow {
     background: rgba(212, 160, 57, 0.12);
   }
 
+  .tab-item.active {
+    color: var(--color-text);
+  }
+
+  /* ── Tab Icon ── */
+
   .tab-icon {
     position: relative;
-    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.2s;
+    width: 28px;
+    height: 28px;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .tab-icon svg {
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .tab-item.active .tab-icon {
-    transform: translateY(-1px);
-    filter: drop-shadow(0 0 4px rgba(212, 160, 57, 0.5));
+    color: var(--color-primary-light, #e8b94a);
+    transform: translateY(-2px);
   }
+
+  .tab-item.active .tab-icon svg {
+    filter: drop-shadow(0 0 8px rgba(212, 160, 57, 0.6));
+  }
+
+  /* ── Tab Label ── */
 
   .tab-label {
-    position: relative;
-    z-index: 1;
-    font-size: 0.65rem;
-    font-weight: 500;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* ── Active dot indicator ── */
+  .tab-item.active .tab-label {
+    color: var(--color-primary-light, #e8b94a);
+    text-shadow: 0 0 8px rgba(212, 160, 57, 0.4);
+  }
 
-  .tab-active-dot {
+  /* ── Active Indicator — pulsing gem dot above active tab ── */
+
+  .tab-active-indicator {
     position: absolute;
-    bottom: calc(6px + var(--safe-area-bottom));
+    top: 0;
     left: 50%;
-    transform: translateX(-50%);
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
+    background: linear-gradient(135deg, #e8b94a, #d4a039);
     border-radius: 50%;
-    background: var(--color-primary-light);
+    transform: translateX(-50%);
     box-shadow:
-      0 0 6px rgba(212, 160, 57, 0.7),
-      0 0 12px rgba(212, 160, 57, 0.4);
-    animation: gem-dot-pulse 2s ease-in-out infinite;
+      0 0 10px rgba(212, 160, 57, 0.8),
+      0 0 20px rgba(212, 160, 57, 0.4);
+    animation: gemIndicatorPulse 2s ease-in-out infinite;
   }
 
-  @keyframes gem-dot-pulse {
+  @keyframes gemIndicatorPulse {
     0%,
     100% {
+      transform: translateX(-50%) scale(1);
       box-shadow:
-        0 0 6px rgba(212, 160, 57, 0.7),
-        0 0 12px rgba(212, 160, 57, 0.4);
+        0 0 10px rgba(212, 160, 57, 0.8),
+        0 0 20px rgba(212, 160, 57, 0.4);
     }
     50% {
+      transform: translateX(-50%) scale(1.3);
       box-shadow:
-        0 0 10px rgba(212, 160, 57, 0.9),
-        0 0 20px rgba(212, 160, 57, 0.6);
+        0 0 14px rgba(212, 160, 57, 0.9),
+        0 0 28px rgba(212, 160, 57, 0.5);
     }
   }
 
@@ -1477,15 +1696,15 @@
     font-weight: 700;
     font-size: 0.75rem;
     border-radius: 50%;
-    transition: all 0.4s ease;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  .tab-profile:hover .mobile-avatar {
-    border-color: rgba(212, 160, 57, 0.6);
+  .tab-item.active .mobile-avatar {
+    border-color: rgba(212, 160, 57, 0.7);
     box-shadow:
-      0 0 15px rgba(212, 160, 57, 0.3),
-      0 4px 12px rgba(0, 0, 0, 0.4);
-    transform: scale(1.05);
+      0 0 12px rgba(212, 160, 57, 0.4),
+      0 2px 8px rgba(0, 0, 0, 0.3);
+    transform: scale(1.08);
   }
 
   /* ── Wide Tablet (<=1100px) — hide greeting text to prevent nav overlap ── */

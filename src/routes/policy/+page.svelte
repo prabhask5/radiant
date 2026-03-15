@@ -32,8 +32,8 @@
           <strong>Account credentials</strong> — Your email and encrypted PIN for authentication
         </li>
         <li>
-          <strong>Financial data</strong> — Bank accounts, transactions, balances, budgets, and categories
-          synced via Teller.io
+          <strong>Financial data</strong> — Bank accounts, transactions, balances, and categories synced
+          via Teller.io
         </li>
         <li>
           <strong>Device identifiers</strong> — Randomly generated device IDs for trusted-device management
