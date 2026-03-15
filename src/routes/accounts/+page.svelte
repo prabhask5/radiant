@@ -1308,7 +1308,11 @@
   });
 
   onMount(async () => {
-    await Promise.all([accountsStore.refresh(), enrollmentsStore.refresh()]);
+    await Promise.all([
+      accountsStore.refresh(),
+      enrollmentsStore.refresh(),
+      transactionsStore.refresh()
+    ]);
     loaded = true;
 
     // Pre-load Teller Connect SDK in the background if configured

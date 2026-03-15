@@ -39,6 +39,9 @@
   /** Controls staggered entrance animation. */
   let mounted = $state(false);
 
+  /** Whether stores have been loaded. */
+  let dataLoaded = $state(false);
+
   /** Time of day for greeting. */
   const greeting = $derived.by(() => {
     const h = new Date().getHours();
@@ -233,6 +236,11 @@
     requestAnimationFrame(() => {
       mounted = true;
     });
+
+    // Load data stores for the dashboard
+    Promise.all([accountsStore.load(), transactionsStore.load()]).then(() => {
+      dataLoaded = true;
+    });
   });
 </script>
 
@@ -271,16 +279,17 @@
   <!-- ─────────────────────────────────────────────────────────────────────
        NET WORTH CHART
        ───────────────────────────────────────────────────────────────────── -->
-  {#if hasAccounts && netWorthLines.length > 0}
+  {#if !dataLoaded || (hasAccounts && netWorthLines.length > 0)}
     <div class="anim-item" style="--delay: 1">
       <GemChart
         title="Net Worth"
-        lines={netWorthLines}
+        lines={dataLoaded ? netWorthLines : []}
         timeRanges={chartTimeRanges}
         selectedRange={chartRange}
         onRangeChange={(r) => (chartRange = r)}
         height={180}
         formatValue={formatCurrencyCompact}
+        loading={!dataLoaded}
       />
     </div>
   {/if}

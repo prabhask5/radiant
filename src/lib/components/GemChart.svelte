@@ -40,7 +40,8 @@
     selectedRange = '',
     onRangeChange,
     height = 200,
-    formatValue
+    formatValue,
+    loading = false
   }: {
     title?: string;
     lines: ChartLine[];
@@ -49,13 +50,13 @@
     onRangeChange?: (range: string) => void;
     height?: number;
     formatValue: (value: number) => string;
+    loading?: boolean;
   } = $props();
 
   // ══════════════════════════════════════════════════════════════════════════
   //                           CONSTANTS
   // ══════════════════════════════════════════════════════════════════════════
 
-  const TENSION = 0.35;
   const GRID_LINES = 4;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -201,28 +202,69 @@
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  //                    CATMULL-ROM → SVG PATH
+  //                  MONOTONE CUBIC INTERPOLATION → SVG PATH
   // ══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * Monotone cubic Hermite spline (Fritsch-Carlson method).
+   * Guarantees the curve never overshoots between data points — no loops
+   * or backward-tracking even with sharp value changes.
+   */
   function toPath(pts: { x: number; y: number }[]): string {
     if (pts.length === 0) return '';
     if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`;
     if (pts.length === 2) return `M${pts[0].x},${pts[0].y}L${pts[1].x},${pts[1].y}`;
 
+    const n = pts.length;
+
+    // 1. Compute slopes (dx, dy, m)
+    const dx: number[] = [];
+    const dy: number[] = [];
+    const m: number[] = [];
+    for (let i = 0; i < n - 1; i++) {
+      dx.push(pts[i + 1].x - pts[i].x);
+      dy.push(pts[i + 1].y - pts[i].y);
+      m.push(dx[i] === 0 ? 0 : dy[i] / dx[i]);
+    }
+
+    // 2. Compute tangents with Fritsch-Carlson monotonicity
+    const tangent: number[] = [m[0]];
+    for (let i = 1; i < n - 1; i++) {
+      if (m[i - 1] * m[i] <= 0) {
+        // Sign change or zero — flat tangent to prevent overshoot
+        tangent.push(0);
+      } else {
+        tangent.push((m[i - 1] + m[i]) / 2);
+      }
+    }
+    tangent.push(m[n - 2]);
+
+    // 3. Clamp tangents to ensure monotonicity (Fritsch-Carlson step 3)
+    for (let i = 0; i < n - 1; i++) {
+      if (Math.abs(m[i]) < 1e-10) {
+        tangent[i] = 0;
+        tangent[i + 1] = 0;
+      } else {
+        const a = tangent[i] / m[i];
+        const b = tangent[i + 1] / m[i];
+        const s = a * a + b * b;
+        if (s > 9) {
+          const t = 3 / Math.sqrt(s);
+          tangent[i] = t * a * m[i];
+          tangent[i + 1] = t * b * m[i];
+        }
+      }
+    }
+
+    // 4. Build cubic bezier path
     let d = `M${pts[0].x},${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[Math.max(0, i - 1)];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[Math.min(pts.length - 1, i + 2)];
-
-      const t = TENSION;
-      const c1x = p1.x + ((p2.x - p0.x) * t) / 3;
-      const c1y = p1.y + ((p2.y - p0.y) * t) / 3;
-      const c2x = p2.x - ((p3.x - p1.x) * t) / 3;
-      const c2y = p2.y - ((p3.y - p1.y) * t) / 3;
-
-      d += `C${c1x},${c1y},${c2x},${c2y},${p2.x},${p2.y}`;
+    for (let i = 0; i < n - 1; i++) {
+      const seg = dx[i] / 3;
+      const c1x = pts[i].x + seg;
+      const c1y = pts[i].y + tangent[i] * seg;
+      const c2x = pts[i + 1].x - seg;
+      const c2y = pts[i + 1].y - tangent[i + 1] * seg;
+      d += `C${c1x},${c1y},${c2x},${c2y},${pts[i + 1].x},${pts[i + 1].y}`;
     }
     return d;
   }
@@ -369,236 +411,250 @@
     <div class="refract r2"></div>
   </div>
 
-  <!-- Header: title + time range selector -->
+  <!-- Header: title + range (desktop inline, mobile: range moves to bottom) -->
   <div class="chart-header">
     {#if title}
       <h3 class="chart-title">{title}</h3>
     {/if}
-
-    {#if timeRanges.length > 0 && onRangeChange}
-      <div class="range-track">
-        {#each timeRanges as range (range.value)}
-          <button
-            class="range-pill"
-            class:active={selectedRange === range.value}
-            onclick={() => onRangeChange?.(range.value)}
-          >
-            {range.label}
-          </button>
-        {/each}
-      </div>
-    {/if}
   </div>
 
-  <!-- Legend -->
-  {#if lines.length > 1}
-    <div class="chart-legend">
-      {#each lines as line, i (line.label)}
-        <div class="legend-item" style="--li-delay: {i * 60}ms">
-          <span
-            class="legend-gem"
-            style="background: {line.color}; box-shadow: 0 0 6px {line.color}40;"
-          ></span>
-          <span class="legend-label">{line.label}</span>
-        </div>
+  <!-- Time range selector: direct child for CSS order on mobile -->
+  {#if timeRanges.length > 0 && onRangeChange}
+    <div class="range-track">
+      {#each timeRanges as range (range.value)}
+        <button
+          class="range-pill"
+          class:active={selectedRange === range.value}
+          onclick={() => onRangeChange?.(range.value)}
+        >
+          {range.label}
+        </button>
       {/each}
     </div>
   {/if}
 
-  <!-- Chart SVG -->
-  <div class="chart-canvas" style="height: {chartH}px;">
-    {#if !hasData}
-      <div class="empty-state">
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M3 3v18h18" /><path d="M7 16l4-8 4 4 5-6" />
-        </svg>
-        <span>No data for this period</span>
+  <!-- Loading skeleton -->
+  {#if loading}
+    <div class="chart-canvas" style="height: {chartH}px;">
+      <div class="chart-skeleton">
+        <div class="skeleton-line s1"></div>
+        <div class="skeleton-line s2"></div>
+        <div class="skeleton-line s3"></div>
+        <div class="skeleton-line s4"></div>
+        <div class="skeleton-shimmer"></div>
       </div>
-    {:else if containerW > 0}
-      <svg
-        bind:this={svgEl}
-        width="100%"
-        height={chartH}
-        viewBox="0 0 {containerW} {chartH}"
-        preserveAspectRatio="none"
-        onpointermove={onPointerMove}
-        onpointerleave={onPointerLeave}
-        role="img"
-        aria-label={title || 'Line chart'}
-      >
-        <defs>
-          <!-- Area gradients -->
-          {#each lines as line, i (line.label)}
-            <linearGradient id="{uid}-ag{i}" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color={line.color} stop-opacity="0.2" />
-              <stop offset="85%" stop-color={line.color} stop-opacity="0.02" />
-              <stop offset="100%" stop-color={line.color} stop-opacity="0" />
+    </div>
+  {:else}
+    <!-- Legend -->
+    {#if lines.length > 1}
+      <div class="chart-legend">
+        {#each lines as line, i (line.label)}
+          <div class="legend-item" style="--li-delay: {i * 60}ms">
+            <span
+              class="legend-gem"
+              style="background: {line.color}; box-shadow: 0 0 6px {line.color}40;"
+            ></span>
+            <span class="legend-label">{line.label}</span>
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Chart SVG -->
+    <div class="chart-canvas" style="height: {chartH}px;">
+      {#if !hasData}
+        <div class="empty-state">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 3v18h18" /><path d="M7 16l4-8 4 4 5-6" />
+          </svg>
+          <span>No data for this period</span>
+        </div>
+      {:else if containerW > 0}
+        <svg
+          bind:this={svgEl}
+          width="100%"
+          height={chartH}
+          viewBox="0 0 {containerW} {chartH}"
+          preserveAspectRatio="none"
+          onpointermove={onPointerMove}
+          onpointerleave={onPointerLeave}
+          role="img"
+          aria-label={title || 'Line chart'}
+        >
+          <defs>
+            <!-- Area gradients -->
+            {#each lines as line, i (line.label)}
+              <linearGradient id="{uid}-ag{i}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color={line.color} stop-opacity="0.2" />
+                <stop offset="85%" stop-color={line.color} stop-opacity="0.02" />
+                <stop offset="100%" stop-color={line.color} stop-opacity="0" />
+              </linearGradient>
+              <filter id="{uid}-gl{i}" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
+              </filter>
+            {/each}
+
+            <!-- Crosshair gradient -->
+            <linearGradient id="{uid}-cross" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(219,176,68,0)" />
+              <stop offset="20%" stop-color="rgba(219,176,68,0.35)" />
+              <stop offset="80%" stop-color="rgba(219,176,68,0.35)" />
+              <stop offset="100%" stop-color="rgba(219,176,68,0)" />
             </linearGradient>
-            <filter id="{uid}-gl{i}" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
-            </filter>
+          </defs>
+
+          <!-- Grid lines -->
+          {#each yTicks as tick, i (i)}
+            <line
+              x1={margin.left}
+              y1={sy(tick)}
+              x2={margin.left + plotW}
+              y2={sy(tick)}
+              class="grid"
+              class:grid-on={mounted}
+              style="transition-delay: {i * 40}ms;"
+            />
           {/each}
 
-          <!-- Crosshair gradient -->
-          <linearGradient id="{uid}-cross" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="rgba(219,176,68,0)" />
-            <stop offset="20%" stop-color="rgba(219,176,68,0.35)" />
-            <stop offset="80%" stop-color="rgba(219,176,68,0.35)" />
-            <stop offset="100%" stop-color="rgba(219,176,68,0)" />
-          </linearGradient>
-        </defs>
+          <!-- Y-axis labels -->
+          {#each yTicks as tick, i (i)}
+            {#if containerW >= 360 || i === 0 || i === yTicks.length - 1}
+              <text
+                x={margin.left - 10}
+                y={sy(tick)}
+                class="y-label"
+                text-anchor="end"
+                dominant-baseline="middle"
+              >
+                {formatValue(tick)}
+              </text>
+            {/if}
+          {/each}
 
-        <!-- Grid lines -->
-        {#each yTicks as tick, i (i)}
-          <line
-            x1={margin.left}
-            y1={sy(tick)}
-            x2={margin.left + plotW}
-            y2={sy(tick)}
-            class="grid"
-            class:grid-on={mounted}
-            style="transition-delay: {i * 40}ms;"
-          />
-        {/each}
-
-        <!-- Y-axis labels -->
-        {#each yTicks as tick, i (i)}
-          {#if containerW >= 360 || i === 0 || i === yTicks.length - 1}
-            <text
-              x={margin.left - 10}
-              y={sy(tick)}
-              class="y-label"
-              text-anchor="end"
-              dominant-baseline="middle"
-            >
-              {formatValue(tick)}
+          <!-- X-axis labels -->
+          {#each xLabels as lbl, i (i)}
+            <text x={lbl.x} y={chartH - 6} class="x-label" text-anchor="middle">
+              {lbl.text}
             </text>
-          {/if}
-        {/each}
+          {/each}
 
-        <!-- X-axis labels -->
-        {#each xLabels as lbl, i (i)}
-          <text x={lbl.x} y={chartH - 6} class="x-label" text-anchor="middle">
-            {lbl.text}
-          </text>
-        {/each}
-
-        <!-- Lines: glow → area → stroke → endpoint -->
-        {#each lineRender as lr (lr.i)}
-          {#if lr.pts.length > 0}
-            <!-- Soft glow behind the line -->
-            <path
-              d={lr.linePath}
-              fill="none"
-              stroke={lr.color}
-              stroke-width="5"
-              filter="url(#{uid}-gl{lr.i})"
-              class="line-glow"
-              class:glow-on={mounted}
-              style="transition-delay: {lr.i * 120 + 400}ms;"
-            />
-
-            <!-- Area fill -->
-            <path
-              d={lr.areaPath}
-              fill="url(#{uid}-ag{lr.i})"
-              class="area"
-              class:area-on={mounted}
-              style="transition-delay: {lr.i * 120 + 300}ms;"
-            />
-
-            <!-- Main stroke — animated draw-in -->
-            <path
-              d={lr.linePath}
-              fill="none"
-              stroke={lr.color}
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="line-stroke"
-              class:stroke-on={mounted}
-              style="--len: {lr.len}; transition-delay: {lr.i * 120}ms;"
-            />
-
-            <!-- Glowing endpoint dot -->
-            {#if lr.lastPt}
-              <circle
-                cx={lr.lastPt.x}
-                cy={lr.lastPt.y}
-                r="3.5"
-                fill={lr.color}
-                class="endpoint"
-                class:ep-on={mounted}
-                style="transition-delay: {lr.i * 120 + 900}ms;"
-              />
-              <circle
-                cx={lr.lastPt.x}
-                cy={lr.lastPt.y}
-                r="7"
+          <!-- Lines: glow → area → stroke → endpoint -->
+          {#each lineRender as lr (lr.i)}
+            {#if lr.pts.length > 0}
+              <!-- Soft glow behind the line -->
+              <path
+                d={lr.linePath}
                 fill="none"
                 stroke={lr.color}
-                stroke-width="1.5"
-                class="endpoint-ring"
-                class:ep-on={mounted}
-                style="transition-delay: {lr.i * 120 + 900}ms;"
+                stroke-width="5"
+                filter="url(#{uid}-gl{lr.i})"
+                class="line-glow"
+                class:glow-on={mounted}
+                style="transition-delay: {lr.i * 120 + 400}ms;"
               />
-            {/if}
-          {/if}
-        {/each}
 
-        <!-- Hover crosshair -->
-        {#if hover}
-          <line
-            x1={hover.crossX}
-            y1={margin.top}
-            x2={hover.crossX}
-            y2={margin.top + plotH}
-            stroke="url(#{uid}-cross)"
-            stroke-width="1"
-            class="crosshair-line"
-          />
+              <!-- Area fill -->
+              <path
+                d={lr.areaPath}
+                fill="url(#{uid}-ag{lr.i})"
+                class="area"
+                class:area-on={mounted}
+                style="transition-delay: {lr.i * 120 + 300}ms;"
+              />
 
-          <!-- Hover dots on each line -->
-          {#each hover.items as item (item.label)}
-            {#if item.y !== null}
-              <circle
-                cx={hover.crossX}
-                cy={item.y}
-                r="4"
-                fill={item.color}
-                stroke="#161310"
+              <!-- Main stroke — animated draw-in -->
+              <path
+                d={lr.linePath}
+                fill="none"
+                stroke={lr.color}
                 stroke-width="2"
-                class="hover-dot"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="line-stroke"
+                class:stroke-on={mounted}
+                style="--len: {lr.len}; transition-delay: {lr.i * 120}ms;"
               />
+
+              <!-- Glowing endpoint dot -->
+              {#if lr.lastPt}
+                <circle
+                  cx={lr.lastPt.x}
+                  cy={lr.lastPt.y}
+                  r="3.5"
+                  fill={lr.color}
+                  class="endpoint"
+                  class:ep-on={mounted}
+                  style="transition-delay: {lr.i * 120 + 900}ms;"
+                />
+                <circle
+                  cx={lr.lastPt.x}
+                  cy={lr.lastPt.y}
+                  r="7"
+                  fill="none"
+                  stroke={lr.color}
+                  stroke-width="1.5"
+                  class="endpoint-ring"
+                  class:ep-on={mounted}
+                  style="transition-delay: {lr.i * 120 + 900}ms;"
+                />
+              {/if}
             {/if}
           {/each}
-        {/if}
-      </svg>
 
-      <!-- Tooltip (HTML, outside SVG for backdrop-filter) -->
-      {#if hover}
-        <div class="chart-tip" style="left: {hover.tipX}px;">
-          <div class="tip-date">{hover.dateStr}</div>
-          {#each hover.items as item (item.label)}
-            <div class="tip-row">
-              <span class="tip-swatch" style="background: {item.color};"></span>
-              <span class="tip-label">{item.label}</span>
-              <span class="tip-val">{item.value}</span>
-            </div>
-          {/each}
-        </div>
+          <!-- Hover crosshair -->
+          {#if hover}
+            <line
+              x1={hover.crossX}
+              y1={margin.top}
+              x2={hover.crossX}
+              y2={margin.top + plotH}
+              stroke="url(#{uid}-cross)"
+              stroke-width="1"
+              class="crosshair-line"
+            />
+
+            <!-- Hover dots on each line -->
+            {#each hover.items as item (item.label)}
+              {#if item.y !== null}
+                <circle
+                  cx={hover.crossX}
+                  cy={item.y}
+                  r="4"
+                  fill={item.color}
+                  stroke="#161310"
+                  stroke-width="2"
+                  class="hover-dot"
+                />
+              {/if}
+            {/each}
+          {/if}
+        </svg>
+
+        <!-- Tooltip (HTML, outside SVG for backdrop-filter) -->
+        {#if hover}
+          <div class="chart-tip" style="left: {hover.tipX}px;">
+            <div class="tip-date">{hover.dateStr}</div>
+            {#each hover.items as item (item.label)}
+              <div class="tip-row">
+                <span class="tip-swatch" style="background: {item.color};"></span>
+                <span class="tip-label">{item.label}</span>
+                <span class="tip-val">{item.value}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
       {/if}
-    {/if}
-  </div>
+    </div>
+  {/if}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -747,6 +803,30 @@
   }
 
   /* ────────────────────────────────────────────────────────────────────────
+     LAYOUT (flex column for ordering)
+     ──────────────────────────────────────────────────────────────────────── */
+  .gem-chart {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chart-header {
+    order: 0;
+  }
+
+  .range-track {
+    order: 1;
+  }
+
+  .chart-legend {
+    order: 2;
+  }
+
+  .chart-canvas {
+    order: 3;
+  }
+
+  /* ────────────────────────────────────────────────────────────────────────
      HEADER
      ──────────────────────────────────────────────────────────────────────── */
   .chart-header {
@@ -756,7 +836,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
   }
 
   .chart-title {
@@ -771,12 +851,16 @@
 
   /* ── Time range selector ──────────────────────────────────────────────── */
   .range-track {
+    position: relative;
+    z-index: 1;
     display: flex;
     gap: 2px;
     background: var(--gc-frost);
     border-radius: 8px;
     padding: 2px;
     border: 1px solid var(--gc-border-sub);
+    align-self: flex-end;
+    margin-bottom: 8px;
   }
 
   .range-pill {
@@ -807,13 +891,13 @@
     box-shadow: 0 0 8px rgba(219, 176, 68, 0.06);
   }
 
-  @media (max-width: 400px) {
-    .range-pill {
-      font-size: 0.58rem;
-      padding: 3px 7px;
-    }
+  /* ── Mobile: range track moves below chart ─────────────────────────── */
+  @media (max-width: 640px) {
     .range-track {
-      gap: 1px;
+      order: 10;
+      align-self: center;
+      margin-top: 14px;
+      margin-bottom: 0;
     }
   }
 
@@ -1072,5 +1156,50 @@
     font-variant-numeric: tabular-nums;
     font-weight: 600;
     letter-spacing: -0.01em;
+  }
+
+  /* ── Loading skeleton ─────────────────────────────────────────────────── */
+  .chart-skeleton {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0;
+    padding: 16px 0;
+  }
+
+  .skeleton-line {
+    height: 1px;
+    background: var(--gc-border-sub);
+    margin: 0 12px;
+    flex: 1;
+    border-bottom: 1px solid var(--gc-border-sub);
+  }
+
+  .skeleton-shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 25%,
+      rgba(200, 160, 60, 0.06) 37%,
+      rgba(232, 200, 122, 0.1) 50%,
+      rgba(200, 160, 60, 0.06) 63%,
+      transparent 75%
+    );
+    background-size: 250% 100%;
+    animation: skeletonSweep 1.8s ease-in-out infinite;
+  }
+
+  @keyframes skeletonSweep {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
   }
 </style>
