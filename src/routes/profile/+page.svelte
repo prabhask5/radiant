@@ -85,13 +85,23 @@
 
   /* ── Demo mode toast ──── */
   let demoToast = $state('');
+  let demoToastDismissing = $state(false);
   let demoToastTimer: ReturnType<typeof setTimeout> | null = null;
+  let demoToastDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Show a temporary toast for blocked demo operations. */
   function showDemoToast(msg: string) {
     demoToast = msg;
+    demoToastDismissing = false;
     if (demoToastTimer) clearTimeout(demoToastTimer);
-    demoToastTimer = setTimeout(() => (demoToast = ''), 3000);
+    if (demoToastDismissTimer) clearTimeout(demoToastDismissTimer);
+    demoToastTimer = setTimeout(() => {
+      demoToastDismissing = true;
+      demoToastDismissTimer = setTimeout(() => {
+        demoToast = '';
+        demoToastDismissing = false;
+      }, 300);
+    }, 3000);
   }
 
   /* ── Debug tools loading flags ──── */
@@ -1527,7 +1537,7 @@
 <!--                    DEMO MODE TOAST                                -->
 <!-- ================================================================= -->
 {#if demoToast}
-  <div class="demo-toast">{demoToast}</div>
+  <div class="demo-toast" class:dismissing={demoToastDismissing}>{demoToast}</div>
 {/if}
 
 <!-- ================================================================= -->
@@ -2578,9 +2588,13 @@
     padding: 10px 20px;
     border-radius: 10px;
     z-index: 200;
-    animation: toastIn 0.3s ease-out;
+    animation: toastIn 0.3s ease-out forwards;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
     white-space: nowrap;
+  }
+
+  .demo-toast.dismissing {
+    animation: toastOut 0.3s ease-in forwards;
   }
 
   @keyframes toastIn {
@@ -2591,6 +2605,17 @@
     to {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  @keyframes toastOut {
+    from {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-50%) translateY(12px);
     }
   }
 

@@ -2312,7 +2312,7 @@
 
   .selection-bar {
     position: fixed;
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px) * 0.6 + 12px);
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     z-index: 100;
