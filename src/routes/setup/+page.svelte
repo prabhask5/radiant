@@ -107,8 +107,12 @@
   //  Derived State
   // =============================================================================
 
-  /** Whether this is a first-time setup (public) or reconfiguration */
-  const isFirstSetup = $derived(($page.data as { isFirstSetup?: boolean }).isFirstSetup ?? false);
+  /**
+   * Whether this is a first-time setup (public) or reconfiguration.
+   * Captured once from page data — NOT reactive, so the wizard doesn't
+   * flip to Reconfigure mid-deploy when the config updates.
+   */
+  const isFirstSetup = ($page.data as { isFirstSetup?: boolean }).isFirstSetup ?? false;
 
   /**
    * Snapshot of the credentials at validation time — used to detect
@@ -600,7 +604,7 @@
                 <span class="stage-icon"
                   >{#if deployStage === 'deploying'}&#9675;{:else if deployStage === 'ready'}&#10003;{:else}&#8226;{/if}</span
                 >
-                Deploying to Vercel
+                Deploying to Vercel... (might take a minute)
               </div>
               <div class="deploy-stage" class:active={deployStage === 'ready'}>
                 <span class="stage-icon"
@@ -613,8 +617,16 @@
 
           {#if deployStage === 'ready'}
             <div class="message message-success">
-              Deployment complete! Go to <a href="/">Radiant Finance</a> to get started.
+              Deployment complete! Use the update prompt at the bottom of the screen to refresh. If
+              it doesn't appear, click below.
             </div>
+            <button
+              class="btn btn-secondary"
+              onclick={() => (window.location.href = '/')}
+              style="margin-top: 0.75rem;"
+            >
+              Manually refresh &amp; go home
+            </button>
           {/if}
         {/if}
       </div>
@@ -1206,11 +1218,6 @@
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%);
     color: #34d399;
     border: 1px solid rgba(16, 185, 129, 0.3);
-  }
-
-  .message-success a {
-    color: #34d399;
-    text-decoration: underline;
   }
 
   .message-warning {

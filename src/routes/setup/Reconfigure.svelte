@@ -539,9 +539,16 @@
 
         {#if deployStage === 'ready'}
           <div class="message success">
-            Your Radiant instance is configured and the new deployment is live. Use the notification
-            at the bottom of the page to refresh and load the updated version.
+            Deployment complete! Use the update prompt at the bottom of the screen to refresh. If it
+            doesn't appear, click below.
           </div>
+          <button
+            class="btn btn-secondary"
+            onclick={() => (window.location.href = '/')}
+            style="margin-top: 0.75rem;"
+          >
+            Manually refresh &amp; go home
+          </button>
         {/if}
       {/if}
     </section>
