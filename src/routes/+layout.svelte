@@ -34,6 +34,7 @@
   import { authState } from 'stellar-drive/stores';
   import { debug } from 'stellar-drive/utils';
   import { hydrateAuthState } from 'stellar-drive/kit';
+  import { scrollGuard } from 'stellar-drive/actions';
   import DemoBanner from 'stellar-drive/components/DemoBanner';
   import SyncStatus from 'stellar-drive/components/SyncStatus';
 
@@ -588,7 +589,7 @@
   <!-- ═══════════════════════════════════════════════════════════════════════
        Main Content Area — renders the matched page
        ═══════════════════════════════════════════════════════════════════════ -->
-  <main class="main" class:with-nav={isAuthenticated}>
+  <main class="main" class:with-nav={isAuthenticated} use:scrollGuard>
     {@render children?.()}
   </main>
 
