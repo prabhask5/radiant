@@ -23,7 +23,7 @@
   import { accountsStore, transactionsStore } from '$lib/stores/data';
 
   /* ── Utilities ── */
-  import { formatCurrencyCompact } from '$lib/utils/currency';
+  import { formatCurrency, formatCurrencyCompact } from '$lib/utils/currency';
 
   /* ── Components ── */
   import GemChart from '$lib/components/GemChart.svelte';
@@ -58,6 +58,25 @@
     ($accountsStore ?? []).filter((a: Account) => !a.is_hidden && a.status === 'open')
   );
   const hasAccounts = $derived(accounts.length > 0);
+
+  /** Net money change this month (inflows - outflows across all accounts). */
+  const monthlyNet = $derived.by(() => {
+    const txns = $transactionsStore ?? [];
+    if (txns.length === 0 || accounts.length === 0) return 0;
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const acctTypeMap = new Map(accounts.map((a) => [a.id, a.type]));
+    let net = 0;
+    for (const t of txns) {
+      if (t.is_excluded || t.date < monthStart) continue;
+      const type = acctTypeMap.get(t.account_id);
+      if (!type) continue;
+      const amt = parseFloat(t.amount) || 0;
+      // Depository: positive = money in. Credit: positive = money out (flip sign).
+      net += type === 'credit' ? -amt : amt;
+    }
+    return net;
+  });
 
   // ==========================================================================
   //                      NET WORTH CHART DATA
@@ -267,7 +286,12 @@
         {greeting}, <span class="hero-name">{firstName}</span>
       </h1>
       <p class="hero-subtitle">
-        {#if hasAccounts}
+        {#if hasAccounts && dataLoaded}
+          <span class="net-label">Net this month:</span>
+          <span class="net-value" class:positive={monthlyNet >= 0} class:negative={monthlyNet < 0}>
+            {monthlyNet >= 0 ? '+' : ''}{formatCurrency(monthlyNet)}
+          </span>
+        {:else if hasAccounts}
           Your finances at a glance
         {:else}
           Connect an account to get started
@@ -473,6 +497,29 @@
     font-size: 0.85rem;
     color: var(--gem-text-dim);
     margin: 0;
+  }
+
+  .net-label {
+    color: var(--gem-text-muted);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    margin-right: 6px;
+  }
+
+  .net-value {
+    font-weight: 700;
+    font-size: 0.88rem;
+    letter-spacing: -0.01em;
+  }
+
+  .net-value.positive {
+    color: var(--gem-emerald);
+  }
+
+  .net-value.negative {
+    color: var(--gem-ruby);
   }
 
   @media (max-width: 480px) {

@@ -405,12 +405,6 @@
      TEMPLATE
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="gem-chart" class:mounted bind:this={wrapperEl}>
-  <!-- Crystalline ambient refraction -->
-  <div class="chart-refraction">
-    <div class="refract r1"></div>
-    <div class="refract r2"></div>
-  </div>
-
   <!-- Header: title + range (desktop inline, mobile: range moves to bottom) -->
   <div class="chart-header">
     {#if title}
@@ -754,51 +748,6 @@
     }
     100% {
       background-position: -100% 0;
-    }
-  }
-
-  /* ────────────────────────────────────────────────────────────────────────
-     CRYSTAL REFRACTIONS (ambient depth)
-     ──────────────────────────────────────────────────────────────────────── */
-  .chart-refraction {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-    border-radius: 16px;
-  }
-
-  .refract {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(50px);
-    opacity: 0.35;
-  }
-
-  .refract.r1 {
-    width: 140px;
-    height: 140px;
-    top: -40px;
-    right: -20px;
-    background: radial-gradient(circle, rgba(232, 185, 74, 0.25), transparent 70%);
-    animation: refractDrift 14s ease-in-out infinite alternate;
-  }
-
-  .refract.r2 {
-    width: 100px;
-    height: 100px;
-    bottom: -30px;
-    left: 10%;
-    background: radial-gradient(circle, rgba(96, 165, 250, 0.18), transparent 70%);
-    animation: refractDrift 18s ease-in-out infinite alternate-reverse;
-  }
-
-  @keyframes refractDrift {
-    0% {
-      transform: translate(0, 0) scale(1);
-    }
-    100% {
-      transform: translate(14px, -10px) scale(1.12);
     }
   }
 
