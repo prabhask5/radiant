@@ -66,7 +66,7 @@ function tokenize(text: string): string[] {
 
   const words = text
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/[^a-z\s]/g, ' ')
     .split(/\s+/)
     .filter((w) => w.length >= 2 && !stops.has(w));
 

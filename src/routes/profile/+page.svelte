@@ -833,7 +833,11 @@
         <polyline points="15 18 9 12 15 6" />
       </svg>
     </button>
-    <h1 class="header-title">Profile</h1>
+    <div class="title-gem">
+      <div class="title-flare f1"></div>
+      <div class="title-flare f2"></div>
+      <h1 class="header-title">Profile</h1>
+    </div>
     <div class="header-spacer"></div>
   </header>
 
@@ -1689,7 +1693,55 @@
     background: rgba(232, 185, 74, 0.15);
   }
 
+  /* ── Amethyst gem title ── */
+  .title-gem {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .title-flare {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(14px);
+    pointer-events: none;
+    opacity: 0;
+    animation: profFlareIn 0.8s 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .f1 {
+    width: 48px;
+    height: 48px;
+    top: -10px;
+    left: -8px;
+    background: radial-gradient(circle, rgba(168, 120, 220, 0.5), transparent 70%);
+  }
+
+  .f2 {
+    width: 32px;
+    height: 32px;
+    top: -4px;
+    right: -6px;
+    background: radial-gradient(circle, rgba(200, 150, 255, 0.35), transparent 70%);
+    animation-delay: 0.3s !important;
+  }
+
+  @keyframes profFlareIn {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 0.7;
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   .header-title {
+    position: relative;
     font-family: var(
       --font-body,
       'SF Pro Text',
@@ -1701,9 +1753,24 @@
     );
     font-size: 1.125rem;
     font-weight: 600;
-    color: var(--prof-text);
     letter-spacing: -0.01em;
     margin: 0;
+    background: linear-gradient(135deg, var(--prof-text) 0%, #b088d8 60%, #9060c0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 200% auto;
+    animation: amethystTitleShimmer 8s ease-in-out infinite;
+  }
+
+  @keyframes amethystTitleShimmer {
+    0%,
+    100% {
+      background-position: 0% center;
+    }
+    50% {
+      background-position: 100% center;
+    }
   }
 
   .header-spacer {
@@ -3572,6 +3639,13 @@
     }
     .diag-progress-fill {
       transition: none;
+    }
+    .title-flare {
+      animation: none !important;
+      opacity: 0.6;
+    }
+    .header-title {
+      animation: none;
     }
   }
 

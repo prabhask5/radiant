@@ -1187,7 +1187,11 @@
   <!-- ── Header ─────────────────────────────────────────────────────── -->
   <header class="page-header">
     <div class="header-left">
-      <h1 class="page-title">Accounts</h1>
+      <div class="title-gem">
+        <div class="title-flare f1"></div>
+        <div class="title-flare f2"></div>
+        <h1 class="page-title">Accounts</h1>
+      </div>
       <p class="page-subtitle">
         {#if connectedCount > 0 && manualCount > 0}
           {connectedCount} connected, {manualCount} manual
@@ -2322,17 +2326,82 @@
     margin-bottom: 2rem;
   }
 
+  /* ── Emerald gem title ── */
+  .title-gem {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .title-flare {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(18px);
+    pointer-events: none;
+    opacity: 0;
+    animation: acctFlareIn 0.8s 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .f1 {
+    width: 60px;
+    height: 60px;
+    top: -14px;
+    left: -12px;
+    background: radial-gradient(circle, rgba(46, 196, 166, 0.5), transparent 70%);
+  }
+
+  .f2 {
+    width: 40px;
+    height: 40px;
+    top: -6px;
+    right: -8px;
+    background: radial-gradient(circle, rgba(52, 211, 153, 0.35), transparent 70%);
+    animation-delay: 0.3s !important;
+  }
+
+  @keyframes acctFlareIn {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 0.7;
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   .page-title {
+    position: relative;
     font-family: var(--font-display);
     font-size: 1.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
-    background: linear-gradient(135deg, var(--cyan) 0%, var(--amethyst) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--text-primary) 0%,
+      var(--cyan) 60%,
+      var(--emerald) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    background-size: 200% auto;
+    animation: emeraldTitleShimmer 8s ease-in-out infinite;
     margin: 0;
     line-height: 1.2;
+  }
+
+  @keyframes emeraldTitleShimmer {
+    0%,
+    100% {
+      background-position: 0% center;
+    }
+    50% {
+      background-position: 100% center;
+    }
   }
 
   .page-subtitle {
@@ -4158,6 +4227,17 @@
       width: 24px;
       height: 24px;
       font-size: 0.65rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .title-flare {
+      animation: none !important;
+      opacity: 0.6;
+    }
+
+    .page-title {
+      animation: none;
     }
   }
 </style>

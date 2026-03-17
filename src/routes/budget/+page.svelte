@@ -499,7 +499,11 @@
        ───────────────────────────────────────────────────────────────────── -->
   <header class="page-header anim-item" style="--delay: 0">
     <div class="header-row">
-      <h1 class="page-title">Budget</h1>
+      <div class="title-gem">
+        <div class="title-flare f1"></div>
+        <div class="title-flare f2"></div>
+        <h1 class="page-title">Budget</h1>
+      </div>
       <button class="config-btn" onclick={openCategoryModal} aria-label="Manage categories">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
           <path
@@ -1220,6 +1224,11 @@
     --bg-raised: #1e1a14;
     --bg-raised-2: #252018;
     --bg-void: #0e0c08;
+    --ruby: #e85454;
+    --ruby-bright: #f06868;
+    --ruby-deep: #c23838;
+    --ruby-dim: rgba(232, 84, 84, 0.12);
+    --ruby-glow: rgba(232, 84, 84, 0.25);
     --citrine: #dbb044;
     --citrine-dim: rgba(219, 176, 68, 0.15);
     --citrine-glow: rgba(219, 176, 68, 0.25);
@@ -1230,9 +1239,6 @@
     --border-hover: rgba(180, 150, 80, 0.2);
     --emerald: #10b981;
     --emerald-dim: rgba(16, 185, 129, 0.15);
-    --ruby: #ef4444;
-    --ruby-dim: rgba(239, 68, 68, 0.12);
-    --ruby-glow: rgba(239, 68, 68, 0.25);
     --radius: 16px;
     --radius-sm: 10px;
     --frost: rgba(30, 26, 20, 0.6);
@@ -1241,9 +1247,9 @@
     --gradient-shimmer: linear-gradient(
       110deg,
       transparent 25%,
-      rgba(219, 176, 68, 0.06) 37%,
-      rgba(219, 176, 68, 0.12) 50%,
-      rgba(219, 176, 68, 0.06) 63%,
+      rgba(232, 84, 84, 0.05) 37%,
+      rgba(232, 84, 84, 0.1) 50%,
+      rgba(232, 84, 84, 0.05) 63%,
       transparent 75%
     );
   }
@@ -1269,6 +1275,37 @@
     transform: translateY(0);
   }
 
+  /* Ruby prismatic background sweep */
+  .budget-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(
+      150deg,
+      transparent 0%,
+      rgba(232, 84, 84, 0.03) 20%,
+      rgba(240, 104, 104, 0.025) 35%,
+      transparent 45%,
+      rgba(194, 56, 56, 0.02) 60%,
+      transparent 75%,
+      rgba(219, 176, 68, 0.02) 90%,
+      transparent 100%
+    );
+    background-size: 200% 200%;
+    z-index: -1;
+    pointer-events: none;
+    animation: rubyPrismSweep 16s ease-in-out infinite alternate;
+  }
+
+  @keyframes rubyPrismSweep {
+    0% {
+      background-position: 0% 100%;
+    }
+    100% {
+      background-position: 100% 0%;
+    }
+  }
+
   /* ══════════════════════════════════════════════════════════════════════════
      ENTRANCE ANIMATIONS
      ══════════════════════════════════════════════════════════════════════════ */
@@ -1292,6 +1329,19 @@
       transition-duration: 0.01ms !important;
       transition-delay: 0.01ms !important;
     }
+
+    .budget-page::before {
+      animation: none;
+    }
+
+    .title-flare {
+      animation: none !important;
+      opacity: 0.6;
+    }
+
+    .page-title {
+      animation: none;
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
@@ -1309,15 +1359,83 @@
     justify-content: space-between;
   }
 
+  /* ── Ruby gem title ── */
+  .title-gem {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .title-flare {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(18px);
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .budget-page.mounted .title-flare {
+    animation: flareIn 0.8s 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .f1 {
+    width: 60px;
+    height: 60px;
+    top: -14px;
+    left: -12px;
+    background: radial-gradient(circle, rgba(232, 84, 84, 0.5), transparent 70%);
+  }
+
+  .f2 {
+    width: 40px;
+    height: 40px;
+    top: -6px;
+    right: -8px;
+    background: radial-gradient(circle, rgba(240, 140, 80, 0.35), transparent 70%);
+    animation-delay: 0.35s !important;
+  }
+
+  @keyframes flareIn {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 0.7;
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   .page-title {
+    position: relative;
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
     margin: 0;
-    background: linear-gradient(135deg, var(--text) 0%, var(--citrine) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--text) 0%,
+      var(--ruby-bright) 60%,
+      var(--ruby-deep) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    background-size: 200% auto;
+    animation: rubyTitleShimmer 8s ease-in-out infinite;
+  }
+
+  @keyframes rubyTitleShimmer {
+    0%,
+    100% {
+      background-position: 0% center;
+    }
+    50% {
+      background-position: 100% center;
+    }
   }
 
   .config-btn {
@@ -1342,8 +1460,8 @@
 
   .config-btn:hover {
     background: var(--frost-hover);
-    color: var(--citrine);
-    border-color: var(--border-hover);
+    color: var(--ruby-bright);
+    border-color: rgba(232, 84, 84, 0.25);
   }
 
   /* ── Month Navigation ── */
@@ -1409,9 +1527,9 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--citrine);
-    background: var(--citrine-dim);
-    border: 1px solid rgba(219, 176, 68, 0.15);
+    color: var(--ruby);
+    background: var(--ruby-dim);
+    border: 1px solid rgba(232, 84, 84, 0.15);
     border-radius: 6px;
     padding: 0.3rem 0.6rem;
     cursor: pointer;
@@ -1422,8 +1540,8 @@
   }
 
   .today-btn:hover {
-    background: var(--citrine-glow);
-    border-color: rgba(219, 176, 68, 0.3);
+    background: var(--ruby-glow);
+    border-color: rgba(232, 84, 84, 0.3);
   }
 
   @media (max-width: 640px) {

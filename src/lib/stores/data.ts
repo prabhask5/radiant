@@ -348,7 +348,8 @@ function createCategoriesStore() {
     async remove(id: string) {
       debug('log', '[DATA] categories — remove', { id });
 
-      // Uncategorize all transactions that reference this category
+      // Uncategorize all transactions that reference this category and reset
+      // is_auto_categorized so ML sync can re-process them with remaining categories
       const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
       const affected = allTxns.filter((t) => t.category_id === id && !t.deleted);
       if (affected.length > 0) {
@@ -356,7 +357,7 @@ function createCategoriesStore() {
           type: 'update' as const,
           table: 'transactions',
           id: t.id,
-          fields: { category_id: null }
+          fields: { category_id: null, is_auto_categorized: false }
         }));
         await engineBatchWrite(ops);
         debug('log', '[DATA] categories — uncategorized transactions', { count: affected.length });
@@ -366,6 +367,11 @@ function createCategoriesStore() {
       await engineDelete('categories', id);
       await store.load();
       debug('log', '[DATA] categories — remove complete', { id });
+
+      // Re-process the now-uncategorized transactions via ML sync
+      if (affected.length > 0) {
+        scheduleMLSync();
+      }
     },
     async refresh() {
       debug('log', '[DATA] categories — refreshing');

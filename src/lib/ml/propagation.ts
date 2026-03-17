@@ -4,8 +4,7 @@
  *
  * When a user manually sets a category on a transaction, this module finds
  * other transactions with similar descriptions and propagates the category.
- * Only targets uncategorized transactions — never overwrites any existing
- * categorization.
+ * Overwrites auto-categorized transactions but never manual user assignments.
  *
  * Classifier retraining is handled by the caller via `scheduleMLSync()` —
  * this module only handles the propagation write.
@@ -103,7 +102,8 @@ export interface PropagationResult {
  * stale-data bugs. Only updates transactions that are:
  * - Not deleted
  * - Not the source transaction
- * - Uncategorized (category_id === null)
+ * - Uncategorized OR auto-categorized (never overwrites manual assignments)
+ * - Not already set to the target category
  * - Above the similarity threshold
  *
  * Does NOT retrain the classifier — the caller's `scheduleMLSync()` handles
@@ -119,17 +119,35 @@ export async function propagateCategory(
 ): Promise<PropagationResult> {
   const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
   const source = allTxns.find((t) => t.id === sourceTransactionId);
-  if (!source) return { propagatedCount: 0 };
+  if (!source) {
+    debug('warn', '[ML:PROPAGATE] Source transaction not found', { sourceTransactionId });
+    return { propagatedCount: 0 };
+  }
 
   const sourceTokens = tokenize(source.description);
-  if (sourceTokens.size === 0) return { propagatedCount: 0 };
+  if (sourceTokens.size === 0) {
+    debug('warn', '[ML:PROPAGATE] Source tokenized to empty set', {
+      description: source.description
+    });
+    return { propagatedCount: 0 };
+  }
 
-  // Find similar uncategorized transactions to propagate to.
-  // Only targets transactions with no category at all — never overwrites
-  // any existing categorization (manual or auto).
+  debug('log', '[ML:PROPAGATE] Starting propagation', {
+    source: source.description.slice(0, 50),
+    tokens: [...sourceTokens],
+    categoryId,
+    totalTxns: allTxns.length
+  });
+
+  // Find similar transactions to propagate to.
+  // Overwrites auto-categorized transactions (ML got it wrong) but never
+  // overwrites manual user categorizations — user intent always wins.
   const matches = allTxns.filter((t) => {
     if (t.deleted || t.id === sourceTransactionId) return false;
-    if (t.category_id !== null) return false;
+    // Skip manually categorized (has category + not auto-categorized = user set it)
+    if (t.category_id !== null && !t.is_auto_categorized) return false;
+    // Skip if already set to the same category
+    if (t.category_id === categoryId) return false;
     return similarity(sourceTokens, tokenize(t.description)) >= SIMILARITY_THRESHOLD;
   });
 

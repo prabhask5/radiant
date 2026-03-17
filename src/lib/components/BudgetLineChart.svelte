@@ -367,13 +367,16 @@
 
     function flushRun() {
       if (currentRun.length < 2) return;
-      // Build closed polygon: spending line forward, pace line backward
-      const spendCoords = currentRun.map((p) => `${sx(p.day)},${sy(p.spendVal)}`);
+      // Build closed shape: spending edge uses same cubic curves as the
+      // rendered line (avoids gaps between curve and straight polygon edges),
+      // pace edge uses straight lines (pace is linear).
+      const spendPts = currentRun.map((p) => ({ x: sx(p.day), y: sy(p.spendVal) }));
+      const spendEdge = toPath(spendPts); // Monotone cubic bezier
       const paceCoords = currentRun
         .slice()
         .reverse()
         .map((p) => `${sx(p.day)},${sy(p.paceVal)}`);
-      const path = `M${spendCoords.join('L')}L${paceCoords.join('L')}Z`;
+      const path = `${spendEdge}L${paceCoords.join('L')}Z`;
       if (currentStatus === 'under') {
         underParts.push(path);
       } else if (currentStatus === 'over') {

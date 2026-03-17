@@ -434,7 +434,7 @@
   }
 
   /** Minimum similarity for fuzzy matching (0–1 scale). */
-  const SIMILARITY_THRESHOLD = 0.7;
+  const SIMILARITY_THRESHOLD = 0.5;
 
   /**
    * Find the category for a description by fuzzy-matching against all
@@ -633,7 +633,11 @@
 <div class="txn-page" class:mounted>
   <!-- ─── Header ─── -->
   <header class="page-header">
-    <h1 class="page-title">Transactions</h1>
+    <div class="title-gem">
+      <div class="title-flare f1"></div>
+      <div class="title-flare f2"></div>
+      <h1 class="page-title">Transactions</h1>
+    </div>
     <div class="month-nav-group">
       {#if !isCurrentMonth}
         <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}>
@@ -1439,16 +1443,78 @@
     gap: 0.5rem;
   }
 
+  /* ── Citrine gem title ── */
+  .title-gem {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .title-flare {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(18px);
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .txn-page.mounted .title-flare {
+    animation: txnFlareIn 0.8s 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .f1 {
+    width: 60px;
+    height: 60px;
+    top: -14px;
+    left: -12px;
+    background: radial-gradient(circle, rgba(219, 176, 68, 0.5), transparent 70%);
+  }
+
+  .f2 {
+    width: 40px;
+    height: 40px;
+    top: -6px;
+    right: -8px;
+    background: radial-gradient(circle, rgba(232, 200, 122, 0.35), transparent 70%);
+    animation-delay: 0.35s !important;
+  }
+
+  @keyframes txnFlareIn {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 0.7;
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   .page-title {
+    position: relative;
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: var(--txn-text);
     margin: 0;
-    background: linear-gradient(135deg, var(--txn-text) 0%, var(--txn-citrine) 100%);
+    background: linear-gradient(135deg, var(--txn-text) 0%, var(--txn-citrine) 60%, #c49a30 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    background-size: 200% auto;
+    animation: citrineTitleShimmer 8s ease-in-out infinite;
+  }
+
+  @keyframes citrineTitleShimmer {
+    0%,
+    100% {
+      background-position: 0% center;
+    }
+    50% {
+      background-position: 100% center;
+    }
   }
 
   .month-nav {
@@ -2535,6 +2601,15 @@
     }
 
     .txn-page::before {
+      animation: none;
+    }
+
+    .title-flare {
+      animation: none !important;
+      opacity: 0.6;
+    }
+
+    .page-title {
       animation: none;
     }
   }

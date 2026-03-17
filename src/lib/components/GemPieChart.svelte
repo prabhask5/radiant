@@ -344,13 +344,12 @@
             onpointerenter={(e) => onSegmentEnter(i, e)}
             onpointerleave={onSegmentLeave}
           >
+            <span
+              class="legend-dot"
+              style="background: {seg.color}; box-shadow: 0 0 6px {seg.color}40;"
+            ></span>
             {#if seg.icon}
               <span class="legend-icon">{seg.icon}</span>
-            {:else}
-              <span
-                class="legend-dot"
-                style="background: {seg.color}; box-shadow: 0 0 6px {seg.color}40;"
-              ></span>
             {/if}
             <span class="legend-label">{seg.label}</span>
             <span class="legend-value">{formatValue(seg.value)}</span>
