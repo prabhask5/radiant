@@ -266,38 +266,46 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
 
     // Look up existing transactions scoped to the fetch window.
     // transactions is a child table (no user_id) — query by account_id instead.
+    // Fetch all Teller-managed fields for change detection (not just status).
     const accountIds = [...acctIdMap.values()];
-    let txnIdMap: Map<string, { id: string; deleted: boolean; status: string }>;
+    const txnSelectFields =
+      'id, teller_transaction_id, deleted, status, amount, description, running_balance, counterparty_name, counterparty_type, teller_category, type';
+
+    interface ExistingTxnRow {
+      id: string;
+      teller_transaction_id: string;
+      deleted: boolean;
+      status: string;
+      amount: string;
+      description: string;
+      running_balance: string | null;
+      counterparty_name: string | null;
+      counterparty_type: string | null;
+      teller_category: string | null;
+      type: string | null;
+    }
+
+    let txnIdMap: Map<string, ExistingTxnRow>;
     if (bufferDate) {
       const { data: existingTxns } = await admin
         .from('transactions')
-        .select('id, teller_transaction_id, deleted, status')
+        .select(txnSelectFields)
         .in('account_id', accountIds)
         .gte('date', bufferDate);
       txnIdMap = new Map(
-        (existingTxns ?? []).map(
-          (t: { id: string; teller_transaction_id: string; deleted: boolean; status: string }) => [
-            t.teller_transaction_id,
-            { id: t.id, deleted: t.deleted, status: t.status }
-          ]
-        )
+        (existingTxns ?? []).map((t: ExistingTxnRow) => [t.teller_transaction_id, t])
       );
     } else {
       const { data: existingTxns } = await admin
         .from('transactions')
-        .select('id, teller_transaction_id, deleted, status')
+        .select(txnSelectFields)
         .in('account_id', accountIds);
       txnIdMap = new Map(
-        (existingTxns ?? []).map(
-          (t: { id: string; teller_transaction_id: string; deleted: boolean; status: string }) => [
-            t.teller_transaction_id,
-            { id: t.id, deleted: t.deleted, status: t.status }
-          ]
-        )
+        (existingTxns ?? []).map((t: ExistingTxnRow) => [t.teller_transaction_id, t])
       );
     }
 
-    // Fetch transactions for each account — insert new, update pending→posted
+    // Fetch transactions for each account — insert new, update changed
     const insertRows: Record<string, unknown>[] = [];
     const updateRows: Record<string, unknown>[] = [];
     let skippedExisting = 0;
@@ -333,20 +341,33 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
           }
 
           if (existing) {
-            // Existing active transaction — only update if it was pending
-            // (pending→posted transitions can change amount, status, etc.)
-            if (existing.status === 'pending' && txn.status !== 'pending') {
-              updateRows.push({
-                id: existing.id,
-                amount: txn.amount,
-                status: txn.status,
-                running_balance: txn.running_balance,
-                counterparty_name: txn.details?.counterparty?.name || null,
-                counterparty_type: txn.details?.counterparty?.type || null,
-                teller_category: txn.details?.category || null,
-                type: txn.type,
-                updated_at: timestamp
-              });
+            // Build update with only the fields that actually changed.
+            // Covers: pending→posted, pending amount/description changes
+            // (restaurant tips, gas pre-auths), description enrichment, etc.
+            // Never touches user-editable fields (category_id, notes, etc.).
+            const changed: Record<string, unknown> = {};
+            let hasChanges = false;
+            const incoming = {
+              amount: txn.amount,
+              status: txn.status,
+              description: txn.description,
+              running_balance: txn.running_balance ?? null,
+              counterparty_name: txn.details?.counterparty?.name || null,
+              counterparty_type: txn.details?.counterparty?.type || null,
+              teller_category: txn.details?.category || null,
+              type: txn.type ?? null
+            };
+            for (const [key, val] of Object.entries(incoming)) {
+              if (val !== existing[key as keyof ExistingTxnRow]) {
+                changed[key] = val;
+                hasChanges = true;
+              }
+            }
+
+            if (hasChanges) {
+              changed.id = existing.id;
+              changed.updated_at = timestamp;
+              updateRows.push(changed);
             } else {
               skippedExisting++;
             }

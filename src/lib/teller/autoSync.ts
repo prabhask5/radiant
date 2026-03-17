@@ -50,28 +50,83 @@ let autoSyncInProgress: Promise<number> | null = null;
    PROCESS TELLER SYNC DATA
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/** Shape of Teller-managed fields we track for change detection. */
+interface LocalTellerTxn {
+  id: string;
+  status: string;
+  amount: string;
+  description: string;
+  counterparty_name: string | null;
+  counterparty_type: string | null;
+  teller_category: string | null;
+  type: string | null;
+  running_balance: string | null;
+  deleted?: boolean;
+}
+
 /**
  * Get a map of all teller_transaction_ids currently in IndexedDB,
- * including their local id and status for pending→posted detection.
+ * including Teller-managed fields for change detection.
  */
-async function getFreshTellerTxnMap(): Promise<
-  Map<string, { id: string; status: string; deleted?: boolean }>
-> {
+async function getFreshTellerTxnMap(): Promise<Map<string, LocalTellerTxn>> {
   const allLocalTxns = (await engineGetAll('transactions')) as unknown as Array<
-    Record<string, unknown> & {
-      id: string;
-      teller_transaction_id: string | null;
-      status: string;
-      deleted?: boolean;
-    }
+    Record<string, unknown> & { teller_transaction_id: string | null }
   >;
-  const map = new Map<string, { id: string; status: string; deleted?: boolean }>();
+  const map = new Map<string, LocalTellerTxn>();
   for (const t of allLocalTxns) {
     if (t.teller_transaction_id) {
-      map.set(t.teller_transaction_id, { id: t.id, status: t.status, deleted: t.deleted });
+      map.set(t.teller_transaction_id, {
+        id: t.id as string,
+        status: t.status as string,
+        amount: t.amount as string,
+        description: t.description as string,
+        counterparty_name: (t.counterparty_name as string | null) ?? null,
+        counterparty_type: (t.counterparty_type as string | null) ?? null,
+        teller_category: (t.teller_category as string | null) ?? null,
+        type: (t.type as string | null) ?? null,
+        running_balance: (t.running_balance as string | null) ?? null,
+        deleted: t.deleted as boolean | undefined
+      });
     }
   }
   return map;
+}
+
+/**
+ * Build an update fields object for Teller-managed properties that changed.
+ * Returns null if nothing changed (avoids unnecessary writes).
+ * Never touches user-editable fields (category_id, notes, is_excluded, etc.).
+ */
+function getTellerUpdateFields(
+  local: LocalTellerTxn,
+  tellerTxn: Record<string, unknown>
+): Record<string, unknown> | null {
+  const details = tellerTxn.details as
+    | { counterparty?: { name?: string; type?: string }; category?: string }
+    | undefined;
+
+  const incoming = {
+    amount: tellerTxn.amount as string,
+    status: tellerTxn.status as string,
+    description: tellerTxn.description as string,
+    running_balance: ((tellerTxn.running_balance as string) ?? null) as string | null,
+    counterparty_name: (details?.counterparty?.name ?? null) as string | null,
+    counterparty_type: (details?.counterparty?.type ?? null) as string | null,
+    teller_category: (details?.category ?? null) as string | null,
+    type: ((tellerTxn.type as string) ?? null) as string | null
+  };
+
+  const changed: Record<string, unknown> = {};
+  let hasChanges = false;
+
+  for (const key of Object.keys(incoming) as Array<keyof typeof incoming>) {
+    if (incoming[key] !== local[key]) {
+      changed[key] = incoming[key];
+      hasChanges = true;
+    }
+  }
+
+  return hasChanges ? changed : null;
 }
 
 /**
@@ -170,17 +225,14 @@ async function processTellerSyncDataInternal(
     }
   }
 
-  // First pass: sort transactions into new, pending→posted updates, and skip
+  // First pass: sort transactions into new, needs-update, and skip
   const candidateTxns: Array<{
     tellerTxnId: string;
     accountId: string;
     tellerTxn: Record<string, unknown>;
   }> = [];
-  const pendingUpdates: Array<{
-    localId: string;
-    tellerTxn: Record<string, unknown>;
-  }> = [];
   let skippedExisting = 0;
+  let updatedCount = 0;
 
   for (const tellerTxn of rawData.transactions) {
     const tellerTxnId = tellerTxn.id as string;
@@ -194,9 +246,23 @@ async function processTellerSyncDataInternal(
       if (existing.deleted) {
         // User explicitly deleted — respect their decision
         skippedExisting++;
-      } else if (existing.status === 'pending' && tellerTxn.status !== 'pending') {
-        // Pending → posted: update with fresh Teller data
-        pendingUpdates.push({ localId: existing.id, tellerTxn });
+        continue;
+      }
+
+      // Check if any Teller-managed fields have actually changed.
+      // This covers: pending→posted, pending amount/description changes
+      // (e.g. restaurant tip, gas pre-auth), description enrichment, etc.
+      // Posted transactions are immutable in Teller so this is a no-op for them.
+      const updateFields = getTellerUpdateFields(existing, tellerTxn);
+      if (updateFields) {
+        ops.push({
+          type: 'update',
+          table: 'transactions',
+          id: existing.id,
+          fields: updateFields
+        });
+        remoteChangesStore.recordLocalChange(existing.id, 'transactions', 'update');
+        updatedCount++;
       } else {
         skippedExisting++;
       }
@@ -204,30 +270,6 @@ async function processTellerSyncDataInternal(
     }
 
     candidateTxns.push({ tellerTxnId, accountId, tellerTxn });
-  }
-
-  // Build update ops for pending→posted transitions
-  let updatedCount = 0;
-  for (const { localId, tellerTxn } of pendingUpdates) {
-    const details = tellerTxn.details as
-      | { counterparty?: { name?: string; type?: string }; category?: string }
-      | undefined;
-    ops.push({
-      type: 'update',
-      table: 'transactions',
-      id: localId,
-      fields: {
-        amount: tellerTxn.amount as string,
-        status: tellerTxn.status as string,
-        running_balance: (tellerTxn.running_balance as string) ?? null,
-        counterparty_name: details?.counterparty?.name ?? null,
-        counterparty_type: details?.counterparty?.type ?? null,
-        teller_category: details?.category ?? null,
-        type: (tellerTxn.type as string) ?? null
-      }
-    });
-    remoteChangesStore.recordLocalChange(localId, 'transactions', 'update');
-    updatedCount++;
   }
 
   // Second freshness check: re-read IndexedDB right before writing to catch
