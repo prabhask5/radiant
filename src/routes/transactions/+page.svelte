@@ -43,8 +43,6 @@
   import { autoSyncStaleEnrollments } from '$lib/teller/autoSync';
   import { categorizeTransaction } from '$lib/ml/categorizer';
   import { categorizer } from '$lib/ml/classifier';
-  import { engineBatchWrite } from 'stellar-drive/data';
-  import type { BatchOperation } from 'stellar-drive/data';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -478,65 +476,17 @@
     const newCat = editingCategory[transactionId] || null;
     debug('log', '[TRANSACTIONS] saveCategory —', transactionId, '→', newCat);
     try {
-      await transactionsStore.updateCategory(transactionId, newCat);
+      const propagatedCount = await transactionsStore.updateCategory(transactionId, newCat);
       await transactionsStore.refresh();
 
-      // Propagate to similar transactions in the background
-      if (newCat) {
-        const source = allTransactions.find((t) => t.id === transactionId);
-        if (source) propagateCategoryToSimilar(source.description, newCat, transactionId);
+      if (propagatedCount > 0) {
+        showCatToast(
+          `Updated ${propagatedCount} similar transaction${propagatedCount !== 1 ? 's' : ''}`
+        );
       }
     } finally {
       savingField = null;
     }
-  }
-
-  /**
-   * After a manual category assignment, find all transactions with a matching
-   * normalized description and set them to the same category. Also retrains
-   * the ML classifier for future predictions. Runs async in the background.
-   */
-  function propagateCategoryToSimilar(description: string, categoryId: string, sourceId: string) {
-    setTimeout(async () => {
-      try {
-        const sourceTokens = tokenizeDesc(description);
-        if (sourceTokens.size === 0) return;
-
-        const txns = allTransactions.filter((t) => !t.deleted);
-
-        // Find transactions with similar descriptions that have a different
-        // category (or no category) — excludes the source txn
-        const matches = txns.filter((t) => {
-          if (t.id === sourceId || t.category_id === categoryId) return false;
-          return descSimilarity(sourceTokens, tokenizeDesc(t.description)) >= SIMILARITY_THRESHOLD;
-        });
-
-        const ops: BatchOperation[] = matches.map((t) => ({
-          type: 'update' as const,
-          table: 'transactions',
-          id: t.id,
-          fields: { category_id: categoryId, is_auto_categorized: true }
-        }));
-
-        if (ops.length > 0) {
-          await engineBatchWrite(ops);
-          await transactionsStore.refresh();
-          showCatToast(`Updated ${ops.length} similar transaction${ops.length !== 1 ? 's' : ''}`);
-          debug('log', '[TRANSACTIONS] Propagated category to', ops.length, 'similar transactions');
-        }
-
-        // Retrain classifier with new data for future predictions
-        const categorized = allTransactions.filter((t) => t.category_id !== null && !t.deleted);
-        if (categorized.length > 0) {
-          categorizer.train(
-            categorized.map((t) => ({ description: t.description, category_id: t.category_id! }))
-          );
-          categorizer.save();
-        }
-      } catch (err) {
-        debug('warn', '[TRANSACTIONS] Category propagation failed:', err);
-      }
-    }, 0);
   }
 
   /** Save notes for a transaction. */

@@ -34,6 +34,7 @@ import type {
 /* ── ML Sync (debounced triggers) ── */
 import { syncRecurringDetections } from '$lib/ml/recurringSync';
 import { syncCategorizationResults } from '$lib/ml/categorizationSync';
+import { propagateCategory } from '$lib/ml/propagation';
 
 let mlSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -175,8 +176,24 @@ function createTransactionsStore() {
       await engineUpdate('transactions', transactionId, { category_id: categoryId });
       await store.load();
       debug('log', '[DATA] transactions — updateCategory complete', { transactionId });
-      // Retrain ML classifier so future predictions incorporate this manual override
+
+      // Propagate to similar transactions + retrain classifier, then run remaining ML sync
+      if (categoryId) {
+        const result = await propagateCategory(transactionId, categoryId);
+        if (result.propagatedCount > 0) {
+          await store.load();
+          debug(
+            'log',
+            '[DATA] transactions — propagated category to',
+            result.propagatedCount,
+            'similar'
+          );
+        }
+        scheduleMLSync();
+        return result.propagatedCount;
+      }
       scheduleMLSync();
+      return 0;
     },
     async toggleExcluded(transactionId: string, excluded: boolean) {
       debug('log', '[DATA] transactions — toggleExcluded', { transactionId, excluded });
