@@ -7,9 +7,8 @@
  *
  * - **Teller Enrollments** — two linked bank institutions (Chase, BofA).
  * - **Accounts** — five accounts across checking, savings, and credit cards.
- * - **Categories** — subset of 54 default emoji categories.
+ * - **Categories** — user-defined budget categories with budget_amount.
  * - **Transactions** — ~45 entries spanning the last 60 days.
- * - **Budget Items** — 8 categories with monthly spending limits.
  * - **Recurring Transactions** — 4 auto-detected recurring charges.
  *
  * Sign conventions (matching Teller / currency.ts):
@@ -25,7 +24,6 @@
 // =============================================================================
 
 import type Dexie from 'dexie';
-import { categoryKeyToId } from '$lib/categories';
 
 // =============================================================================
 //                              HELPER UTILITIES
@@ -85,25 +83,25 @@ const ACCT_CHASE_CREDIT = 'demo-acct-chase-credit';
 const ACCT_BOFA_CHECKING = 'demo-acct-bofa-checking';
 const ACCT_BOFA_CREDIT = 'demo-acct-bofa-credit';
 
-// Categories — deterministic UUIDs matching categories.ts
-const CAT_GROCERIES = categoryKeyToId('groceries');
-const CAT_DINING = categoryKeyToId('dining');
-const CAT_COFFEE = categoryKeyToId('coffee');
-const CAT_RENT = categoryKeyToId('rent');
-const CAT_UTILITIES = categoryKeyToId('utilities');
-const CAT_GAS_FUEL = categoryKeyToId('gas-fuel');
-const CAT_RIDESHARE = categoryKeyToId('rideshare');
-const CAT_SHOPPING = categoryKeyToId('shopping');
-const CAT_ENTERTAINMENT = categoryKeyToId('entertainment');
-const CAT_STREAMING = categoryKeyToId('streaming');
-const CAT_HEALTH_INSURANCE = categoryKeyToId('health-insurance');
-const CAT_CAR_INSURANCE = categoryKeyToId('car-insurance');
-const CAT_SALARY = categoryKeyToId('salary');
-const CAT_FREELANCE = categoryKeyToId('freelance');
-const CAT_TRANSFER = categoryKeyToId('transfer');
-const CAT_CREDIT_CARD_PAYMENT = categoryKeyToId('credit-card-payment');
-const CAT_PHARMACY = categoryKeyToId('pharmacy');
-const CAT_GYM_FITNESS = categoryKeyToId('gym-fitness');
+// Categories — deterministic demo IDs
+const CAT_GROCERIES = 'demo-cat-groceries';
+const CAT_DINING = 'demo-cat-dining';
+const CAT_COFFEE = 'demo-cat-coffee';
+const CAT_RENT = 'demo-cat-rent';
+const CAT_UTILITIES = 'demo-cat-utilities';
+const CAT_GAS_FUEL = 'demo-cat-gas-fuel';
+const CAT_RIDESHARE = 'demo-cat-rideshare';
+const CAT_SHOPPING = 'demo-cat-shopping';
+const CAT_ENTERTAINMENT = 'demo-cat-entertainment';
+const CAT_STREAMING = 'demo-cat-streaming';
+const CAT_HEALTH_INSURANCE = 'demo-cat-health-insurance';
+const CAT_CAR_INSURANCE = 'demo-cat-car-insurance';
+const CAT_SALARY = 'demo-cat-salary';
+const CAT_FREELANCE = 'demo-cat-freelance';
+const CAT_TRANSFER = 'demo-cat-transfer';
+const CAT_CREDIT_CARD_PAYMENT = 'demo-cat-credit-card-payment';
+const CAT_PHARMACY = 'demo-cat-pharmacy';
+const CAT_GYM_FITNESS = 'demo-cat-gym-fitness';
 
 // =============================================================================
 //                            SEED FUNCTION
@@ -112,13 +110,11 @@ const CAT_GYM_FITNESS = categoryKeyToId('gym-fitness');
 /**
  * Populate the demo Dexie database with realistic financial mock data.
  *
- * Called once when demo mode is activated. Seeds six Dexie tables in sequence
- * (enrollments, accounts, categories, transactions, budget_items,
- * recurring_transactions).
+ * Called once when demo mode is activated. Seeds five Dexie tables in sequence
+ * (enrollments, accounts, categories, transactions, recurring_transactions).
  *
- * Uses `bulkPut` with deterministic `demo-` / `cat-` prefixed IDs, so the
- * function is fully idempotent — calling it multiple times on the same DB is
- * a no-op.
+ * Uses `bulkPut` with deterministic `demo-` prefixed IDs, so the function is
+ * fully idempotent — calling it multiple times on the same DB is a no-op.
  */
 export async function seedDemoData(db: Dexie): Promise<void> {
   // ---------------------------------------------------------------------------
@@ -239,7 +235,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
   ]);
 
   // ---------------------------------------------------------------------------
-  //  3. Categories — emoji-based defaults (subset of 54)
+  //  3. Categories — user-defined budget categories with budget_amount
   // ---------------------------------------------------------------------------
   await db.table('categories').bulkPut([
     {
@@ -247,9 +243,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       name: 'Groceries',
       icon: '🛒',
       color: '#10b981',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['groceries'],
+      budget_amount: '600',
       order: 1
     },
     {
@@ -257,9 +251,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       name: 'Dining',
       icon: '🍽️',
       color: '#f59e0b',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['dining'],
+      budget_amount: '300',
       order: 2
     },
     {
@@ -267,9 +259,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       name: 'Coffee',
       icon: '☕',
       color: '#92400e',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: [],
+      budget_amount: '80',
       order: 3
     },
     {
@@ -277,150 +267,120 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       name: 'Rent',
       icon: '🏠',
       color: '#14b8a6',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: [],
-      order: 5
+      budget_amount: '2200',
+      order: 4
     },
     {
       ...base(CAT_UTILITIES),
       name: 'Utilities',
       icon: '💡',
       color: '#6366f1',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['utilities'],
-      order: 7
+      budget_amount: '250',
+      order: 5
     },
     {
       ...base(CAT_GAS_FUEL),
       name: 'Gas/Fuel',
       icon: '⛽',
       color: '#f97316',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['fuel'],
-      order: 12
+      budget_amount: '150',
+      order: 6
     },
     {
       ...base(CAT_RIDESHARE),
       name: 'Rideshare',
       icon: '🚕',
       color: '#7c3aed',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: [],
-      order: 17
+      budget_amount: '100',
+      order: 7
     },
     {
       ...base(CAT_SHOPPING),
       name: 'Shopping',
       icon: '🛍️',
       color: '#8b5cf6',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['shopping'],
-      order: 26
+      budget_amount: '200',
+      order: 8
     },
     {
       ...base(CAT_ENTERTAINMENT),
       name: 'Entertainment',
       icon: '🎬',
       color: '#ec4899',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['entertainment'],
-      order: 29
+      budget_amount: '150',
+      order: 9
     },
     {
       ...base(CAT_STREAMING),
       name: 'Streaming',
       icon: '📺',
       color: '#a855f7',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['software'],
-      order: 30
+      budget_amount: '60',
+      order: 10
     },
     {
       ...base(CAT_HEALTH_INSURANCE),
       name: 'Health Insurance',
       icon: '🏥',
       color: '#ef4444',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['health'],
-      order: 19
+      budget_amount: '200',
+      order: 11
     },
     {
       ...base(CAT_CAR_INSURANCE),
       name: 'Car Insurance',
       icon: '🛡️',
       color: '#64748b',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['insurance'],
-      order: 14
+      budget_amount: '200',
+      order: 12
     },
     {
       ...base(CAT_PHARMACY),
       name: 'Pharmacy',
       icon: '💊',
       color: '#fb923c',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: [],
-      order: 21
+      budget_amount: '50',
+      order: 13
     },
     {
       ...base(CAT_GYM_FITNESS),
       name: 'Gym/Fitness',
       icon: '🏋️',
       color: '#22c55e',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: ['sport'],
-      order: 23
+      budget_amount: '60',
+      order: 14
     },
     {
       ...base(CAT_SALARY),
       name: 'Salary',
       icon: '💰',
       color: '#22c55e',
-      type: 'income',
-      parent_id: null,
-      teller_categories: ['income'],
-      order: 41
+      budget_amount: '0',
+      order: 15
     },
     {
       ...base(CAT_FREELANCE),
       name: 'Freelance',
       icon: '💼',
       color: '#10b981',
-      type: 'income',
-      parent_id: null,
-      teller_categories: [],
-      order: 42
+      budget_amount: '0',
+      order: 16
     },
     {
       ...base(CAT_TRANSFER),
       name: 'Transfer',
       icon: '🔄',
       color: '#94a3b8',
-      type: 'transfer',
-      parent_id: null,
-      teller_categories: [],
-      order: 49
+      budget_amount: '0',
+      order: 17
     },
     {
       ...base(CAT_CREDIT_CARD_PAYMENT),
       name: 'Credit Card Payment',
       icon: '💳',
       color: '#64748b',
-      type: 'transfer',
-      parent_id: null,
-      teller_categories: [],
-      order: 51
+      budget_amount: '0',
+      order: 18
     }
   ]);
 
@@ -1053,21 +1013,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
   ]);
 
   // ---------------------------------------------------------------------------
-  //  5. Budget Items — single global budget with 8 category allocations
-  // ---------------------------------------------------------------------------
-  await db.table('budgetItems').bulkPut([
-    { ...base('demo-bi-groceries'), category_id: CAT_GROCERIES, amount: '600' },
-    { ...base('demo-bi-dining'), category_id: CAT_DINING, amount: '300' },
-    { ...base('demo-bi-utilities'), category_id: CAT_UTILITIES, amount: '250' },
-    { ...base('demo-bi-gas-fuel'), category_id: CAT_GAS_FUEL, amount: '150' },
-    { ...base('demo-bi-shopping'), category_id: CAT_SHOPPING, amount: '200' },
-    { ...base('demo-bi-entertainment'), category_id: CAT_ENTERTAINMENT, amount: '150' },
-    { ...base('demo-bi-streaming'), category_id: CAT_STREAMING, amount: '60' },
-    { ...base('demo-bi-rent'), category_id: CAT_RENT, amount: '2200' }
-  ]);
-
-  // ---------------------------------------------------------------------------
-  //  6. Recurring Transactions — 4 auto-detected recurring charges
+  //  5. Recurring Transactions — 4 auto-detected recurring charges
   // ---------------------------------------------------------------------------
   await db.table('recurringTransactions').bulkPut([
     {
@@ -1131,22 +1077,6 @@ export async function seedDemoData(db: Dexie): Promise<void> {
 
 /**
  * Build a complete transaction record for demo seeding.
- *
- * @param seq - Two-digit sequence number, used to build the ID.
- * @param accountId - Foreign key to the account this transaction belongs to.
- * @param amount - Signed decimal string.
- *   Depository: positive = deposit (money in), negative = withdrawal (money out).
- *   Credit: positive = charge (money out), negative = payment (money in).
- * @param date - ISO date string (YYYY-MM-DD).
- * @param description - Raw merchant description.
- * @param counterpartyName - Merchant name, or `null` for transfers.
- * @param counterpartyType - Counterparty type, or `null`.
- * @param categoryId - Foreign key to the category.
- * @param status - `'posted'` or `'pending'`.
- * @param csvHash - Optional CSV import hash for deduplication.
- * @param notes - Optional user notes.
- * @param isExcluded - Whether to exclude from summaries.
- * @param isRecurring - Whether this is a recurring transaction.
  */
 function txn(
   seq: string,

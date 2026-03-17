@@ -28,7 +28,6 @@ import type {
   Transaction,
   Category,
   TellerEnrollment,
-  BudgetItem,
   RecurringTransaction
 } from '$lib/types';
 
@@ -331,6 +330,21 @@ function createCategoriesStore() {
     },
     async remove(id: string) {
       debug('log', '[DATA] categories — remove', { id });
+
+      // Uncategorize all transactions that reference this category
+      const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
+      const affected = allTxns.filter((t) => t.category_id === id && !t.deleted);
+      if (affected.length > 0) {
+        const ops: BatchOperation[] = affected.map((t) => ({
+          type: 'update' as const,
+          table: 'transactions',
+          id: t.id,
+          fields: { category_id: null }
+        }));
+        await engineBatchWrite(ops);
+        debug('log', '[DATA] categories — uncategorized transactions', { count: affected.length });
+      }
+
       await remoteChangesStore.markPendingDelete(id, 'categories');
       await engineDelete('categories', id);
       await store.load();
@@ -404,74 +418,6 @@ function createEnrollmentsStore() {
 /** Reactive store of all {@link TellerEnrollment} rows. */
 export const enrollmentsStore = createEnrollmentsStore();
 onSyncComplete(() => enrollmentsStore.refresh());
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   BUDGET ITEMS STORE
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/**
- * Create the reactive budget items store.
- *
- * Each budget item represents a single category's monthly spending limit
- * within the one global budget. There is no month parameter — the budget
- * applies retroactively to all historical months.
- */
-function createBudgetItemsStore() {
-  const store = createCollectionStore<BudgetItem>({
-    load: () => engineGetAll('budget_items') as unknown as Promise<BudgetItem[]>
-  });
-
-  return {
-    ...store,
-    async refresh() {
-      debug('log', '[DATA] budget_items — refreshing');
-      await store.load();
-      debug('log', '[DATA] budget_items — refresh complete');
-    },
-    async create(categoryId: string, amount: string) {
-      // Enforce one budget item per category
-      const existing = (await engineGetAll('budget_items')) as unknown as BudgetItem[];
-      const duplicate = existing.find((b) => b.category_id === categoryId && !b.deleted);
-      if (duplicate) {
-        debug(
-          'warn',
-          '[DATA] budget_items — duplicate category_id, updating existing',
-          duplicate.id
-        );
-        remoteChangesStore.recordLocalChange(duplicate.id, 'budget_items', 'update');
-        await engineUpdate('budget_items', duplicate.id, { amount });
-        await store.load();
-        return duplicate.id;
-      }
-
-      const id = generateId();
-      debug('log', '[DATA] budget_items — create', { id, categoryId, amount });
-      remoteChangesStore.recordLocalChange(id, 'budget_items', 'create');
-      await engineCreate('budget_items', { id, category_id: categoryId, amount });
-      await store.load();
-      debug('log', '[DATA] budget_items — create complete', { id });
-      return id;
-    },
-    async update(id: string, amount: string) {
-      debug('log', '[DATA] budget_items — update', { id, amount });
-      remoteChangesStore.recordLocalChange(id, 'budget_items', 'update');
-      await engineUpdate('budget_items', id, { amount });
-      await store.load();
-      debug('log', '[DATA] budget_items — update complete', { id });
-    },
-    async remove(id: string) {
-      debug('log', '[DATA] budget_items — remove', { id });
-      await remoteChangesStore.markPendingDelete(id, 'budget_items');
-      await engineDelete('budget_items', id);
-      await store.load();
-      debug('log', '[DATA] budget_items — remove complete', { id });
-    }
-  };
-}
-
-/** Reactive store of all {@link BudgetItem} rows (the single global budget). */
-export const budgetItemsStore = createBudgetItemsStore();
-onSyncComplete(() => budgetItemsStore.refresh());
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RECURRING TRANSACTIONS STORE

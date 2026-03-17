@@ -123,7 +123,7 @@ export class FrequencyCategorizer {
    *
    * @param transactions - Array of transactions with descriptions and category IDs
    */
-  train(transactions: Array<{ description: string; category_id: string }>): void {
+  train(transactions: Array<{ description: string; category_id: string | null }>): void {
     this.categoryWords.clear();
     this.categoryCounts.clear();
     this.vocab.clear();
@@ -131,7 +131,7 @@ export class FrequencyCategorizer {
 
     for (const txn of transactions) {
       const words = tokenize(txn.description);
-      const cat = txn.category_id;
+      const cat = txn.category_id ?? '__uncategorized__';
       this.totalDocs++;
       this.categoryCounts.set(cat, (this.categoryCounts.get(cat) || 0) + 1);
 

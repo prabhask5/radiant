@@ -43,7 +43,6 @@
   import { autoSyncStaleEnrollments } from '$lib/teller/autoSync';
   import { categorizeTransaction } from '$lib/ml/categorizer';
   import { categorizer } from '$lib/ml/classifier';
-  import { categoryKeyToId } from '$lib/categories';
   import { engineBatchWrite } from 'stellar-drive/data';
   import type { BatchOperation } from 'stellar-drive/data';
 
@@ -601,7 +600,7 @@
       // This is the most reliable signal and works with a single example.
       categoryId = lookupCategoryByDescription(t.description, allTransactions);
 
-      // Layer 1+2: ML cascade (rules + classifier) as fallback
+      // Layer 1: ML classifier as fallback
       if (!categoryId) {
         const categorized = allTransactions.filter((tx) => tx.category_id !== null && !tx.deleted);
         if (categorized.length > 0) {
@@ -616,12 +615,9 @@
           categorizer.load();
         }
 
-        const result = categorizeTransaction(t.description, t.teller_category ?? undefined);
+        const result = categorizeTransaction(t.description);
         if (result) {
-          categoryId =
-            result.layer === 'classifier'
-              ? result.categoryKey
-              : categoryKeyToId(result.categoryKey);
+          categoryId = result.categoryId;
         }
       }
 

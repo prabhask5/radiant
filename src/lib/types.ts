@@ -16,7 +16,6 @@ export type {
   Account,
   Transaction,
   Category,
-  BudgetItem,
   RecurringTransaction
 } from './types.generated';
 
@@ -64,44 +63,6 @@ export type AccountStatus = 'open' | 'closed';
  * Settlement status of a transaction from the Teller API.
  */
 export type TransactionStatus = 'posted' | 'pending';
-
-/**
- * Teller API's built-in transaction category labels.
- */
-export type TellerCategory =
-  | 'accommodation'
-  | 'advertising'
-  | 'bar'
-  | 'charity'
-  | 'clothing'
-  | 'dining'
-  | 'education'
-  | 'electronics'
-  | 'entertainment'
-  | 'fuel'
-  | 'general'
-  | 'groceries'
-  | 'health'
-  | 'home'
-  | 'income'
-  | 'insurance'
-  | 'investment'
-  | 'loan'
-  | 'office'
-  | 'phone'
-  | 'service'
-  | 'shopping'
-  | 'software'
-  | 'sport'
-  | 'tax'
-  | 'transport'
-  | 'transportation'
-  | 'utilities';
-
-/**
- * Classification for user-defined categories.
- */
-export type CategoryType = 'expense' | 'income' | 'transfer';
 
 /**
  * How often a recurring transaction repeats.

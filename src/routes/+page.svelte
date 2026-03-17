@@ -23,7 +23,7 @@
   import {
     accountsStore,
     transactionsStore,
-    budgetItemsStore,
+    categoriesStore,
     recurringTransactionsStore
   } from '$lib/stores/data';
 
@@ -36,7 +36,7 @@
   import BudgetLineChart from '$lib/components/BudgetLineChart.svelte';
 
   /* ── Types ── */
-  import type { Account, BudgetItem } from '$lib/types';
+  import type { Account, Category } from '$lib/types';
 
   // ==========================================================================
   //                          COMPONENT STATE
@@ -256,11 +256,15 @@
   //                      BUDGET CHART DATA
   // ==========================================================================
 
-  /** Budget items for the single global budget. */
-  const budgetItems = $derived(($budgetItemsStore ?? []) as BudgetItem[]);
-  const totalBudget = $derived(budgetItems.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0));
-  const hasBudget = $derived(budgetItems.length > 0 && totalBudget > 0);
-  const budgetCategoryIds = $derived(new Set(budgetItems.map((b) => b.category_id)));
+  /** Budget derived from categories (budget_amount on each category). */
+  const budgetCategories = $derived(
+    (($categoriesStore ?? []) as Category[]).filter((c) => !c.deleted)
+  );
+  const totalBudget = $derived(
+    budgetCategories.reduce((s, c) => s + (parseFloat(c.budget_amount) || 0), 0)
+  );
+  const hasBudget = $derived(budgetCategories.length > 0 && totalBudget > 0);
+  const budgetCategoryIds = $derived(new Set(budgetCategories.map((c) => c.id)));
 
   /** Recurring transactions — monthly total for deduction line. */
   const recurringDeduction = $derived.by(() => {
@@ -319,7 +323,7 @@
     Promise.all([
       accountsStore.load(),
       transactionsStore.load(),
-      budgetItemsStore.load(),
+      categoriesStore.load(),
       recurringTransactionsStore.load()
     ]).then(() => {
       dataLoaded = true;

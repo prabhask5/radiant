@@ -3,18 +3,17 @@
  *
  * Runs after transactionsStore.load(), processes all transactions where
  * `category_id === null`, and assigns categories above the confidence
- * threshold via the ML cascade.
+ * threshold via the ML classifier.
  *
  * User overrides are permanent — once a user manually sets a category,
  * auto-categorization never touches that transaction again (it already
- * has a non-null category_id).
+ * has a non-null category_id, or was marked is_auto_categorized).
  */
 
 import { engineGetAll, engineBatchWrite } from 'stellar-drive/data';
 import type { BatchOperation } from 'stellar-drive/data';
 import { debug } from 'stellar-drive/utils';
 import type { Transaction } from '$lib/types';
-import { categoryKeyToId } from '$lib/categories';
 import { batchCategorize } from './categorizer';
 import { categorizer } from './classifier';
 
@@ -29,36 +28,35 @@ const CONFIDENCE_THRESHOLD = 0.7;
  * Auto-categorize uncategorized transactions.
  *
  * Each transaction is only auto-categorized **once**. On first run the ML
- * cascade assigns a category and sets `is_auto_categorized = true`. If the
+ * classifier assigns a category and sets `is_auto_categorized = true`. If the
  * user later changes the category, the flag stays true so the transaction
  * is never re-processed. This means manual edits are permanent.
  *
+ * Includes `category_id === null` transactions in training data (as the
+ * `__uncategorized__` class) so the classifier can learn to predict
+ * "no category" as a real pattern.
+ *
  * 1. Loads all transactions from the database
- * 2. Trains the Layer 2 classifier on already-categorized transactions
+ * 2. Trains the classifier on all user-categorized transactions (including null = uncategorized)
  * 3. Filters to never-categorized transactions (category_id null AND is_auto_categorized false)
- * 4. Runs the ML cascade on each
+ * 4. Runs the classifier on each
  * 5. Writes category assignments + is_auto_categorized flag for results above threshold
- *
- * Safe to call multiple times — only processes transactions that have never
- * been through auto-categorization.
- *
- * @example
- * ```ts
- * // After loading transactions:
- * await syncCategorizationResults();
- * ```
  */
 export async function syncCategorizationResults(): Promise<void> {
   const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
   if (allTxns.length === 0) return;
 
-  // Train classifier on already-categorized transactions
-  const categorized = allTxns.filter((t) => t.category_id !== null);
-  if (categorized.length > 0) {
+  // Train classifier on all transactions that have been through user categorization.
+  // Include manually-categorized (category_id set) and manually-uncategorized
+  // (category_id null but is_auto_categorized true, meaning user explicitly set "no category").
+  const trainingData = allTxns.filter(
+    (t) => !t.deleted && (t.category_id !== null || t.is_auto_categorized)
+  );
+  if (trainingData.length > 0) {
     categorizer.train(
-      categorized.map((t) => ({
+      trainingData.map((t) => ({
         description: t.description,
-        category_id: t.category_id!
+        category_id: t.category_id
       }))
     );
     categorizer.save();
@@ -79,37 +77,32 @@ export async function syncCategorizationResults(): Promise<void> {
     count: uncategorized.length
   });
 
-  // Run ML cascade (fully synchronous — rules + Naive Bayes, no network calls)
+  // Run classifier (fully synchronous, no network calls)
   const results = batchCategorize(
     uncategorized.map((t) => ({
       id: t.id,
-      description: t.description,
-      tellerCategory: t.teller_category ?? undefined
+      description: t.description
     }))
   );
 
   // Build batch update operations — always set is_auto_categorized so the
   // transaction is never re-processed, even if we couldn't categorize it.
   const ops: BatchOperation[] = [];
-  const processed = new Set(uncategorized.map((t) => t.id));
-  for (const txnId of processed) {
-    const result = results.get(txnId);
+  for (const txn of uncategorized) {
+    const result = results.get(txn.id);
     if (result && result.confidence >= CONFIDENCE_THRESHOLD) {
-      const categoryId =
-        result.layer === 'classifier' ? result.categoryKey : categoryKeyToId(result.categoryKey);
-
       ops.push({
         type: 'update' as const,
         table: 'transactions',
-        id: txnId,
-        fields: { category_id: categoryId, is_auto_categorized: true }
+        id: txn.id,
+        fields: { category_id: result.categoryId, is_auto_categorized: true }
       });
     } else {
       // Mark as processed even if no category was assigned — prevents re-processing
       ops.push({
         type: 'update' as const,
         table: 'transactions',
-        id: txnId,
+        id: txn.id,
         fields: { is_auto_categorized: true }
       });
     }

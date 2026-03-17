@@ -138,58 +138,27 @@ export const schema: SchemaDefinition = {
   },
 
   /* ═══════════════════════════════════════════════════════════════════════
-     CATEGORIES — User-defined transaction categories
+     CATEGORIES — User-defined budget categories
      ═══════════════════════════════════════════════════════════════════════
 
-     Stores the user's category taxonomy for classifying transactions. Supports
-     a single level of nesting via `parent_id` (subcategories). Each category
-     has display metadata (icon, color) and an optional mapping to Teller's
-     built-in category labels for auto-categorization.
+     Stores user-created categories. Each category is a budget label with a
+     monthly spending limit. No hardcoded defaults — users build from scratch.
+     Total budget = sum of all category `budget_amount` values.
 
      Relationships:
        - One category → many `transactions` (via `transactions.category_id`)
-       - Self-referential: `parent_id` → `categories.id` for subcategories
 
      Indexes:
-       - `parent_id` — fetch subcategories for a given parent
-       - `type` — filter expense vs income vs transfer categories
        - `order` — maintain user-defined display order
      ═══════════════════════════════════════════════════════════════════════ */
   categories: {
-    indexes: 'parent_id, type, order',
+    indexes: 'order',
     fields: {
       name: 'string',
       icon: 'string',
       color: 'string',
-      type: 'string',
-      parent_id: 'uuid?',
-      teller_categories: 'json?',
+      budget_amount: 'string',
       order: 'number'
-    }
-  },
-
-  /* ═══════════════════════════════════════════════════════════════════════
-     BUDGET ITEMS — Per-category monthly allocations for the single global budget
-     ═══════════════════════════════════════════════════════════════════════
-
-     Each row represents one category's monthly spending limit. The total
-     budget is the sum of all budget_items rows. There is no month or
-     is_active field — there is ONE global budget that retroactively
-     applies to all historical months.
-
-     To add/remove a category from the budget, create/delete its row.
-
-     Relationships:
-       - Many budget_items → one `categories` (via `category_id`)
-
-     Indexes:
-       - `category_id` — lookup budget for a specific category
-     ═══════════════════════════════════════════════════════════════════════ */
-  budget_items: {
-    indexes: 'category_id',
-    fields: {
-      category_id: 'uuid',
-      amount: 'string'
     }
   },
 

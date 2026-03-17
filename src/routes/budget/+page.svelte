@@ -34,7 +34,6 @@
   import {
     accountsStore,
     transactionsStore,
-    budgetItemsStore,
     recurringTransactionsStore,
     categoriesStore
   } from '$lib/stores/data';
@@ -55,14 +54,11 @@
   import GemBarChart from '$lib/components/GemBarChart.svelte';
   import type { BarData, ThresholdConfig } from '$lib/components/GemBarChart.svelte';
 
+  /* ── Emoji Picker ── */
+  import { EMOJI_GROUPS, CATEGORY_COLORS } from '$lib/emojiPicker';
+
   /* ── Types ── */
-  import type {
-    Account,
-    Transaction,
-    BudgetItem,
-    RecurringTransaction,
-    Category
-  } from '$lib/types';
+  import type { Account, Transaction, RecurringTransaction, Category } from '$lib/types';
 
   // ==========================================================================
   //                          COMPONENT STATE
@@ -98,9 +94,12 @@
   //                         MODAL STATE
   // ==========================================================================
 
-  /** Budget Config Modal */
-  let showConfigModal = $state(false);
-  let configSelectedCategories = $state<Map<string, string>>(new Map());
+  /** Category Manager Modal */
+  let showCategoryModal = $state(false);
+  let categoryFormMode = $state<'list' | 'create' | 'edit'>('list');
+  let editingCategoryId = $state<string | null>(null);
+  let categoryForm = $state({ name: '', icon: '🛒', color: '#10b981', budget_amount: '' });
+  let confirmDeleteId = $state<string | null>(null);
 
   /** Add Recurring Modal */
   let showRecurringModal = $state(false);
@@ -121,7 +120,7 @@
   let recurringCollapsed = $state(false);
 
   /** Lock body scroll when any modal is open. */
-  const anyModalOpen = $derived(showConfigModal || showRecurringModal);
+  const anyModalOpen = $derived(showCategoryModal || showRecurringModal);
 
   $effect(() => {
     if (browser && anyModalOpen) {
@@ -142,24 +141,17 @@
   );
   const acctTypeMap = $derived(new Map(accounts.map((a: Account) => [a.id, a.type])));
 
-  /* ── Budget ── */
-  const budgetItems = $derived($budgetItemsStore ?? []);
-  const totalBudget = $derived(
-    budgetItems.reduce((s: number, b: BudgetItem) => s + (parseFloat(b.amount) || 0), 0)
+  /* ── Categories (= budget) ── */
+  const categories = $derived(
+    ($categoriesStore ?? [])
+      .filter((c: Category) => !c.deleted)
+      .sort((a: Category, b: Category) => a.order - b.order)
   );
-  const hasBudget = $derived(budgetItems.length > 0);
-  const budgetCategoryIds = $derived(new Set(budgetItems.map((b: BudgetItem) => b.category_id)));
-
-  /* ── Categories ── */
-  const categories = $derived($categoriesStore ?? []);
   const categoryMap = $derived(new Map(categories.map((c: Category) => [c.id, c])));
-
-  /** Expense categories available for budgeting. */
-  const expenseCategories = $derived(
-    categories
-      .filter((c: Category) => c.type === 'expense' && !c.deleted)
-      .sort((a: Category, b: Category) => a.name.localeCompare(b.name))
+  const totalBudget = $derived(
+    categories.reduce((s: number, c: Category) => s + (parseFloat(c.budget_amount) || 0), 0)
   );
+  const hasBudget = $derived(categories.length > 0);
 
   /* ── Selected month transactions ── */
   const selectedMonthTxns = $derived.by(() => {
@@ -174,7 +166,7 @@
   const categorySpending = $derived.by(() => {
     const spending = new Map<string, number>();
     for (const t of selectedMonthTxns) {
-      if (!t.category_id || !budgetCategoryIds.has(t.category_id)) continue;
+      if (!t.category_id || !categoryMap.has(t.category_id)) continue;
       const amt = parseFloat(t.amount) || 0;
       const type = acctTypeMap.get(t.account_id);
       const spent = type === 'credit' ? (amt > 0 ? amt : 0) : amt < 0 ? Math.abs(amt) : 0;
@@ -197,7 +189,7 @@
   const dailySpending = $derived.by(() => {
     const byDate = new Map<string, number>();
     for (const t of selectedMonthTxns) {
-      if (!t.category_id || !budgetCategoryIds.has(t.category_id)) continue;
+      if (!t.category_id || !categoryMap.has(t.category_id)) continue;
       const amt = parseFloat(t.amount) || 0;
       const type = acctTypeMap.get(t.account_id);
       const spent = type === 'credit' ? (amt > 0 ? amt : 0) : amt < 0 ? Math.abs(amt) : 0;
@@ -237,15 +229,14 @@
 
   /* ── Pie segments ── */
   const pieSegments: PieSegment[] = $derived.by(() => {
-    return budgetItems
-      .map((bi: BudgetItem) => {
-        const cat = categoryMap.get(bi.category_id);
-        const spent = categorySpending.get(bi.category_id) ?? 0;
+    return categories
+      .map((cat: Category) => {
+        const spent = categorySpending.get(cat.id) ?? 0;
         return {
-          label: cat?.name ?? 'Unknown',
+          label: cat.name,
           value: spent,
-          color: cat?.color ?? '#706450',
-          icon: cat?.icon
+          color: cat.color,
+          icon: cat.icon
         };
       })
       .filter((s: PieSegment) => s.value > 0);
@@ -253,19 +244,18 @@
 
   /* ── Category rows for display ── */
   const categoryRows = $derived.by(() => {
-    return budgetItems
-      .map((bi: BudgetItem) => {
-        const cat = categoryMap.get(bi.category_id);
-        const budgetAmt = parseFloat(bi.amount) || 0;
-        const spent = categorySpending.get(bi.category_id) ?? 0;
+    return categories
+      .map((cat: Category) => {
+        const budgetAmt = parseFloat(cat.budget_amount) || 0;
+        const spent = categorySpending.get(cat.id) ?? 0;
         const pct = budgetAmt > 0 ? (spent / budgetAmt) * 100 : 0;
-        const over = spent > budgetAmt;
+        const over = budgetAmt > 0 && spent > budgetAmt;
         return {
-          id: bi.id,
-          categoryId: bi.category_id,
-          name: cat?.name ?? 'Unknown',
-          icon: cat?.icon ?? '?',
-          color: cat?.color ?? '#706450',
+          id: cat.id,
+          categoryId: cat.id,
+          name: cat.name,
+          icon: cat.icon,
+          color: cat.color,
           budget: budgetAmt,
           spent,
           pct,
@@ -285,7 +275,7 @@
       let monthSpent = 0;
       for (const t of txns) {
         if (!t.date.startsWith(prefix) || t.is_excluded || t.deleted) continue;
-        if (!t.category_id || !budgetCategoryIds.has(t.category_id)) continue;
+        if (!t.category_id || !categoryMap.has(t.category_id)) continue;
         const amt = parseFloat(t.amount) || 0;
         const type = acctTypeMap.get(t.account_id);
         const spent = type === 'credit' ? (amt > 0 ? amt : 0) : amt < 0 ? Math.abs(amt) : 0;
@@ -310,74 +300,82 @@
   //                        ACTION HANDLERS
   // ==========================================================================
 
-  /** Open the budget config modal, pre-filling existing items. */
-  function openConfigModal() {
-    const map = new Map<string, string>();
-    for (const bi of budgetItems) {
-      map.set(bi.category_id, bi.amount);
-    }
-    configSelectedCategories = map;
-    showConfigModal = true;
+  /** Open the category manager modal. */
+  function openCategoryModal() {
+    categoryFormMode = 'list';
+    editingCategoryId = null;
+    confirmDeleteId = null;
+    showCategoryModal = true;
   }
 
-  /** Toggle a category in the config modal. */
-  function toggleConfigCategory(categoryId: string) {
-    const next = new Map(configSelectedCategories);
-    if (next.has(categoryId)) {
-      next.delete(categoryId);
-    } else {
-      next.set(categoryId, '');
-    }
-    configSelectedCategories = next;
+  /** Start creating a new category. */
+  function startCreateCategory() {
+    const colorIndex = categories.length % CATEGORY_COLORS.length;
+    categoryForm = { name: '', icon: '🛒', color: CATEGORY_COLORS[colorIndex], budget_amount: '' };
+    editingCategoryId = null;
+    categoryFormMode = 'create';
   }
 
-  /** Update the amount for a category in the config modal. */
-  function setConfigAmount(categoryId: string, amount: string) {
-    const next = new Map(configSelectedCategories);
-    next.set(categoryId, amount);
-    configSelectedCategories = next;
+  /** Start editing an existing category. */
+  function startEditCategory(id: string) {
+    const cat = categoryMap.get(id);
+    if (!cat) return;
+    categoryForm = {
+      name: cat.name,
+      icon: cat.icon,
+      color: cat.color,
+      budget_amount: cat.budget_amount === '0' ? '' : cat.budget_amount
+    };
+    editingCategoryId = id;
+    categoryFormMode = 'edit';
   }
 
-  /** Config modal running total. */
-  const configTotal = $derived.by(() => {
-    let total = 0;
-    for (const [, amt] of configSelectedCategories) {
-      total += parseFloat(amt) || 0;
-    }
-    return total;
-  });
-
-  /** Save budget config — create, update, or remove items as needed. */
-  async function saveConfig() {
+  /** Save category form (create or update). */
+  async function saveCategoryForm() {
+    if (!categoryForm.name.trim()) return;
     saving = true;
     try {
-      const existingMap = new Map(budgetItems.map((b: BudgetItem) => [b.category_id, b]));
+      const data = {
+        name: categoryForm.name.trim(),
+        icon: categoryForm.icon,
+        color: categoryForm.color,
+        budget_amount: categoryForm.budget_amount || '0',
+        order: editingCategoryId
+          ? (categoryMap.get(editingCategoryId)?.order ?? categories.length + 1)
+          : categories.length > 0
+            ? Math.max(...categories.map((c: Category) => c.order)) + 1
+            : 1
+      };
 
-      // Remove items no longer selected
-      for (const bi of budgetItems) {
-        if (!configSelectedCategories.has(bi.category_id)) {
-          await budgetItemsStore.remove(bi.id);
-        }
+      if (editingCategoryId) {
+        await categoriesStore.update(editingCategoryId, data);
+      } else {
+        await categoriesStore.create(data);
       }
-
-      // Create or update selected items
-      for (const [catId, amt] of configSelectedCategories) {
-        const amountStr = amt || '0';
-        const existing = existingMap.get(catId);
-        if (existing) {
-          if (existing.amount !== amountStr) {
-            await budgetItemsStore.update(existing.id, amountStr);
-          }
-        } else {
-          await budgetItemsStore.create(catId, amountStr);
-        }
-      }
-
-      showConfigModal = false;
+      await categoriesStore.refresh();
+      categoryFormMode = 'list';
     } finally {
       saving = false;
     }
   }
+
+  /** Delete a category (uncategorizes all its transactions via store). */
+  async function deleteCategory(id: string) {
+    saving = true;
+    try {
+      await categoriesStore.remove(id);
+      await categoriesStore.refresh();
+      confirmDeleteId = null;
+      if (categoryFormMode === 'edit') categoryFormMode = 'list';
+    } finally {
+      saving = false;
+    }
+  }
+
+  /** Category modal running total. */
+  const categoryModalTotal = $derived(
+    categories.reduce((s: number, c: Category) => s + (parseFloat(c.budget_amount) || 0), 0)
+  );
 
   /** Open the add recurring modal. */
   function openRecurringModal(editId?: string) {
@@ -475,7 +473,6 @@
       await Promise.all([
         accountsStore.load(),
         transactionsStore.load(),
-        budgetItemsStore.load(),
         recurringTransactionsStore.load(),
         categoriesStore.load()
       ]);
@@ -503,7 +500,7 @@
   <header class="page-header anim-item" style="--delay: 0">
     <div class="header-row">
       <h1 class="page-title">Budget</h1>
-      <button class="config-btn" onclick={openConfigModal} aria-label="Configure budget">
+      <button class="config-btn" onclick={openCategoryModal} aria-label="Manage categories">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
           <path
             d="M8.325 2.317a1.5 1.5 0 013.35 0l.148.654a1.5 1.5 0 002.058.868l.592-.302a1.5 1.5 0 011.676 2.369l-.444.558a1.5 1.5 0 00.558 2.245l.594.297a1.5 1.5 0 010 2.685l-.594.297a1.5 1.5 0 00-.558 2.245l.444.558a1.5 1.5 0 01-1.676 2.37l-.592-.303a1.5 1.5 0 00-2.058.868l-.148.654a1.5 1.5 0 01-3.35 0l-.148-.654a1.5 1.5 0 00-2.058-.868l-.592.302a1.5 1.5 0 01-1.676-2.369l.444-.558a1.5 1.5 0 00-.558-2.245l-.594-.297a1.5 1.5 0 010-2.685l.594-.297a1.5 1.5 0 00.558-2.245l-.444-.558A1.5 1.5 0 015.527 3.537l.592.302a1.5 1.5 0 002.058-.868l.148-.654z"
@@ -592,11 +589,15 @@
           />
         </svg>
       </div>
-      <h2 class="empty-title">No budget set</h2>
-      <p class="empty-desc">
-        Create a monthly budget to track your spending against limits for each category.
-      </p>
-      <button class="empty-cta" onclick={openConfigModal}>Set Up Budget</button>
+      <h2 class="empty-title">No budget categories yet</h2>
+      <p class="empty-desc">Create your first category to start tracking spending.</p>
+      <button
+        class="empty-cta"
+        onclick={() => {
+          openCategoryModal();
+          startCreateCategory();
+        }}>Create Category</button
+      >
     </div>
 
     <!-- ─────────────────────────────────────────────────────────────────────
@@ -831,31 +832,52 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     BUDGET CONFIG MODAL
+     CATEGORY MANAGER MODAL
      ═══════════════════════════════════════════════════════════════════════════ -->
-{#if showConfigModal}
+{#if showCategoryModal}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="modal-overlay"
-    onclick={() => (showConfigModal = false)}
-    onkeydown={(e) => e.key === 'Escape' && (showConfigModal = false)}
+    onclick={() => (showCategoryModal = false)}
+    onkeydown={(e) => e.key === 'Escape' && (showCategoryModal = false)}
   >
     <div
       class="modal-sheet"
       onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.key === 'Escape' && (showConfigModal = false)}
+      onkeydown={(e) => e.key === 'Escape' && (showCategoryModal = false)}
       role="dialog"
       tabindex="-1"
-      aria-label="Budget Configuration"
+      aria-label="Category Manager"
     >
-      <!-- Drag handle -->
       <div class="sheet-handle-bar">
         <div class="sheet-handle"></div>
       </div>
 
       <div class="sheet-header">
-        <h2 class="sheet-title">Budget Categories</h2>
-        <button class="sheet-close" onclick={() => (showConfigModal = false)} aria-label="Close">
+        <div class="sheet-header-left">
+          {#if categoryFormMode !== 'list'}
+            <button
+              class="sheet-back"
+              onclick={() => (categoryFormMode = 'list')}
+              aria-label="Back"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M12.5 15L7.5 10L12.5 5"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
+          {/if}
+          <h2 class="sheet-title">
+            {#if categoryFormMode === 'create'}New Category{:else if categoryFormMode === 'edit'}Edit
+              Category{:else}Budget Categories{/if}
+          </h2>
+        </div>
+        <button class="sheet-close" onclick={() => (showCategoryModal = false)} aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path
               d="M5 5L15 15M15 5L5 15"
@@ -868,70 +890,185 @@
       </div>
 
       <div class="sheet-body">
-        <p class="sheet-desc">
-          Select categories to include in your budget and set monthly limits.
-        </p>
-
-        <div class="config-category-grid">
-          {#each expenseCategories as cat (cat.id)}
-            {@const isSelected = configSelectedCategories.has(cat.id)}
-            <button
-              class="config-cat-chip"
-              class:selected={isSelected}
-              onclick={() => toggleConfigCategory(cat.id)}
-              style="--cat-color: {cat.color}"
-            >
-              <span class="config-cat-icon">{cat.icon}</span>
-              <span class="config-cat-name">{cat.name}</span>
-            </button>
-          {/each}
-        </div>
-
-        <!-- Amount inputs for selected categories -->
-        {#if configSelectedCategories.size > 0}
-          <div class="config-amounts">
-            {#each [...configSelectedCategories.entries()] as [catId, amt] (catId)}
-              {@const cat = categoryMap.get(catId)}
-              <div class="config-amount-row">
-                <div class="config-amount-label">
-                  <span class="config-cat-icon-sm">{cat?.icon ?? '?'}</span>
-                  <span>{cat?.name ?? 'Unknown'}</span>
+        {#if categoryFormMode === 'list'}
+          <!-- Category List -->
+          {#if categories.length === 0}
+            <div class="cat-modal-empty">
+              <p>No categories yet. Create your first one to start budgeting.</p>
+            </div>
+          {:else}
+            <div class="cat-modal-list">
+              {#each categories as cat (cat.id)}
+                <div class="cat-modal-row">
+                  <div class="cat-modal-row-left">
+                    <div class="cat-icon-circle small" style="--cat-color: {cat.color}">
+                      <span class="cat-icon-emoji">{cat.icon}</span>
+                    </div>
+                    <div class="cat-modal-info">
+                      <span class="cat-modal-name">{cat.name}</span>
+                      {#if parseFloat(cat.budget_amount) > 0}
+                        <span class="cat-modal-budget"
+                          >{formatCurrency(parseFloat(cat.budget_amount))}/mo</span
+                        >
+                      {/if}
+                    </div>
+                  </div>
+                  <div class="cat-modal-actions">
+                    <button
+                      class="recurring-edit-btn"
+                      onclick={() => startEditCategory(cat.id)}
+                      aria-label="Edit {cat.name}"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path
+                          d="M11.333 2a1.886 1.886 0 012.667 2.667L5.333 13.333 2 14l.667-3.333L11.333 2z"
+                          stroke="currentColor"
+                          stroke-width="1.2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    {#if confirmDeleteId === cat.id}
+                      <button
+                        class="confirm-delete-btn"
+                        onclick={() => deleteCategory(cat.id)}
+                        disabled={saving}
+                      >
+                        Confirm
+                      </button>
+                      <button class="cancel-delete-btn" onclick={() => (confirmDeleteId = null)}>
+                        Cancel
+                      </button>
+                    {:else}
+                      <button
+                        class="recurring-delete-btn"
+                        onclick={() => (confirmDeleteId = cat.id)}
+                        aria-label="Delete {cat.name}"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <path
+                            d="M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z"
+                            stroke="currentColor"
+                            stroke-width="1.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    {/if}
+                  </div>
                 </div>
-                <div class="config-amount-input-wrap">
-                  <span class="config-dollar">$</span>
-                  <input
-                    type="number"
-                    class="config-amount-input"
-                    value={amt}
-                    oninput={(e) => setConfigAmount(catId, e.currentTarget.value)}
-                    placeholder="0"
-                    min="0"
-                    step="1"
-                    inputmode="decimal"
-                  />
-                </div>
-              </div>
-            {/each}
+              {/each}
+            </div>
+          {/if}
+        {:else}
+          <!-- Create / Edit Form -->
+          <div class="form-group">
+            <label class="form-label" for="cat-name">Name</label>
+            <input
+              id="cat-name"
+              type="text"
+              class="form-input"
+              bind:value={categoryForm.name}
+              placeholder="e.g. Groceries, Rent"
+            />
           </div>
+
+          <div class="form-group" role="group" aria-label="Icon">
+            <span class="form-label">Icon</span>
+            <div class="emoji-picker">
+              {#each EMOJI_GROUPS as group (group.label)}
+                <div class="emoji-group">
+                  <span class="emoji-group-label">{group.label}</span>
+                  <div class="emoji-grid">
+                    {#each group.emojis as emoji (emoji)}
+                      <button
+                        class="emoji-btn"
+                        class:selected={categoryForm.icon === emoji}
+                        onclick={() => (categoryForm.icon = emoji)}
+                        type="button"
+                      >
+                        {emoji}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+
+          <div class="form-group" role="group" aria-label="Color">
+            <span class="form-label">Color</span>
+            <div class="color-picker">
+              {#each CATEGORY_COLORS as color (color)}
+                <button
+                  class="color-btn"
+                  class:selected={categoryForm.color === color}
+                  style="background-color: {color}"
+                  onclick={() => (categoryForm.color = color)}
+                  type="button"
+                  aria-label="Color {color}"
+                ></button>
+              {/each}
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cat-budget">Monthly Budget</label>
+            <div class="form-input-wrap">
+              <span class="form-dollar">$</span>
+              <input
+                id="cat-budget"
+                type="number"
+                class="form-input with-prefix"
+                bind:value={categoryForm.budget_amount}
+                placeholder="0"
+                min="0"
+                step="1"
+                inputmode="decimal"
+              />
+            </div>
+          </div>
+
+          {#if categoryFormMode === 'edit' && editingCategoryId}
+            <button
+              class="delete-category-inline"
+              onclick={() => deleteCategory(editingCategoryId!)}
+              disabled={saving}
+            >
+              Delete this category
+            </button>
+          {/if}
         {/if}
       </div>
 
       <div class="sheet-footer">
-        <div class="config-total-row">
-          <span class="config-total-label">Monthly Total</span>
-          <span class="config-total-value">{formatCurrency(configTotal)}</span>
-        </div>
-        <button
-          class="save-budget-btn"
-          onclick={saveConfig}
-          disabled={saving || configSelectedCategories.size === 0}
-        >
-          {#if saving}
-            Saving...
-          {:else}
-            Save Budget
-          {/if}
-        </button>
+        {#if categoryFormMode === 'list'}
+          <div class="config-total-row">
+            <span class="config-total-label">Monthly Total</span>
+            <span class="config-total-value">{formatCurrency(categoryModalTotal)}</span>
+          </div>
+          <button class="save-budget-btn" onclick={startCreateCategory}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M8 3v10M3 8h10"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              />
+            </svg>
+            Add Category
+          </button>
+        {:else}
+          <button
+            class="save-budget-btn"
+            onclick={saveCategoryForm}
+            disabled={saving || !categoryForm.name.trim()}
+          >
+            {#if saving}Saving...{:else}{categoryFormMode === 'edit' ? 'Update' : 'Create'} Category{/if}
+          </button>
+        {/if}
       </div>
     </div>
   </div>
@@ -1018,7 +1155,7 @@
           <label class="form-label" for="rec-category">Category</label>
           <select id="rec-category" class="form-select" bind:value={recurringForm.category_id}>
             <option value="">None</option>
-            {#each expenseCategories as cat (cat.id)}
+            {#each categories as cat (cat.id)}
               <option value={cat.id}>{cat.icon} {cat.name}</option>
             {/each}
           </select>
@@ -1980,13 +2117,6 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .sheet-desc {
-    font-size: 0.82rem;
-    color: var(--text-muted);
-    line-height: 1.5;
-    margin: 0;
-  }
-
   .sheet-footer {
     padding: 12px 1.5rem;
     border-top: 1px solid var(--border);
@@ -1997,139 +2127,225 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
-     CONFIG MODAL — Category Grid
+     CATEGORY MANAGER MODAL
      ══════════════════════════════════════════════════════════════════════════ */
-  .config-category-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+  .sheet-header-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
-  .config-cat-chip {
+  .sheet-back {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 12px 6px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--bg-raised-2);
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
     cursor: pointer;
+    border-radius: 8px;
     transition:
       background 0.15s,
-      border-color 0.15s,
-      transform 0.15s;
+      color 0.15s;
     -webkit-tap-highlight-color: transparent;
   }
 
-  .config-cat-chip:hover {
-    border-color: var(--border-hover);
-  }
-
-  .config-cat-chip:active {
-    transform: scale(0.95);
-  }
-
-  .config-cat-chip.selected {
-    border-color: var(--citrine);
-    background: var(--citrine-dim);
-    box-shadow: 0 0 10px var(--citrine-dim);
-  }
-
-  .config-cat-icon {
-    font-size: 22px;
-    line-height: 1;
-  }
-
-  .config-cat-name {
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    text-align: center;
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-  }
-
-  .config-cat-chip.selected .config-cat-name {
+  .sheet-back:hover {
+    background: var(--bg-raised-2);
     color: var(--text);
   }
 
-  /* ── Amount Inputs ── */
-  .config-amounts {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
+  .cat-modal-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    line-height: 1.5;
   }
 
-  .config-amount-row {
+  .cat-modal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .cat-modal-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    padding: 10px 8px;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s;
   }
 
-  .config-amount-label {
+  .cat-modal-row:hover {
+    background: var(--bg-raised-2);
+  }
+
+  .cat-modal-row-left {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--text);
+    gap: 10px;
     min-width: 0;
     flex: 1;
   }
 
-  .config-cat-icon-sm {
-    font-size: 16px;
-    flex-shrink: 0;
-  }
-
-  .config-amount-input-wrap {
+  .cat-modal-info {
     display: flex;
-    align-items: center;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-void);
-    padding: 0 10px;
-    width: 120px;
-    flex-shrink: 0;
-    transition: border-color 0.2s;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
 
-  .config-amount-input-wrap:focus-within {
-    border-color: var(--citrine);
+  .cat-modal-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
   }
 
-  .config-dollar {
-    font-size: 0.82rem;
+  .cat-modal-budget {
+    font-size: 0.72rem;
     color: var(--text-dim);
     font-weight: 500;
   }
 
-  .config-amount-input {
-    width: 100%;
-    height: 36px;
-    background: transparent;
-    border: none;
-    color: var(--text);
-    font-size: 0.88rem;
-    font-family: inherit;
-    font-weight: 600;
-    outline: none;
-    text-align: right;
-    appearance: textfield;
-    -moz-appearance: textfield;
+  .cat-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
   }
 
-  .config-amount-input::-webkit-outer-spin-button,
-  .config-amount-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
+  .confirm-delete-btn {
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ruby);
+    background: var(--ruby-dim);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .cancel-delete-btn {
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  /* ── Emoji Picker ── */
+  .emoji-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .emoji-group-label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .emoji-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .emoji-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+    transition:
+      background 0.12s,
+      border-color 0.12s,
+      transform 0.12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .emoji-btn:hover {
+    background: var(--bg-raised-2);
+  }
+
+  .emoji-btn:active {
+    transform: scale(0.9);
+  }
+
+  .emoji-btn.selected {
+    border-color: var(--citrine);
+    background: var(--citrine-dim);
+  }
+
+  /* ── Color Picker ── */
+  .color-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .color-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition:
+      transform 0.12s,
+      border-color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .color-btn:hover {
+    transform: scale(1.15);
+  }
+
+  .color-btn.selected {
+    border-color: var(--text);
+    box-shadow: 0 0 0 2px var(--bg-void);
+  }
+
+  .delete-category-inline {
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--ruby);
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .delete-category-inline:hover:not(:disabled) {
+    background: var(--ruby-dim);
+  }
+
+  .delete-category-inline:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   /* ── Config Total ── */
@@ -2167,6 +2383,10 @@
       box-shadow 0.2s,
       opacity 0.2s;
     -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
   }
 
   .save-budget-btn:hover:not(:disabled) {
@@ -2317,8 +2537,8 @@
       max-height: 80vh;
     }
 
-    .config-category-grid {
-      grid-template-columns: repeat(4, 1fr);
+    .emoji-grid {
+      gap: 6px;
     }
 
     .summary-numbers {
@@ -2337,7 +2557,7 @@
     .modal-overlay,
     .modal-sheet,
     .recurring-sheet,
-    .config-cat-chip,
+    .emoji-btn,
     .save-budget-btn,
     .empty-cta {
       animation-duration: 0.01ms !important;
