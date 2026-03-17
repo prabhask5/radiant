@@ -1225,62 +1225,6 @@
     </div>
   </header>
 
-  <!-- ── Feedback Toast ──────────────────────────────────────────── -->
-  {#if feedbackMessage}
-    <div class="feedback-toast feedback-{feedbackType}" role="alert">
-      <div class="feedback-content">
-        {#if feedbackType === 'success'}
-          <svg
-            class="feedback-icon"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline
-              points="22 4 12 14.01 9 11.01"
-            /></svg
-          >
-        {:else}
-          <svg
-            class="feedback-icon"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line
-              x1="9"
-              y1="9"
-              x2="15"
-              y2="15"
-            /></svg
-          >
-        {/if}
-        <span>{feedbackMessage}</span>
-      </div>
-      <button class="feedback-dismiss" onclick={dismissFeedback} aria-label="Dismiss">
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
-        >
-      </button>
-    </div>
-  {/if}
-
   {#if !loaded}
     <!-- ── Loading State ─────────────────────────────────────────── -->
     <div class="loading-state">
@@ -1794,6 +1738,62 @@
     </div>
   {/if}
 </div>
+
+<!-- ── Feedback Toast (floating, outside page container) ──────────────────── -->
+{#if feedbackMessage}
+  <div class="feedback-toast feedback-{feedbackType}" role="alert">
+    <div class="feedback-content">
+      {#if feedbackType === 'success'}
+        <svg
+          class="feedback-icon"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline
+            points="22 4 12 14.01 9 11.01"
+          /></svg
+        >
+      {:else}
+        <svg
+          class="feedback-icon"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line
+            x1="9"
+            y1="9"
+            x2="15"
+            y2="15"
+          /></svg
+        >
+      {/if}
+      <span>{feedbackMessage}</span>
+    </div>
+    <button class="feedback-dismiss" onclick={dismissFeedback} aria-label="Dismiss">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+      >
+    </button>
+  </div>
+{/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      TELLER CONNECT BACKDROP
@@ -2425,36 +2425,49 @@
     }
   }
 
-  /* ── Feedback Toast ─────────────────────────────────────────────────────── */
+  /* ── Feedback Toast — floating bottom bar ──────────────────────────────── */
   .feedback-toast {
-    position: relative;
-    z-index: 10;
+    position: fixed;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    max-width: 420px;
+    width: calc(100% - 32px);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
+    padding: 0.65rem 1rem;
     border-radius: 12px;
-    margin-bottom: 1.5rem;
-    animation: toast-in 0.3s ease-out;
+    background: rgba(14, 12, 8, 0.75);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid rgba(180, 150, 80, 0.12);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(180, 150, 80, 0.06);
+    animation: toastSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  @keyframes toast-in {
+  @keyframes toastSlideUp {
     from {
       opacity: 0;
-      transform: translateY(-8px);
+      transform: translateX(-50%) translateY(20px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
     }
   }
 
   .feedback-success {
-    background: rgba(52, 211, 153, 0.1);
-    border: 1px solid rgba(52, 211, 153, 0.25);
+    border-color: rgba(52, 211, 153, 0.25);
     color: var(--emerald);
   }
 
   .feedback-error {
-    background: rgba(248, 113, 113, 0.1);
-    border: 1px solid rgba(248, 113, 113, 0.25);
+    border-color: rgba(248, 113, 113, 0.25);
     color: var(--ruby);
   }
 
@@ -2462,7 +2475,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     line-height: 1.4;
   }
 

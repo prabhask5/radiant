@@ -929,12 +929,24 @@
 
   .app-toast {
     position: fixed;
-    top: calc(var(--safe-area-top) + 16px);
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     z-index: 9000;
     max-width: 420px;
     width: calc(100% - 32px);
+    animation: appToastSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes appToastSlideUp {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
   }
 
   .toast-content {

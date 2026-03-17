@@ -511,23 +511,6 @@
 <!-- ========================================================================= -->
 
 <div class="txn-page" class:mounted>
-  <!-- ─── Auto-sync banner ─── -->
-  {#if autoSyncBanner}
-    <div class="auto-sync-banner" class:fading={autoSyncBannerFading}>
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-      {autoSyncBanner}
-    </div>
-  {/if}
-
   <!-- ─── Header ─── -->
   <header class="page-header">
     <h1 class="page-title">Transactions</h1>
@@ -1085,6 +1068,23 @@
 </div>
 
 <!-- ─── Floating Selection Bar (outside page container to avoid clipping) ─── -->
+<!-- ─── Auto-sync floating toast ─── -->
+{#if autoSyncBanner}
+  <div class="auto-sync-toast" class:fading={autoSyncBannerFading}>
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+    {autoSyncBanner}
+  </div>
+{/if}
+
 {#if selectionMode && selectedIds.size > 0}
   <div class="selection-bar">
     <div class="selection-bar-inner">
@@ -1155,43 +1155,53 @@
       transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* ── Auto-sync banner ── */
-  .auto-sync-banner {
+  /* ── Auto-sync floating toast ── */
+  .auto-sync-toast {
+    position: fixed;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 16px;
-    margin: 8px 16px;
-    background: rgba(61, 214, 140, 0.08);
+    padding: 0.55rem 1rem;
+    background: var(--txn-glass-bg);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
     border: 1px solid rgba(61, 214, 140, 0.2);
-    border-radius: var(--txn-radius-sm);
+    border-radius: var(--txn-radius);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(61, 214, 140, 0.06);
     color: var(--txn-emerald);
     font-size: 0.82rem;
     font-weight: 500;
     letter-spacing: 0.01em;
-    animation: syncBannerIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    white-space: nowrap;
+    animation: toastSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
-  .auto-sync-banner.fading {
-    animation: syncBannerOut 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  .auto-sync-toast.fading {
+    animation: toastSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
-  @keyframes syncBannerIn {
+  @keyframes toastSlideUp {
     from {
       opacity: 0;
-      transform: translateY(-8px) scale(0.98);
+      transform: translateX(-50%) translateY(20px) scale(0.95);
     }
     to {
       opacity: 1;
-      transform: translateY(0) scale(1);
+      transform: translateX(-50%) translateY(0) scale(1);
     }
   }
-  @keyframes syncBannerOut {
+  @keyframes toastSlideDown {
     from {
       opacity: 1;
-      transform: translateY(0) scale(1);
+      transform: translateX(-50%) translateY(0) scale(1);
     }
     to {
       opacity: 0;
-      transform: translateY(-8px) scale(0.98);
+      transform: translateX(-50%) translateY(20px) scale(0.95);
     }
   }
 
