@@ -465,6 +465,7 @@
      ────────────────────────────────────────────────────────────────────────── */
   .dashboard {
     padding: 0;
+    padding-top: 0.5rem;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -473,6 +474,7 @@
 
   @media (min-width: 768px) {
     .dashboard {
+      padding-top: 0;
       gap: 24px;
     }
   }

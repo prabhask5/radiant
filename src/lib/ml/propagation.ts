@@ -104,7 +104,7 @@ export interface PropagationResult {
  * stale-data bugs. Only updates transactions that are:
  * - Not deleted
  * - Not the source transaction
- * - Uncategorized (category_id === null) OR auto-categorized (is_auto_categorized === true)
+ * - Uncategorized (category_id === null)
  * - Above the similarity threshold
  *
  * After propagation, retrains the classifier on the full updated dataset.
@@ -124,15 +124,12 @@ export async function propagateCategory(
   const sourceTokens = tokenize(source.description);
   if (sourceTokens.size === 0) return { propagatedCount: 0 };
 
-  // Find similar transactions that should be updated.
-  // Only target: uncategorized OR previously auto-categorized.
-  // Never overwrite a user's deliberate manual choice.
+  // Find similar uncategorized transactions to propagate to.
+  // Only targets transactions with no category at all — never overwrites
+  // any existing categorization (manual or auto).
   const matches = allTxns.filter((t) => {
     if (t.deleted || t.id === sourceTransactionId) return false;
-    // Already has this category — skip
-    if (t.category_id === categoryId) return false;
-    // Has a different category that was manually set — don't overwrite
-    if (t.category_id !== null && !t.is_auto_categorized) return false;
+    if (t.category_id !== null) return false;
     return similarity(sourceTokens, tokenize(t.description)) >= SIMILARITY_THRESHOLD;
   });
 
