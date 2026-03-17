@@ -190,7 +190,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
     const { data: existingAccounts } = await admin
       .from('accounts')
       .select('id, teller_account_id')
-      .eq('user_id', userId);
+      .eq('enrollment_id', localEnrollmentId);
     const acctIdMap = new Map(
       (existingAccounts ?? []).map((a: { id: string; teller_account_id: string }) => [
         a.teller_account_id,
@@ -237,15 +237,28 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       });
     }
 
-    // Upsert accounts
-    if (accountRows.length > 0) {
-      const { error: acctError } = await admin
-        .from('accounts')
-        .upsert(accountRows, { onConflict: 'id' });
-      if (acctError) {
-        console.log(`[TELLER] Webhook accounts upsert error: ${acctError.message}`);
-      }
-    }
+    // Update existing accounts (balance refresh, status changes).
+    // We use UPDATE (not upsert) because the Supabase `set_user_id` trigger
+    // fires on INSERT and sets `user_id = auth.uid()`, which is NULL for
+    // service-role clients. UPDATE bypasses this trigger.
+    // New accounts are created client-side during Teller Connect enrollment,
+    // so the webhook only needs to refresh existing ones.
+    await Promise.all(
+      accountRows.map(async (row) => {
+        const {
+          id,
+          user_id: _uid,
+          created_at: _ca,
+          deleted: _del,
+          _version: _v,
+          ...updateFields
+        } = row as Record<string, unknown>;
+        const { error: acctError } = await admin.from('accounts').update(updateFields).eq('id', id);
+        if (acctError) {
+          console.log(`[TELLER] Webhook account update error for ${id}: ${acctError.message}`);
+        }
+      })
+    );
 
     // Compute incremental fetch window: 7-day buffer before last_synced_at
     // for pending→posted transitions, or full fetch if never synced
