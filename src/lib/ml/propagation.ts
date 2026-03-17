@@ -4,18 +4,17 @@
  *
  * When a user manually sets a category on a transaction, this module finds
  * other transactions with similar descriptions and propagates the category.
- * Only targets uncategorized or previously auto-categorized transactions —
- * never overwrites a user's manual choice.
+ * Only targets uncategorized transactions — never overwrites any existing
+ * categorization.
  *
- * Also retrains the Naive Bayes classifier on the updated training data
- * so future auto-categorizations benefit from the new signal.
+ * Classifier retraining is handled by the caller via `scheduleMLSync()` —
+ * this module only handles the propagation write.
  */
 
 import { engineGetAll, engineBatchWrite } from 'stellar-drive/data';
 import type { BatchOperation } from 'stellar-drive/data';
 import { debug } from 'stellar-drive/utils';
 import type { Transaction } from '$lib/types';
-import { categorizer } from './classifier';
 
 // =============================================================================
 //                          TOKENIZATION & SIMILARITY
@@ -107,7 +106,8 @@ export interface PropagationResult {
  * - Uncategorized (category_id === null)
  * - Above the similarity threshold
  *
- * After propagation, retrains the classifier on the full updated dataset.
+ * Does NOT retrain the classifier — the caller's `scheduleMLSync()` handles
+ * that, avoiding redundant retraining.
  *
  * @param sourceTransactionId - The transaction the user just categorized
  * @param categoryId - The category the user assigned
@@ -145,24 +145,6 @@ export async function propagateCategory(
       source: source.description.slice(0, 40),
       categoryId,
       count: matches.length
-    });
-  }
-
-  // Retrain classifier on the full updated dataset (including propagated changes)
-  const updatedTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
-  const trainingData = updatedTxns.filter(
-    (t) => !t.deleted && (t.category_id !== null || t.is_auto_categorized)
-  );
-  if (trainingData.length > 0) {
-    categorizer.train(
-      trainingData.map((t) => ({
-        description: t.description,
-        category_id: t.category_id
-      }))
-    );
-    categorizer.save();
-    debug('log', '[ML:PROPAGATE] Classifier retrained after propagation', {
-      trainingDocs: trainingData.length
     });
   }
 
