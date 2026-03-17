@@ -604,66 +604,75 @@
        MAIN CONTENT (budget exists)
        ───────────────────────────────────────────────────────────────────── -->
   {:else}
-    <!-- ── Budget Line Chart ── -->
-    <div class="anim-item" style="--delay: 1">
-      <div class="chart-card">
-        <BudgetLineChart
-          spendingData={dailySpending}
-          budgetTotal={totalBudget}
-          recurringDeduction={recurringTotal}
-          currentDay={selectedMonthInfo.currentDay}
-          daysInMonth={selectedMonthInfo.daysInMonth}
-          formatValue={formatCurrencyCompact}
-          height={180}
-        />
-      </div>
-    </div>
-
-    <!-- ── Summary Metrics + Pie ── -->
-    <div class="summary-section anim-item" style="--delay: 2">
-      <div class="summary-numbers">
-        <div class="summary-metric">
-          <span class="metric-label">Spent</span>
-          <span class="metric-value" class:over={isOverBudget}>
-            {formatCurrency(totalSpent)}
-          </span>
-        </div>
-        <div class="summary-divider"></div>
-        <div class="summary-metric">
-          <span class="metric-label">Remaining</span>
-          <span class="metric-value" class:over={isOverBudget} class:under={!isOverBudget}>
-            {isOverBudget ? '-' : ''}{formatCurrency(Math.abs(totalRemaining))}
-          </span>
-        </div>
-      </div>
-
-      <div class="summary-bar-wrap">
-        <div class="summary-bar">
-          <div
-            class="summary-bar-fill"
-            class:over={isOverBudget}
-            style="width: {spentPercent}%"
-          ></div>
-        </div>
-        <div class="summary-bar-labels">
-          <span>{formatCurrencyCompact(totalSpent)}</span>
-          <span>of {formatCurrencyCompact(totalBudget)}</span>
-        </div>
-      </div>
-
-      {#if pieSegments.length > 0}
-        <div class="pie-wrap">
-          <GemPieChart
-            segments={pieSegments}
-            formatValue={(v) => formatCurrency(v)}
-            height={200}
-            donut={true}
-            centerLabel="Spent"
-            centerValue={formatCurrencyCompact(totalSpent)}
+    {#if totalSpent > 0}
+      <!-- ── Budget Line Chart ── -->
+      <div class="anim-item" style="--delay: 1">
+        <div class="chart-card">
+          <BudgetLineChart
+            spendingData={dailySpending}
+            budgetTotal={totalBudget}
+            recurringDeduction={recurringTotal}
+            currentDay={selectedMonthInfo.currentDay}
+            daysInMonth={selectedMonthInfo.daysInMonth}
+            formatValue={formatCurrencyCompact}
+            height={180}
           />
         </div>
-      {/if}
-    </div>
+      </div>
+
+      <!-- ── Summary Metrics + Pie ── -->
+      <div class="summary-section anim-item" style="--delay: 2">
+        <div class="summary-numbers">
+          <div class="summary-metric">
+            <span class="metric-label">Spent</span>
+            <span class="metric-value" class:over={isOverBudget}>
+              {formatCurrency(totalSpent)}
+            </span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-metric">
+            <span class="metric-label">Remaining</span>
+            <span class="metric-value" class:over={isOverBudget} class:under={!isOverBudget}>
+              {isOverBudget ? '-' : ''}{formatCurrency(Math.abs(totalRemaining))}
+            </span>
+          </div>
+        </div>
+
+        <div class="summary-bar-wrap">
+          <div class="summary-bar">
+            <div
+              class="summary-bar-fill"
+              class:over={isOverBudget}
+              style="width: {spentPercent}%"
+            ></div>
+          </div>
+          <div class="summary-bar-labels">
+            <span>{formatCurrencyCompact(totalSpent)}</span>
+            <span>of {formatCurrencyCompact(totalBudget)}</span>
+          </div>
+        </div>
+
+        {#if pieSegments.length > 0}
+          <div class="pie-wrap">
+            <GemPieChart
+              segments={pieSegments}
+              formatValue={(v) => formatCurrency(v)}
+              height={200}
+              donut={true}
+              centerLabel="Spent"
+              centerValue={formatCurrencyCompact(totalSpent)}
+            />
+          </div>
+        {/if}
+      </div>
+    {:else}
+      <!-- ── No spending yet ── -->
+      <div class="no-spending-state anim-item" style="--delay: 1">
+        <span class="no-spending-budget">{formatCurrency(totalBudget)}</span>
+        <span class="no-spending-label">monthly budget</span>
+        <span class="no-spending-hint">Categorize transactions to start tracking spending</span>
+      </div>
+    {/if}
 
     <!-- ── Category List ── -->
     <div class="category-section anim-item" style="--delay: 3">
@@ -1505,6 +1514,38 @@
   /* ══════════════════════════════════════════════════════════════════════════
      EMPTY STATE
      ══════════════════════════════════════════════════════════════════════════ */
+  .no-spending-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 40px 24px;
+    gap: 6px;
+    background: var(--card);
+    border-radius: 16px;
+  }
+
+  .no-spending-budget {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .no-spending-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .no-spending-hint {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+
   .empty-state {
     display: flex;
     flex-direction: column;
