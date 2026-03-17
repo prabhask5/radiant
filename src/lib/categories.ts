@@ -1,7 +1,7 @@
 /**
  * @fileoverview Hardcoded default categories for Radiant Finance.
  *
- * Provides 54 default categories (40 expense, 8 income, 5 transfer, 1 uncategorized)
+ * Provides 55 default categories (41 expense, 8 income, 5 transfer, 1 uncategorized)
  * with emoji icons, hex colors, display ordering, and Teller category mappings
  * for auto-categorization.
  *
@@ -411,6 +411,15 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     teller_categories: ['accommodation'],
     order: 40
   },
+  {
+    key: 'misc',
+    name: 'Miscellaneous',
+    icon: '🤷',
+    color: '#94a3b8',
+    type: 'expense',
+    teller_categories: [],
+    order: 41
+  },
 
   // ── Income (8) ────────────────────────────────────────────────────────────
   {
@@ -420,7 +429,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#22c55e',
     type: 'income',
     teller_categories: ['income'],
-    order: 41
+    order: 42
   },
   {
     key: 'freelance',
@@ -429,7 +438,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#10b981',
     type: 'income',
     teller_categories: [],
-    order: 42
+    order: 43
   },
   {
     key: 'investment-income',
@@ -438,7 +447,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#059669',
     type: 'income',
     teller_categories: ['investment'],
-    order: 43
+    order: 44
   },
   {
     key: 'rental-income',
@@ -447,7 +456,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#14b8a6',
     type: 'income',
     teller_categories: [],
-    order: 44
+    order: 45
   },
   {
     key: 'side-hustle',
@@ -456,7 +465,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#f97316',
     type: 'income',
     teller_categories: [],
-    order: 45
+    order: 46
   },
   {
     key: 'refund',
@@ -465,7 +474,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#6366f1',
     type: 'income',
     teller_categories: [],
-    order: 46
+    order: 47
   },
   {
     key: 'interest',
@@ -474,7 +483,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#0d9488',
     type: 'income',
     teller_categories: [],
-    order: 47
+    order: 48
   },
   {
     key: 'other-income',
@@ -483,7 +492,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#34d399',
     type: 'income',
     teller_categories: [],
-    order: 48
+    order: 49
   },
 
   // ── Transfer (5) ──────────────────────────────────────────────────────────
@@ -494,7 +503,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#94a3b8',
     type: 'transfer',
     teller_categories: [],
-    order: 49
+    order: 50
   },
   {
     key: 'savings-transfer',
@@ -503,7 +512,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#a78bfa',
     type: 'transfer',
     teller_categories: [],
-    order: 50
+    order: 51
   },
   {
     key: 'credit-card-payment',
@@ -512,7 +521,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#64748b',
     type: 'transfer',
     teller_categories: [],
-    order: 51
+    order: 52
   },
   {
     key: 'investment-transfer',
@@ -521,7 +530,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#8b5cf6',
     type: 'transfer',
     teller_categories: [],
-    order: 52
+    order: 53
   },
   {
     key: 'loan-payment',
@@ -530,7 +539,7 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     color: '#475569',
     type: 'transfer',
     teller_categories: ['loan'],
-    order: 53
+    order: 54
   }
 ];
 
@@ -606,7 +615,7 @@ export function getCategoryById(id: string): CategoryDefinition | undefined {
 // =============================================================================
 
 /** localStorage key to gate one-time seeding. */
-const SEED_FLAG = 'radiant_categories_seeded_v3';
+const SEED_FLAG = 'radiant_categories_seeded_v4';
 
 /**
  * Seed all default categories into the database if not already present.

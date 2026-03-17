@@ -44,6 +44,8 @@
   import { categorizeTransaction } from '$lib/ml/categorizer';
   import { categorizer } from '$lib/ml/classifier';
   import { categoryKeyToId } from '$lib/categories';
+  import { engineBatchWrite } from 'stellar-drive/data';
+  import type { BatchOperation } from 'stellar-drive/data';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -81,6 +83,24 @@
   /* ── Auto-sync ── */
   let autoSyncBanner = $state<string | null>(null);
   let autoSyncBannerFading = $state(false);
+
+  /* ── Categorization toast ── */
+  let catToast = $state<{ message: string; type: 'success' | 'info' } | null>(null);
+  let catToastFading = $state(false);
+  let catToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showCatToast(message: string, type: 'success' | 'info' = 'success') {
+    if (catToastTimer) clearTimeout(catToastTimer);
+    catToastFading = false;
+    catToast = { message, type };
+    catToastTimer = setTimeout(() => {
+      catToastFading = true;
+      setTimeout(() => {
+        catToast = null;
+        catToastFading = false;
+      }, 500);
+    }, 3000);
+  }
 
   /* ── Page entrance ── */
   let mounted = $state(false);
@@ -394,9 +414,68 @@
     try {
       await transactionsStore.updateCategory(transactionId, newCat);
       await transactionsStore.refresh();
+
+      // Propagate: retrain classifier with new data, then apply to similar uncategorized txns
+      if (newCat) {
+        propagateCategoryToSimilar();
+      }
     } finally {
       savingField = null;
     }
+  }
+
+  /**
+   * After a manual category assignment, retrain the classifier and apply
+   * the new knowledge to similar uncategorized transactions. Runs async
+   * in the background — does not block the UI.
+   */
+  function propagateCategoryToSimilar() {
+    // Use setTimeout(0) to yield to the UI thread, keeping interactions snappy
+    setTimeout(async () => {
+      try {
+        const txns = allTransactions.filter((t) => !t.deleted);
+        const categorized = txns.filter((t) => t.category_id !== null);
+        if (categorized.length < 2) return; // Need enough data to train
+
+        // Retrain classifier with all categorized transactions (including the new one)
+        categorizer.train(
+          categorized.map((t) => ({ description: t.description, category_id: t.category_id! }))
+        );
+        categorizer.save();
+
+        // Predict on uncategorized transactions only
+        const uncategorized = txns.filter((t) => t.category_id === null);
+        if (uncategorized.length === 0) return;
+
+        const ops: BatchOperation[] = [];
+        for (const t of uncategorized) {
+          const result = categorizeTransaction(t.description, t.teller_category ?? undefined);
+          if (result && result.confidence >= 0.7) {
+            const catId =
+              result.layer === 'classifier'
+                ? result.categoryKey
+                : categoryKeyToId(result.categoryKey);
+            ops.push({
+              type: 'update' as const,
+              table: 'transactions',
+              id: t.id,
+              fields: { category_id: catId, is_auto_categorized: true }
+            });
+          }
+        }
+
+        if (ops.length > 0) {
+          await engineBatchWrite(ops);
+          await transactionsStore.refresh();
+          showCatToast(
+            `Auto-categorized ${ops.length} similar transaction${ops.length !== 1 ? 's' : ''}`
+          );
+          debug('log', '[TRANSACTIONS] Propagated category to', ops.length, 'similar transactions');
+        }
+      } catch (err) {
+        debug('warn', '[TRANSACTIONS] Category propagation failed:', err);
+      }
+    }, 0);
   }
 
   /** Save notes for a transaction. */
@@ -472,6 +551,10 @@
         editingCategory[transactionId] = categoryId;
         await transactionsStore.updateCategory(transactionId, categoryId);
         await transactionsStore.refresh();
+        const cat = categoriesById[categoryId];
+        showCatToast(`Categorized as ${cat?.icon ?? ''} ${cat?.name ?? 'Unknown'}`);
+      } else {
+        showCatToast('Could not auto-categorize — try setting it manually', 'info');
       }
     } finally {
       savingField = null;
@@ -964,6 +1047,7 @@
                     </select>
                     <button
                       class="recat-btn"
+                      class:spinning={savingField === `recat-${txn.id}`}
                       title="Auto-categorize"
                       onclick={(e) => {
                         e.stopPropagation();
@@ -971,24 +1055,20 @@
                       }}
                       disabled={savingField === `recat-${txn.id}`}
                     >
-                      {#if savingField === `recat-${txn.id}`}
-                        <span class="saving-indicator"></span>
-                      {:else}
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path
-                            d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.2M22 12.5a10 10 0 0 1-18.8 4.2"
-                          />
-                        </svg>
-                      {/if}
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.2M22 12.5a10 10 0 0 1-18.8 4.2"
+                        />
+                      </svg>
                     </button>
                     {#if savingField === `cat-${txn.id}`}
                       <span class="saving-indicator"></span>
@@ -1095,6 +1175,38 @@
       <polyline points="20 6 9 17 4 12" />
     </svg>
     {autoSyncBanner}
+  </div>
+{/if}
+
+<!-- ─── Categorization toast ─── -->
+{#if catToast}
+  <div class="cat-toast" class:info={catToast.type === 'info'} class:fading={catToastFading}>
+    {#if catToast.type === 'success'}
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    {:else}
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+    {/if}
+    {catToast.message}
   </div>
 {/if}
 
@@ -1216,6 +1328,43 @@
       opacity: 0;
       transform: translateX(-50%) translateY(20px) scale(0.95);
     }
+  }
+
+  /* ── Categorization toast ── */
+  .cat-toast {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.55rem 1rem;
+    background: var(--txn-glass-bg);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid rgba(61, 214, 140, 0.2);
+    border-radius: var(--txn-radius);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(61, 214, 140, 0.06);
+    color: var(--txn-emerald);
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    animation: toastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .cat-toast.info {
+    border-color: rgba(180, 150, 80, 0.2);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(180, 150, 80, 0.06);
+    color: var(--txn-gold);
+  }
+  .cat-toast.fading {
+    animation: toastFadeOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
   .txn-page::before {
@@ -2130,6 +2279,19 @@
   .recat-btn:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+
+  .recat-btn.spinning svg {
+    animation: recat-spin 0.8s linear infinite;
+  }
+
+  @keyframes recat-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .detail-select {
