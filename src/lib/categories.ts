@@ -5,7 +5,7 @@
  * with emoji icons, hex colors, display ordering, and Teller category mappings
  * for auto-categorization.
  *
- * Categories use deterministic IDs (`cat-{key}`) for idempotent seeding.
+ * Categories use deterministic UUIDs derived from their key for idempotent seeding.
  * The `seedDefaultCategories()` function batch-creates all defaults on first
  * run, gated by a localStorage flag.
  */
@@ -14,7 +14,7 @@
 //                              IMPORTS
 // =============================================================================
 
-import { engineGetAll, engineBatchWrite } from 'stellar-drive/data';
+import { engineGetAll, engineBatchWrite, engineDelete } from 'stellar-drive/data';
 import type { BatchOperation } from 'stellar-drive/data';
 import { debug } from 'stellar-drive/utils';
 import type { Category } from '$lib/types';
@@ -550,24 +550,55 @@ for (const cat of DEFAULT_CATEGORIES) {
 }
 
 /**
- * Convert a category key to its deterministic ID.
+ * Generate a deterministic UUID from a string input.
  *
- * @param key - The category slug (e.g., `'groceries'`)
- * @returns Deterministic ID string (e.g., `'cat-groceries'`)
+ * Uses DJB2 hash with per-byte seeding to produce 16 bytes, then formats
+ * as UUID v4 with proper version/variant bits. The same input always produces
+ * the same UUID, making it safe for idempotent seeding.
  */
-export function categoryKeyToId(key: string): string {
-  return `cat-${key}`;
+function deterministicUuid(input: string): string {
+  const str = `radiant-category-v1-${input}`;
+  const bytes = new Uint8Array(16);
+
+  for (let i = 0; i < 16; i++) {
+    let hash = 5381 + i * 33;
+    for (let j = 0; j < str.length; j++) {
+      hash = ((hash << 5) + hash + str.charCodeAt(j)) & 0xffffffff;
+    }
+    bytes[i] = hash & 0xff;
+  }
+
+  // UUID v4 format: set version and variant bits
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+
+  const h = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
 }
 
 /**
- * Find a default category definition by its database ID.
+ * Convert a category key to its deterministic UUID.
  *
- * @param id - The category ID (e.g., `'cat-groceries'`)
+ * @param key - The category slug (e.g., `'groceries'`)
+ * @returns Deterministic UUID string
+ */
+export function categoryKeyToId(key: string): string {
+  return deterministicUuid(key);
+}
+
+/** Precomputed map from deterministic UUID → CategoryDefinition for reverse lookups. */
+const CATEGORY_BY_UUID = new Map<string, CategoryDefinition>(
+  DEFAULT_CATEGORIES.map((c) => [categoryKeyToId(c.key), c])
+);
+
+/**
+ * Find a default category definition by its database UUID.
+ *
+ * @param id - The category UUID
  * @returns The category definition, or `undefined` if not found
  */
 export function getCategoryById(id: string): CategoryDefinition | undefined {
-  const key = id.startsWith('cat-') ? id.slice(4) : id;
-  return CATEGORY_BY_KEY.get(key);
+  return CATEGORY_BY_UUID.get(id);
 }
 
 // =============================================================================
@@ -575,7 +606,7 @@ export function getCategoryById(id: string): CategoryDefinition | undefined {
 // =============================================================================
 
 /** localStorage key to gate one-time seeding. */
-const SEED_FLAG = 'radiant_categories_seeded_v2';
+const SEED_FLAG = 'radiant_categories_seeded_v3';
 
 /**
  * Seed all default categories into the database if not already present.
@@ -590,7 +621,7 @@ const SEED_FLAG = 'radiant_categories_seeded_v2';
  * ```
  */
 export async function seedDefaultCategories(): Promise<void> {
-  // Skip if already seeded
+  // Skip if already seeded with UUID-based IDs
   if (typeof localStorage !== 'undefined' && localStorage.getItem(SEED_FLAG)) {
     debug('log', '[CATEGORIES] Already seeded — skipping');
     return;
@@ -598,7 +629,48 @@ export async function seedDefaultCategories(): Promise<void> {
 
   // Check if categories already exist
   const existing = (await engineGetAll('categories')) as unknown as Category[];
-  if (existing.length > 0) {
+
+  // Migration: if old `cat-{key}` format IDs exist, delete and re-seed with UUIDs
+  const hasOldFormat = existing.some((c) => c.id.startsWith('cat-'));
+  if (hasOldFormat) {
+    debug('log', '[CATEGORIES] Migrating from cat- prefix IDs to UUIDs', {
+      count: existing.length
+    });
+    // Delete old categories
+    for (const cat of existing) {
+      if (cat.id.startsWith('cat-')) {
+        await engineDelete('categories', cat.id);
+      }
+    }
+    // Migrate transaction category_id references from old cat- format to new UUIDs
+    const allTxns = (await engineGetAll('transactions')) as unknown as Array<{
+      id: string;
+      category_id: string | null;
+    }>;
+    const migrateOps: BatchOperation[] = [];
+    for (const txn of allTxns) {
+      if (txn.category_id && txn.category_id.startsWith('cat-')) {
+        const key = txn.category_id.slice(4);
+        const newId = CATEGORY_BY_KEY.has(key) ? categoryKeyToId(key) : null;
+        migrateOps.push({
+          type: 'update' as const,
+          table: 'transactions',
+          id: txn.id,
+          fields: { category_id: newId }
+        });
+      }
+    }
+    if (migrateOps.length > 0) {
+      await engineBatchWrite(migrateOps);
+      debug('log', '[CATEGORIES] Migrated transaction category_id references', {
+        count: migrateOps.length
+      });
+    }
+    // Clear old classifier model since it references old category IDs
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('radiant_nb_model');
+    }
+  } else if (existing.length > 0) {
     debug('log', '[CATEGORIES] Categories already present — marking as seeded');
     if (typeof localStorage !== 'undefined') localStorage.setItem(SEED_FLAG, 'true');
     return;

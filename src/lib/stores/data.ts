@@ -176,6 +176,8 @@ function createTransactionsStore() {
       await engineUpdate('transactions', transactionId, { category_id: categoryId });
       await store.load();
       debug('log', '[DATA] transactions — updateCategory complete', { transactionId });
+      // Retrain ML classifier so future predictions incorporate this manual override
+      scheduleMLSync();
     },
     async toggleExcluded(transactionId: string, excluded: boolean) {
       debug('log', '[DATA] transactions — toggleExcluded', { transactionId, excluded });

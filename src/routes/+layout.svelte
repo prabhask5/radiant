@@ -929,19 +929,19 @@
 
   .app-toast {
     position: fixed;
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
     z-index: 9000;
     max-width: 420px;
     width: calc(100% - 32px);
-    animation: appToastSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: appToastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   @keyframes appToastSlideUp {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(20px) scale(0.95);
+      transform: translateX(-50%) translateY(16px) scale(0.96);
     }
     to {
       opacity: 1;

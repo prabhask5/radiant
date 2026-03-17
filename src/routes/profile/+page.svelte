@@ -2554,7 +2554,7 @@
 
   .demo-toast {
     position: fixed;
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(18, 14, 10, 0.95);
@@ -2572,35 +2572,35 @@
     font-size: 0.8125rem;
     padding: 10px 20px;
     border-radius: 10px;
-    z-index: 200;
-    animation: toastIn 0.3s ease-out forwards;
+    z-index: 9000;
+    animation: toastIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
     white-space: nowrap;
   }
 
   .demo-toast.dismissing {
-    animation: toastOut 0.3s ease-in forwards;
+    animation: toastOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
   @keyframes toastIn {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(12px);
+      transform: translateX(-50%) translateY(16px) scale(0.96);
     }
     to {
       opacity: 1;
-      transform: translateX(-50%) translateY(0);
+      transform: translateX(-50%) translateY(0) scale(1);
     }
   }
 
   @keyframes toastOut {
     from {
       opacity: 1;
-      transform: translateX(-50%) translateY(0);
+      transform: translateX(-50%) translateY(0) scale(1);
     }
     to {
       opacity: 0;
-      transform: translateX(-50%) translateY(12px);
+      transform: translateX(-50%) translateY(16px) scale(0.96);
     }
   }
 

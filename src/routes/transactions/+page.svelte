@@ -42,6 +42,7 @@
   import { debug } from 'stellar-drive/utils';
   import { autoSyncStaleEnrollments } from '$lib/teller/autoSync';
   import { categorizeTransaction } from '$lib/ml/categorizer';
+  import { categorizer } from '$lib/ml/classifier';
   import { categoryKeyToId } from '$lib/categories';
 
   // ===========================================================================
@@ -452,6 +453,18 @@
     savingField = `recat-${transactionId}`;
     debug('log', '[TRANSACTIONS] recategorize —', transactionId);
     try {
+      // Train classifier on all currently categorized transactions so manual
+      // overrides improve future predictions (persists via localStorage)
+      const categorized = allTransactions.filter((tx) => tx.category_id !== null && !tx.deleted);
+      if (categorized.length > 0) {
+        categorizer.train(
+          categorized.map((tx) => ({ description: tx.description, category_id: tx.category_id! }))
+        );
+        categorizer.save();
+      } else {
+        categorizer.load();
+      }
+
       const result = categorizeTransaction(t.description, t.teller_category ?? undefined);
       if (result) {
         const categoryId =
@@ -1158,10 +1171,10 @@
   /* ── Auto-sync floating toast ── */
   .auto-sync-toast {
     position: fixed;
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 100;
+    z-index: 9000;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1179,22 +1192,22 @@
     font-weight: 500;
     letter-spacing: 0.01em;
     white-space: nowrap;
-    animation: toastSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: toastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
   .auto-sync-toast.fading {
-    animation: toastSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: toastFadeOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
   @keyframes toastSlideUp {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(20px) scale(0.95);
+      transform: translateX(-50%) translateY(16px) scale(0.96);
     }
     to {
       opacity: 1;
       transform: translateX(-50%) translateY(0) scale(1);
     }
   }
-  @keyframes toastSlideDown {
+  @keyframes toastFadeOut {
     from {
       opacity: 1;
       transform: translateX(-50%) translateY(0) scale(1);
@@ -2548,17 +2561,17 @@
 
   .selection-bar {
     position: fixed;
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 100;
-    animation: selectionBarSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    z-index: 9000;
+    animation: selectionBarSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   @keyframes selectionBarSlideUp {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(20px) scale(0.95);
+      transform: translateX(-50%) translateY(16px) scale(0.96);
     }
     to {
       opacity: 1;

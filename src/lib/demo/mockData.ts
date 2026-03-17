@@ -25,6 +25,7 @@
 // =============================================================================
 
 import type Dexie from 'dexie';
+import { categoryKeyToId } from '$lib/categories';
 
 // =============================================================================
 //                              HELPER UTILITIES
@@ -84,25 +85,25 @@ const ACCT_CHASE_CREDIT = 'demo-acct-chase-credit';
 const ACCT_BOFA_CHECKING = 'demo-acct-bofa-checking';
 const ACCT_BOFA_CREDIT = 'demo-acct-bofa-credit';
 
-// Categories — deterministic IDs matching categories.ts `cat-{key}` pattern
-const CAT_GROCERIES = 'cat-groceries';
-const CAT_DINING = 'cat-dining';
-const CAT_COFFEE = 'cat-coffee';
-const CAT_RENT = 'cat-rent';
-const CAT_UTILITIES = 'cat-utilities';
-const CAT_GAS_FUEL = 'cat-gas-fuel';
-const CAT_RIDESHARE = 'cat-rideshare';
-const CAT_SHOPPING = 'cat-shopping';
-const CAT_ENTERTAINMENT = 'cat-entertainment';
-const CAT_STREAMING = 'cat-streaming';
-const CAT_HEALTH_INSURANCE = 'cat-health-insurance';
-const CAT_CAR_INSURANCE = 'cat-car-insurance';
-const CAT_SALARY = 'cat-salary';
-const CAT_FREELANCE = 'cat-freelance';
-const CAT_TRANSFER = 'cat-transfer';
-const CAT_CREDIT_CARD_PAYMENT = 'cat-credit-card-payment';
-const CAT_PHARMACY = 'cat-pharmacy';
-const CAT_GYM_FITNESS = 'cat-gym-fitness';
+// Categories — deterministic UUIDs matching categories.ts
+const CAT_GROCERIES = categoryKeyToId('groceries');
+const CAT_DINING = categoryKeyToId('dining');
+const CAT_COFFEE = categoryKeyToId('coffee');
+const CAT_RENT = categoryKeyToId('rent');
+const CAT_UTILITIES = categoryKeyToId('utilities');
+const CAT_GAS_FUEL = categoryKeyToId('gas-fuel');
+const CAT_RIDESHARE = categoryKeyToId('rideshare');
+const CAT_SHOPPING = categoryKeyToId('shopping');
+const CAT_ENTERTAINMENT = categoryKeyToId('entertainment');
+const CAT_STREAMING = categoryKeyToId('streaming');
+const CAT_HEALTH_INSURANCE = categoryKeyToId('health-insurance');
+const CAT_CAR_INSURANCE = categoryKeyToId('car-insurance');
+const CAT_SALARY = categoryKeyToId('salary');
+const CAT_FREELANCE = categoryKeyToId('freelance');
+const CAT_TRANSFER = categoryKeyToId('transfer');
+const CAT_CREDIT_CARD_PAYMENT = categoryKeyToId('credit-card-payment');
+const CAT_PHARMACY = categoryKeyToId('pharmacy');
+const CAT_GYM_FITNESS = categoryKeyToId('gym-fitness');
 
 // =============================================================================
 //                            SEED FUNCTION

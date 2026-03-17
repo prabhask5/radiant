@@ -13,6 +13,12 @@
 -->
 <script lang="ts">
   // ══════════════════════════════════════════════════════════════════════════
+  //                              IMPORTS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  import { onMount } from 'svelte';
+
+  // ══════════════════════════════════════════════════════════════════════════
   //                              PROPS
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -71,9 +77,9 @@
     return () => ro.disconnect();
   });
 
-  // Trigger entrance animation on mount
-  $effect(() => {
-    mounted = false;
+  // Trigger entrance animation on mount — use onMount to avoid
+  // re-running on reactive changes during re-navigation
+  onMount(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         mounted = true;
@@ -411,12 +417,6 @@
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  //                     TODAY MARKER POSITION
-  // ══════════════════════════════════════════════════════════════════════════
-
-  const todayX = $derived(sx(currentDay));
-
-  // ══════════════════════════════════════════════════════════════════════════
   //                     HOVER / TOOLTIP INTERACTION
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -701,29 +701,6 @@
               class:ep-on={mounted}
             />
           {/if}
-
-          <!-- Today marker (vertical dashed line) -->
-          <line
-            x1={todayX}
-            y1={margin.top}
-            x2={todayX}
-            y2={margin.top + plotH}
-            stroke={CITRINE}
-            stroke-opacity="0.5"
-            stroke-width="1"
-            stroke-dasharray="4 3"
-            class="today-line"
-            class:line-visible={mounted}
-          />
-          <circle
-            cx={todayX}
-            cy={margin.top}
-            r="3"
-            fill={CITRINE}
-            fill-opacity="0.6"
-            class="today-dot"
-            class:ep-on={mounted}
-          />
 
           <!-- Hover crosshair -->
           {#if hover}
@@ -1031,15 +1008,13 @@
 
   /* ── Ceiling & pace lines ────────────────────────────────────────────── */
   .ceiling-line,
-  .pace-line,
-  .today-line {
+  .pace-line {
     opacity: 0;
     transition: opacity 0.6s ease 0.3s;
   }
 
   .ceiling-line.line-visible,
-  .pace-line.line-visible,
-  .today-line.line-visible {
+  .pace-line.line-visible {
     opacity: 1;
   }
 
@@ -1117,16 +1092,6 @@
       opacity: 0.5;
       r: 10;
     }
-  }
-
-  /* ── Today marker ────────────────────────────────────────────────────── */
-  .today-dot {
-    opacity: 0;
-    transition: opacity 0.3s ease 0.6s;
-  }
-
-  .today-dot.ep-on {
-    opacity: 1;
   }
 
   /* ── Crosshair ───────────────────────────────────────────────────────── */
@@ -1307,8 +1272,7 @@
     }
 
     .endpoint,
-    .endpoint-ring,
-    .today-dot {
+    .endpoint-ring {
       transition: none;
       opacity: 1;
     }
@@ -1324,8 +1288,7 @@
     }
 
     .ceiling-line,
-    .pace-line,
-    .today-line {
+    .pace-line {
       transition: none;
       opacity: 1;
     }

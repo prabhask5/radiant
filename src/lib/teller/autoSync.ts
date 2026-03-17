@@ -1,10 +1,10 @@
 /**
  * @fileoverview Automatic Teller sync — background sync for stale enrollments.
  *
- * Fetches fresh data from Teller via the mTLS proxy and writes only truly new
- * transactions to IndexedDB via the sync engine. Designed to run silently in
- * the background on page load so the app stays fresh without depending on
- * Teller webhook delivery.
+ * Fetches fresh data from Teller via the mTLS proxy and writes new transactions
+ * and pending→posted updates to IndexedDB via the sync engine. Designed to run
+ * silently in the background on page load so the app stays fresh without
+ * depending on Teller webhook delivery.
  *
  * The `processTellerSyncData` function is also used by the accounts page for
  * manual sync and initial enrollment flows.
@@ -12,6 +12,9 @@
  * Duplicate prevention:
  *   - A module-level mutex ensures only one sync runs at a time
  *   - Transactions are deduped by `teller_transaction_id` against IndexedDB
+ *   - Existing pending transactions are updated (not duplicated) when Teller
+ *     reports them as posted — user-editable fields are preserved
+ *   - User-deleted transactions are respected and never re-created
  *   - A second freshness check right before the batch write catches any
  *     transactions that arrived via webhook/realtime during the sync
  */
@@ -48,16 +51,27 @@ let autoSyncInProgress: Promise<number> | null = null;
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Get a fresh set of all teller_transaction_ids currently in IndexedDB.
- * Used for dedup checks before writing new transactions.
+ * Get a map of all teller_transaction_ids currently in IndexedDB,
+ * including their local id and status for pending→posted detection.
  */
-async function getFreshTellerTxnIds(): Promise<Set<string>> {
+async function getFreshTellerTxnMap(): Promise<
+  Map<string, { id: string; status: string; deleted?: boolean }>
+> {
   const allLocalTxns = (await engineGetAll('transactions')) as unknown as Array<
-    Record<string, unknown> & { teller_transaction_id: string | null }
+    Record<string, unknown> & {
+      id: string;
+      teller_transaction_id: string | null;
+      status: string;
+      deleted?: boolean;
+    }
   >;
-  return new Set(
-    allLocalTxns.filter((t) => t.teller_transaction_id).map((t) => t.teller_transaction_id!)
-  );
+  const map = new Map<string, { id: string; status: string; deleted?: boolean }>();
+  for (const t of allLocalTxns) {
+    if (t.teller_transaction_id) {
+      map.set(t.teller_transaction_id, { id: t.id, status: t.status, deleted: t.deleted });
+    }
+  }
+  return map;
 }
 
 /**
@@ -106,7 +120,7 @@ async function processTellerSyncDataInternal(
     allLocalAccounts.filter((a) => a.teller_account_id).map((a) => [a.teller_account_id, a])
   );
 
-  const existingTellerTxnIds = await getFreshTellerTxnIds();
+  const existingTxnMap = await getFreshTellerTxnMap();
 
   const ops: BatchOperation[] = [];
   const tellerIdToLocalId = new Map<string, string>();
@@ -156,10 +170,14 @@ async function processTellerSyncDataInternal(
     }
   }
 
-  // First pass: identify candidate new transactions
+  // First pass: sort transactions into new, pending→posted updates, and skip
   const candidateTxns: Array<{
     tellerTxnId: string;
     accountId: string;
+    tellerTxn: Record<string, unknown>;
+  }> = [];
+  const pendingUpdates: Array<{
+    localId: string;
     tellerTxn: Record<string, unknown>;
   }> = [];
   let skippedExisting = 0;
@@ -170,20 +188,54 @@ async function processTellerSyncDataInternal(
     const accountId = tellerIdToLocalId.get(tellerAcctId);
     if (!accountId) continue;
 
-    if (existingTellerTxnIds.has(tellerTxnId)) {
-      skippedExisting++;
+    const existing = existingTxnMap.get(tellerTxnId);
+
+    if (existing) {
+      if (existing.deleted) {
+        // User explicitly deleted — respect their decision
+        skippedExisting++;
+      } else if (existing.status === 'pending' && tellerTxn.status !== 'pending') {
+        // Pending → posted: update with fresh Teller data
+        pendingUpdates.push({ localId: existing.id, tellerTxn });
+      } else {
+        skippedExisting++;
+      }
       continue;
     }
 
     candidateTxns.push({ tellerTxnId, accountId, tellerTxn });
   }
 
+  // Build update ops for pending→posted transitions
+  let updatedCount = 0;
+  for (const { localId, tellerTxn } of pendingUpdates) {
+    const details = tellerTxn.details as
+      | { counterparty?: { name?: string; type?: string }; category?: string }
+      | undefined;
+    ops.push({
+      type: 'update',
+      table: 'transactions',
+      id: localId,
+      fields: {
+        amount: tellerTxn.amount as string,
+        status: tellerTxn.status as string,
+        running_balance: (tellerTxn.running_balance as string) ?? null,
+        counterparty_name: details?.counterparty?.name ?? null,
+        counterparty_type: details?.counterparty?.type ?? null,
+        teller_category: details?.category ?? null,
+        type: (tellerTxn.type as string) ?? null
+      }
+    });
+    remoteChangesStore.recordLocalChange(localId, 'transactions', 'update');
+    updatedCount++;
+  }
+
   // Second freshness check: re-read IndexedDB right before writing to catch
   // any transactions that arrived via webhook/realtime during the Teller fetch
   let newTxnCount = 0;
   if (candidateTxns.length > 0) {
-    const freshIds = await getFreshTellerTxnIds();
-    const trulyNew = candidateTxns.filter((c) => !freshIds.has(c.tellerTxnId));
+    const freshMap = await getFreshTellerTxnMap();
+    const trulyNew = candidateTxns.filter((c) => !freshMap.has(c.tellerTxnId));
     const caughtByRecheck = candidateTxns.length - trulyNew.length;
 
     if (caughtByRecheck > 0) {
@@ -234,6 +286,7 @@ async function processTellerSyncDataInternal(
     creates: createOps.length,
     updates: updateOps.length,
     newTransactions: newTxnCount,
+    pendingToPosted: updatedCount,
     total: ops.length
   });
   if (ops.length > 0) {
@@ -241,7 +294,7 @@ async function processTellerSyncDataInternal(
     debug('log', '[TELLER-SYNC] processTellerSyncData — batch write complete');
   }
 
-  return newTxnCount;
+  return newTxnCount + updatedCount;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -27,6 +27,9 @@
   /* ── Svelte ── */
   import { onMount } from 'svelte';
 
+  /* ── SvelteKit ── */
+  import { browser } from '$app/environment';
+
   /* ── App Data Stores ── */
   import {
     accountsStore,
@@ -116,6 +119,18 @@
 
   /** Recurring section collapsed state */
   let recurringCollapsed = $state(false);
+
+  /** Lock body scroll when any modal is open. */
+  const anyModalOpen = $derived(showConfigModal || showRecurringModal);
+
+  $effect(() => {
+    if (browser && anyModalOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  });
 
   // ==========================================================================
   //                         DERIVED DATA
@@ -1178,7 +1193,9 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    border-radius: 10px;
+    flex-shrink: 0;
+    aspect-ratio: 1;
+    border-radius: 50%;
     border: 1px solid var(--border);
     background: var(--frost);
     color: var(--text-muted);
@@ -1868,103 +1885,95 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     z-index: 100;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
-    animation: overlayFadeIn 0.25s ease;
+    padding: 1rem;
+    animation: overlayFadeIn 0.25s ease-out;
   }
 
   @keyframes overlayFadeIn {
     from {
       opacity: 0;
     }
-    to {
-      opacity: 1;
-    }
   }
 
   .modal-sheet {
+    position: relative;
     width: 100%;
     max-width: 500px;
-    max-height: 90vh;
+    max-height: 85vh;
     display: flex;
     flex-direction: column;
     background: var(--bg-raised);
     border: 1px solid var(--border);
-    border-bottom: none;
-    border-radius: var(--radius) var(--radius) 0 0;
-    animation: sheetSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 16px;
+    box-shadow:
+      0 24px 48px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(180, 150, 80, 0.08);
+    animation: modalEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     overflow: hidden;
   }
 
-  @keyframes sheetSlideUp {
+  @keyframes modalEnter {
     from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
+      opacity: 0;
+      transform: translateY(24px) scale(0.96);
     }
   }
 
   .sheet-handle-bar {
-    display: flex;
-    justify-content: center;
-    padding: 10px 0 4px;
+    display: none;
   }
 
   .sheet-handle {
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--text-dim);
-    opacity: 0.4;
+    display: none;
   }
 
   .sheet-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 16px 12px;
-    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 1.5rem 0.75rem;
   }
 
   .sheet-title {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     font-weight: 700;
     color: var(--text);
     margin: 0;
+    letter-spacing: 0.04em;
   }
 
   .sheet-close {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 8px;
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--text-dim);
     cursor: pointer;
-    transition:
-      background 0.15s,
-      color 0.15s;
+    transition: all 0.2s;
     -webkit-tap-highlight-color: transparent;
   }
 
   .sheet-close:hover {
     background: var(--frost-hover);
+    border-color: var(--border);
     color: var(--text);
   }
 
   .sheet-body {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
+    padding: 0.75rem 1.5rem 1rem;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -1979,12 +1988,11 @@
   }
 
   .sheet-footer {
-    padding: 12px 16px;
+    padding: 12px 1.5rem;
     border-top: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     gap: 10px;
-    /* Safe area for bottom sheet on notched devices */
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
 
@@ -2306,14 +2314,7 @@
     }
 
     .modal-sheet {
-      border-radius: var(--radius);
-      margin-bottom: 24px;
       max-height: 80vh;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .sheet-footer {
-      padding-bottom: 16px;
     }
 
     .config-category-grid {
@@ -2335,6 +2336,7 @@
   @media (prefers-reduced-motion: reduce) {
     .modal-overlay,
     .modal-sheet,
+    .recurring-sheet,
     .config-cat-chip,
     .save-budget-btn,
     .empty-cta {

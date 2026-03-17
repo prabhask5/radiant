@@ -365,10 +365,60 @@
   </header>
 
   <!-- ─────────────────────────────────────────────────────────────────────
+       BUDGET PROGRESS CHART
+       ───────────────────────────────────────────────────────────────────── -->
+  <div class="anim-item" style="--delay: 1">
+    <div class="budget-card">
+      <div class="budget-card-header">
+        <span class="budget-card-label">Budget Progress</span>
+        <a href="/budget" class="budget-card-link">{hasBudget ? 'Details' : 'Set up'}</a>
+      </div>
+      {#if !dataLoaded}
+        <BudgetLineChart
+          spendingData={[]}
+          budgetTotal={0}
+          currentDay={1}
+          daysInMonth={30}
+          formatValue={formatCurrencyCompact}
+          loading={true}
+          height={160}
+        />
+      {:else if hasBudget}
+        <BudgetLineChart
+          spendingData={budgetDailySpending}
+          budgetTotal={totalBudget}
+          {recurringDeduction}
+          currentDay={currentMonthNow.currentDay}
+          daysInMonth={currentMonthNow.daysInMonth}
+          formatValue={formatCurrencyCompact}
+          height={160}
+        />
+      {:else}
+        <div class="budget-empty">
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 3v18h18" /><path d="M7 16l4-8 4 4 5-6" />
+          </svg>
+          <span>No budget set yet</span>
+          <span class="budget-empty-sub">Create a budget to track your monthly spending</span>
+        </div>
+      {/if}
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────────
        NET WORTH CHART
        ───────────────────────────────────────────────────────────────────── -->
   {#if !dataLoaded || (hasAccounts && netWorthLines.length > 0)}
-    <div class="anim-item" style="--delay: 1">
+    <div class="anim-item" style="--delay: 2">
       <GemChart
         title="Net Worth"
         lines={dataLoaded ? netWorthLines : []}
@@ -379,29 +429,6 @@
         formatValue={formatCurrencyCompact}
         loading={!dataLoaded}
       />
-    </div>
-  {/if}
-
-  <!-- ─────────────────────────────────────────────────────────────────────
-       BUDGET PROGRESS CHART
-       ───────────────────────────────────────────────────────────────────── -->
-  {#if dataLoaded && hasBudget}
-    <div class="anim-item" style="--delay: 2">
-      <div class="budget-card">
-        <div class="budget-card-header">
-          <span class="budget-card-label">Budget Progress</span>
-          <a href="/budget" class="budget-card-link">Details</a>
-        </div>
-        <BudgetLineChart
-          spendingData={budgetDailySpending}
-          budgetTotal={totalBudget}
-          {recurringDeduction}
-          currentDay={currentMonthNow.currentDay}
-          daysInMonth={currentMonthNow.daysInMonth}
-          formatValue={formatCurrencyCompact}
-          height={160}
-        />
-      </div>
     </div>
   {/if}
 </div>
@@ -663,6 +690,30 @@
 
   .budget-card-link:hover {
     color: var(--gem-citrine);
+  }
+
+  .budget-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 160px;
+    color: var(--gem-text-muted);
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+    text-align: center;
+  }
+
+  .budget-empty svg {
+    opacity: 0.35;
+    color: var(--gem-citrine);
+  }
+
+  .budget-empty-sub {
+    font-size: 0.72rem;
+    color: var(--gem-text-muted);
+    opacity: 0.6;
   }
 
   /* ──────────────────────────────────────────────────────────────────────────

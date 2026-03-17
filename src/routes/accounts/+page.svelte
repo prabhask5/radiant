@@ -73,6 +73,9 @@
   /** Auto-dismiss timeout reference. */
   let feedbackTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  /** Whether the feedback toast is fading out. */
+  let feedbackFading = $state(false);
+
   /** Whether the manual account creation modal is open. */
   let showManualModal = $state(false);
 
@@ -706,20 +709,29 @@
   function showFeedback(type: 'success' | 'error', message: string) {
     feedbackType = type;
     feedbackMessage = message;
+    feedbackFading = false;
     if (feedbackTimeout) clearTimeout(feedbackTimeout);
     feedbackTimeout = setTimeout(() => {
-      feedbackMessage = '';
-      feedbackType = '';
-    }, 6000);
+      feedbackFading = true;
+      setTimeout(() => {
+        feedbackMessage = '';
+        feedbackType = '';
+        feedbackFading = false;
+      }, 600);
+    }, 4000);
   }
 
   /**
    * Dismiss the current feedback message.
    */
   function dismissFeedback() {
-    feedbackMessage = '';
-    feedbackType = '';
+    feedbackFading = true;
     if (feedbackTimeout) clearTimeout(feedbackTimeout);
+    setTimeout(() => {
+      feedbackMessage = '';
+      feedbackType = '';
+      feedbackFading = false;
+    }, 600);
   }
 
   /**
@@ -1741,7 +1753,7 @@
 
 <!-- ── Feedback Toast (floating, outside page container) ──────────────────── -->
 {#if feedbackMessage}
-  <div class="feedback-toast feedback-{feedbackType}" role="alert">
+  <div class="feedback-toast feedback-{feedbackType}" class:fading={feedbackFading} role="alert">
     <div class="feedback-content">
       {#if feedbackType === 'success'}
         <svg
@@ -2428,10 +2440,10 @@
   /* ── Feedback Toast — floating bottom bar ──────────────────────────────── */
   .feedback-toast {
     position: fixed;
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 100;
+    z-index: 9000;
     max-width: 420px;
     width: calc(100% - 32px);
     display: flex;
@@ -2447,17 +2459,32 @@
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.4),
       0 0 0 1px rgba(180, 150, 80, 0.06);
-    animation: toastSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: toastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   @keyframes toastSlideUp {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(20px) scale(0.95);
+      transform: translateX(-50%) translateY(16px) scale(0.96);
     }
     to {
       opacity: 1;
       transform: translateX(-50%) translateY(0) scale(1);
+    }
+  }
+
+  .feedback-toast.fading {
+    animation: toastFadeOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  @keyframes toastFadeOut {
+    from {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-50%) translateY(16px) scale(0.96);
     }
   }
 
