@@ -158,7 +158,7 @@
   const expenseCategories = $derived(
     categories
       .filter((c: Category) => c.type === 'expense' && !c.deleted)
-      .sort((a: Category, b: Category) => a.order - b.order)
+      .sort((a: Category, b: Category) => a.name.localeCompare(b.name))
   );
 
   /* ── Selected month transactions ── */

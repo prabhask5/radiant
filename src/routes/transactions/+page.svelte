@@ -406,6 +406,73 @@
   //                       INLINE EDITING
   // ===========================================================================
 
+  /**
+   * Tokenize a transaction description for similarity matching.
+   * Strips numbers, special chars, lowercases, splits into unique tokens.
+   * "STARBUCKS #10432 SEATTLE WA" → ["starbucks", "seattle", "wa"]
+   */
+  function tokenizeDesc(desc: string): Set<string> {
+    const tokens = desc
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 2);
+    return new Set(tokens);
+  }
+
+  /**
+   * Compute similarity between two token sets using overlap coefficient:
+   * |intersection| / min(|A|, |B|). Returns 1.0 when one set is a subset
+   * of the other (e.g. "starbucks" matches "starbucks seattle wa").
+   */
+  function descSimilarity(a: Set<string>, b: Set<string>): number {
+    if (a.size === 0 || b.size === 0) return 0;
+    let overlap = 0;
+    const smaller = a.size <= b.size ? a : b;
+    const larger = a.size <= b.size ? b : a;
+    for (const token of smaller) {
+      if (larger.has(token)) overlap++;
+    }
+    return overlap / smaller.size;
+  }
+
+  /** Minimum similarity for fuzzy matching (0–1 scale). */
+  const SIMILARITY_THRESHOLD = 0.7;
+
+  /**
+   * Find the category for a description by fuzzy-matching against all
+   * categorized transactions. Returns the best match above the threshold,
+   * preferring manual categorizations over auto.
+   */
+  function lookupCategoryByDescription(
+    description: string,
+    txns: typeof allTransactions
+  ): string | null {
+    const tokens = tokenizeDesc(description);
+    if (tokens.size === 0) return null;
+
+    let bestCatId: string | null = null;
+    let bestScore = 0;
+    let bestIsManual = false;
+
+    for (const t of txns) {
+      if (!t.category_id || t.deleted) continue;
+      const tTokens = tokenizeDesc(t.description);
+      const sim = descSimilarity(tokens, tTokens);
+      if (sim < SIMILARITY_THRESHOLD) continue;
+
+      const isManual = !t.is_auto_categorized;
+      // Prefer: higher similarity, then manual over auto
+      if (sim > bestScore || (sim === bestScore && isManual && !bestIsManual)) {
+        bestScore = sim;
+        bestCatId = t.category_id;
+        bestIsManual = isManual;
+      }
+    }
+
+    return bestCatId;
+  }
+
   /** Save a category change for a transaction. */
   async function saveCategory(transactionId: string) {
     savingField = `cat-${transactionId}`;
@@ -415,9 +482,10 @@
       await transactionsStore.updateCategory(transactionId, newCat);
       await transactionsStore.refresh();
 
-      // Propagate: retrain classifier with new data, then apply to similar uncategorized txns
+      // Propagate to similar transactions in the background
       if (newCat) {
-        propagateCategoryToSimilar();
+        const source = allTransactions.find((t) => t.id === transactionId);
+        if (source) propagateCategoryToSimilar(source.description, newCat, transactionId);
       }
     } finally {
       savingField = null;
@@ -425,52 +493,46 @@
   }
 
   /**
-   * After a manual category assignment, retrain the classifier and apply
-   * the new knowledge to similar uncategorized transactions. Runs async
-   * in the background — does not block the UI.
+   * After a manual category assignment, find all transactions with a matching
+   * normalized description and set them to the same category. Also retrains
+   * the ML classifier for future predictions. Runs async in the background.
    */
-  function propagateCategoryToSimilar() {
-    // Use setTimeout(0) to yield to the UI thread, keeping interactions snappy
+  function propagateCategoryToSimilar(description: string, categoryId: string, sourceId: string) {
     setTimeout(async () => {
       try {
+        const sourceTokens = tokenizeDesc(description);
+        if (sourceTokens.size === 0) return;
+
         const txns = allTransactions.filter((t) => !t.deleted);
-        const categorized = txns.filter((t) => t.category_id !== null);
-        if (categorized.length < 2) return; // Need enough data to train
 
-        // Retrain classifier with all categorized transactions (including the new one)
-        categorizer.train(
-          categorized.map((t) => ({ description: t.description, category_id: t.category_id! }))
-        );
-        categorizer.save();
+        // Find transactions with similar descriptions that have a different
+        // category (or no category) — excludes the source txn
+        const matches = txns.filter((t) => {
+          if (t.id === sourceId || t.category_id === categoryId) return false;
+          return descSimilarity(sourceTokens, tokenizeDesc(t.description)) >= SIMILARITY_THRESHOLD;
+        });
 
-        // Predict on uncategorized transactions only
-        const uncategorized = txns.filter((t) => t.category_id === null);
-        if (uncategorized.length === 0) return;
-
-        const ops: BatchOperation[] = [];
-        for (const t of uncategorized) {
-          const result = categorizeTransaction(t.description, t.teller_category ?? undefined);
-          if (result && result.confidence >= 0.7) {
-            const catId =
-              result.layer === 'classifier'
-                ? result.categoryKey
-                : categoryKeyToId(result.categoryKey);
-            ops.push({
-              type: 'update' as const,
-              table: 'transactions',
-              id: t.id,
-              fields: { category_id: catId, is_auto_categorized: true }
-            });
-          }
-        }
+        const ops: BatchOperation[] = matches.map((t) => ({
+          type: 'update' as const,
+          table: 'transactions',
+          id: t.id,
+          fields: { category_id: categoryId, is_auto_categorized: true }
+        }));
 
         if (ops.length > 0) {
           await engineBatchWrite(ops);
           await transactionsStore.refresh();
-          showCatToast(
-            `Auto-categorized ${ops.length} similar transaction${ops.length !== 1 ? 's' : ''}`
-          );
+          showCatToast(`Updated ${ops.length} similar transaction${ops.length !== 1 ? 's' : ''}`);
           debug('log', '[TRANSACTIONS] Propagated category to', ops.length, 'similar transactions');
+        }
+
+        // Retrain classifier with new data for future predictions
+        const categorized = allTransactions.filter((t) => t.category_id !== null && !t.deleted);
+        if (categorized.length > 0) {
+          categorizer.train(
+            categorized.map((t) => ({ description: t.description, category_id: t.category_id! }))
+          );
+          categorizer.save();
         }
       } catch (err) {
         debug('warn', '[TRANSACTIONS] Category propagation failed:', err);
@@ -532,22 +594,38 @@
     savingField = `recat-${transactionId}`;
     debug('log', '[TRANSACTIONS] recategorize —', transactionId);
     try {
-      // Train classifier on all currently categorized transactions so manual
-      // overrides improve future predictions (persists via localStorage)
-      const categorized = allTransactions.filter((tx) => tx.category_id !== null && !tx.deleted);
-      if (categorized.length > 0) {
-        categorizer.train(
-          categorized.map((tx) => ({ description: tx.description, category_id: tx.category_id! }))
-        );
-        categorizer.save();
-      } else {
-        categorizer.load();
+      let categoryId: string | null = null;
+
+      // Layer 0: Description match — check if any other transaction with the
+      // same normalized description has already been categorized by the user.
+      // This is the most reliable signal and works with a single example.
+      categoryId = lookupCategoryByDescription(t.description, allTransactions);
+
+      // Layer 1+2: ML cascade (rules + classifier) as fallback
+      if (!categoryId) {
+        const categorized = allTransactions.filter((tx) => tx.category_id !== null && !tx.deleted);
+        if (categorized.length > 0) {
+          categorizer.train(
+            categorized.map((tx) => ({
+              description: tx.description,
+              category_id: tx.category_id!
+            }))
+          );
+          categorizer.save();
+        } else {
+          categorizer.load();
+        }
+
+        const result = categorizeTransaction(t.description, t.teller_category ?? undefined);
+        if (result) {
+          categoryId =
+            result.layer === 'classifier'
+              ? result.categoryKey
+              : categoryKeyToId(result.categoryKey);
+        }
       }
 
-      const result = categorizeTransaction(t.description, t.teller_category ?? undefined);
-      if (result) {
-        const categoryId =
-          result.layer === 'classifier' ? result.categoryKey : categoryKeyToId(result.categoryKey);
+      if (categoryId) {
         editingCategory[transactionId] = categoryId;
         await transactionsStore.updateCategory(transactionId, categoryId);
         await transactionsStore.refresh();
