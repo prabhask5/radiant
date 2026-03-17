@@ -45,7 +45,7 @@ export const POST: RequestHandler = async ({ request }) => {
   const body = await request.text();
   const signature = request.headers.get('teller-signature');
 
-  console.log('[TELLER] Webhook received');
+  console.log('[TELLER] Webhook received — raw payload:', body);
 
   // Verify webhook signature if signing secret is configured
   const signingSecret = env.TELLER_WEBHOOK_SECRET;
@@ -147,13 +147,12 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
     return;
   }
 
-  // Look up enrollment to get access_token and user_id
+  // Look up enrollment to get access_token and user_id.
+  // Don't filter by status — we want to see what's there for diagnostics.
   const { data: enrollments, error: lookupError } = await admin
     .from('teller_enrollments')
-    .select('id, user_id, access_token, institution_name, last_synced_at')
+    .select('id, user_id, access_token, institution_name, last_synced_at, status, deleted')
     .eq('enrollment_id', payload.enrollment_id)
-    .eq('status', 'connected')
-    .eq('deleted', false)
     .limit(1);
 
   if (lookupError || !enrollments?.length) {
@@ -166,7 +165,19 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
   const enrollment = enrollments[0];
   const { id: localEnrollmentId, user_id: userId, access_token: accessToken } = enrollment;
 
-  console.log(`[TELLER] Found enrollment ${localEnrollmentId} for user ${userId}`);
+  console.log(
+    `[TELLER] Found enrollment ${localEnrollmentId} for user ${userId} — status=${enrollment.status}, deleted=${enrollment.deleted}`
+  );
+
+  // Skip if enrollment is deleted or disconnected
+  if (enrollment.deleted) {
+    console.log(`[TELLER] Enrollment ${localEnrollmentId} is deleted — skipping`);
+    return;
+  }
+  if (enrollment.status === 'disconnected') {
+    console.log(`[TELLER] Enrollment ${localEnrollmentId} is disconnected — skipping`);
+    return;
+  }
 
   try {
     // Fetch accounts from Teller
@@ -256,39 +267,40 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
     // Look up existing transactions scoped to the fetch window.
     // transactions is a child table (no user_id) — query by account_id instead.
     const accountIds = [...acctIdMap.values()];
-    let txnIdMap: Map<string, { id: string; deleted: boolean }>;
+    let txnIdMap: Map<string, { id: string; deleted: boolean; status: string }>;
     if (bufferDate) {
       const { data: existingTxns } = await admin
         .from('transactions')
-        .select('id, teller_transaction_id, deleted')
+        .select('id, teller_transaction_id, deleted, status')
         .in('account_id', accountIds)
         .gte('date', bufferDate);
       txnIdMap = new Map(
         (existingTxns ?? []).map(
-          (t: { id: string; teller_transaction_id: string; deleted: boolean }) => [
+          (t: { id: string; teller_transaction_id: string; deleted: boolean; status: string }) => [
             t.teller_transaction_id,
-            { id: t.id, deleted: t.deleted }
+            { id: t.id, deleted: t.deleted, status: t.status }
           ]
         )
       );
     } else {
       const { data: existingTxns } = await admin
         .from('transactions')
-        .select('id, teller_transaction_id, deleted')
+        .select('id, teller_transaction_id, deleted, status')
         .in('account_id', accountIds);
       txnIdMap = new Map(
         (existingTxns ?? []).map(
-          (t: { id: string; teller_transaction_id: string; deleted: boolean }) => [
+          (t: { id: string; teller_transaction_id: string; deleted: boolean; status: string }) => [
             t.teller_transaction_id,
-            { id: t.id, deleted: t.deleted }
+            { id: t.id, deleted: t.deleted, status: t.status }
           ]
         )
       );
     }
 
-    // Fetch transactions for each account and route into insert/update batches
+    // Fetch transactions for each account — insert new, update pending→posted
     const insertRows: Record<string, unknown>[] = [];
     const updateRows: Record<string, unknown>[] = [];
+    let skippedExisting = 0;
 
     for (const account of tellerAccounts) {
       try {
@@ -315,46 +327,54 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
           const existing = txnIdMap.get(txn.id);
 
           if (existing?.deleted) {
-            // User-deleted transaction — skip entirely, don't re-add
+            // User-deleted transaction — respect their decision
+            skippedExisting++;
             continue;
           }
 
           if (existing) {
-            // Existing active transaction — only refresh Teller-owned fields
-            updateRows.push({
-              id: existing.id,
-              amount: txn.amount,
-              status: txn.status,
-              running_balance: txn.running_balance,
-              counterparty_name: txn.details?.counterparty?.name || null,
-              counterparty_type: txn.details?.counterparty?.type || null,
-              teller_category: txn.details?.category || null,
-              type: txn.type,
-              updated_at: timestamp
-            });
-          } else {
-            // New transaction — full insert
-            insertRows.push({
-              id: crypto.randomUUID(),
-              account_id: accountId,
-              teller_transaction_id: txn.id,
-              amount: txn.amount,
-              date: txn.date,
-              description: txn.description,
-              counterparty_name: txn.details?.counterparty?.name || null,
-              counterparty_type: txn.details?.counterparty?.type || null,
-              teller_category: txn.details?.category || null,
-              status: txn.status,
-              type: txn.type,
-              running_balance: txn.running_balance,
-              is_excluded: false,
-              notes: null,
-              created_at: timestamp,
-              updated_at: timestamp,
-              deleted: false,
-              _version: 1
-            });
+            // Existing active transaction — only update if it was pending
+            // (pending→posted transitions can change amount, status, etc.)
+            if (existing.status === 'pending' && txn.status !== 'pending') {
+              updateRows.push({
+                id: existing.id,
+                amount: txn.amount,
+                status: txn.status,
+                running_balance: txn.running_balance,
+                counterparty_name: txn.details?.counterparty?.name || null,
+                counterparty_type: txn.details?.counterparty?.type || null,
+                teller_category: txn.details?.category || null,
+                type: txn.type,
+                updated_at: timestamp
+              });
+            } else {
+              skippedExisting++;
+            }
+            continue;
           }
+
+          // Truly new transaction — insert
+          insertRows.push({
+            id: crypto.randomUUID(),
+            account_id: accountId,
+            teller_transaction_id: txn.id,
+            amount: txn.amount,
+            date: txn.date,
+            description: txn.description,
+            counterparty_name: txn.details?.counterparty?.name || null,
+            counterparty_type: txn.details?.counterparty?.type || null,
+            teller_category: txn.details?.category || null,
+            status: txn.status,
+            type: txn.type,
+            running_balance: txn.running_balance,
+            is_excluded: false,
+            is_auto_categorized: false,
+            notes: null,
+            created_at: timestamp,
+            updated_at: timestamp,
+            deleted: false,
+            _version: 1
+          });
         }
       } catch (err) {
         console.log(
@@ -377,7 +397,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       }
     }
 
-    // Update existing active transactions in batches (Teller-owned fields only)
+    // Update pending→posted transactions in batches
     for (let i = 0; i < updateRows.length; i += BATCH_SIZE) {
       const batch = updateRows.slice(i, i + BATCH_SIZE);
       const { error: updateError } = await admin
@@ -397,7 +417,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       .eq('id', localEnrollmentId);
 
     console.log(
-      `[TELLER] Webhook sync complete: ${accountRows.length} accounts, ${insertRows.length} new transactions, ${updateRows.length} updated transactions`
+      `[TELLER] Webhook sync complete: ${accountRows.length} accounts, ${insertRows.length} new transactions, ${updateRows.length} pending→posted updates, ${skippedExisting} skipped existing`
     );
   } catch (err) {
     if (err instanceof TellerApiError && err.status === 401) {

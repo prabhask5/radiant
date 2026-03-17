@@ -23,8 +23,13 @@
   // ===========================================================================
 
   import { onMount } from 'svelte';
-  import { transactionsStore, accountsStore, categoriesStore } from '$lib/stores/data';
-  import type { Account, Category } from '$lib/types';
+  import {
+    transactionsStore,
+    accountsStore,
+    categoriesStore,
+    enrollmentsStore
+  } from '$lib/stores/data';
+  import type { Account, Category, TellerEnrollment } from '$lib/types';
   import {
     formatCurrency,
     formatDateGroup,
@@ -35,6 +40,9 @@
   } from '$lib/utils/currency';
   import { remoteChangeAnimation, truncateTooltip } from 'stellar-drive/actions';
   import { debug } from 'stellar-drive/utils';
+  import { autoSyncStaleEnrollments } from '$lib/teller/autoSync';
+  import { categorizeTransaction } from '$lib/ml/categorizer';
+  import { categoryKeyToId } from '$lib/categories';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -68,6 +76,10 @@
   /* ── Multi-select ── */
   let selectionMode = $state(false);
   let selectedIds = $state<Set<string>>(new Set());
+
+  /* ── Auto-sync ── */
+  let autoSyncBanner = $state<string | null>(null);
+  let autoSyncBannerFading = $state(false);
 
   /* ── Page entrance ── */
   let mounted = $state(false);
@@ -238,7 +250,8 @@
       await Promise.all([
         transactionsStore.refresh(),
         accountsStore.refresh(),
-        categoriesStore.refresh()
+        categoriesStore.refresh(),
+        enrollmentsStore.refresh()
       ]);
     } finally {
       isLoading = false;
@@ -249,6 +262,29 @@
     requestAnimationFrame(() => {
       mounted = true;
     });
+
+    // Auto-sync stale Teller enrollments in the background
+    const allEnrollments = ($enrollmentsStore ?? []) as TellerEnrollment[];
+    autoSyncStaleEnrollments(allEnrollments, (id, status) =>
+      enrollmentsStore.updateStatus(id, status)
+    )
+      .then(async (newCount) => {
+        if (newCount > 0) {
+          await Promise.all([transactionsStore.refresh(), accountsStore.refresh()]);
+          autoSyncBanner = `${newCount} new transaction${newCount !== 1 ? 's' : ''} synced`;
+          // Auto-dismiss after 4 seconds with fade
+          setTimeout(() => {
+            autoSyncBannerFading = true;
+            setTimeout(() => {
+              autoSyncBanner = null;
+              autoSyncBannerFading = false;
+            }, 500);
+          }, 4000);
+        }
+      })
+      .catch((err) => {
+        debug('warn', '[TRANSACTIONS] Background auto-sync failed:', err);
+      });
   });
 
   // ===========================================================================
@@ -409,6 +445,26 @@
     await transactionsStore.deleteTransaction(transactionId);
   }
 
+  /** Re-run ML categorization on a single transaction. */
+  async function recategorize(transactionId: string) {
+    const t = allTransactions.find((tx) => tx.id === transactionId);
+    if (!t) return;
+    savingField = `recat-${transactionId}`;
+    debug('log', '[TRANSACTIONS] recategorize —', transactionId);
+    try {
+      const result = categorizeTransaction(t.description, t.teller_category ?? undefined);
+      if (result) {
+        const categoryId =
+          result.layer === 'classifier' ? result.categoryKey : categoryKeyToId(result.categoryKey);
+        editingCategory[transactionId] = categoryId;
+        await transactionsStore.updateCategory(transactionId, categoryId);
+        await transactionsStore.refresh();
+      }
+    } finally {
+      savingField = null;
+    }
+  }
+
   /** Toggle the excluded flag on a transaction. */
   async function toggleExcluded(transactionId: string, currentValue: boolean) {
     savingField = `excl-${transactionId}`;
@@ -455,6 +511,23 @@
 <!-- ========================================================================= -->
 
 <div class="txn-page" class:mounted>
+  <!-- ─── Auto-sync banner ─── -->
+  {#if autoSyncBanner}
+    <div class="auto-sync-banner" class:fading={autoSyncBannerFading}>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+      {autoSyncBanner}
+    </div>
+  {/if}
+
   <!-- ─── Header ─── -->
   <header class="page-header">
     <h1 class="page-title">Transactions</h1>
@@ -786,7 +859,12 @@
 
             <!-- Description & Counterparty -->
             <div class="txn-info">
-              <span class="txn-desc" use:truncateTooltip>{txn.description}</span>
+              <span class="txn-desc" use:truncateTooltip>
+                {txn.description}
+                {#if txn.is_recurring}
+                  <span class="recurring-badge" title="Recurring">🔄</span>
+                {/if}
+              </span>
               {#if txn.counterparty_name}
                 <span class="txn-counterparty">{txn.counterparty_name}</span>
               {/if}
@@ -873,7 +951,7 @@
                 <!-- Category Selector -->
                 <div class="detail-row detail-row-interactive">
                   <span class="detail-label">Category</span>
-                  <div class="detail-control">
+                  <div class="detail-control detail-control-cat">
                     <select
                       class="detail-select"
                       value={editingCategory[txn.id] ?? txn.category_id ?? ''}
@@ -888,6 +966,34 @@
                         <option value={c.id}>{c.icon} {c.name}</option>
                       {/each}
                     </select>
+                    <button
+                      class="recat-btn"
+                      title="Auto-categorize"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        recategorize(txn.id);
+                      }}
+                      disabled={savingField === `recat-${txn.id}`}
+                    >
+                      {#if savingField === `recat-${txn.id}`}
+                        <span class="saving-indicator"></span>
+                      {:else}
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path
+                            d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.2M22 12.5a10 10 0 0 1-18.8 4.2"
+                          />
+                        </svg>
+                      {/if}
+                    </button>
                     {#if savingField === `cat-${txn.id}`}
                       <span class="saving-indicator"></span>
                     {/if}
@@ -1047,6 +1153,46 @@
     transition:
       opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
       transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* ── Auto-sync banner ── */
+  .auto-sync-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    margin: 8px 16px;
+    background: rgba(61, 214, 140, 0.08);
+    border: 1px solid rgba(61, 214, 140, 0.2);
+    border-radius: var(--txn-radius-sm);
+    color: var(--txn-emerald);
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    animation: syncBannerIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .auto-sync-banner.fading {
+    animation: syncBannerOut 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes syncBannerIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes syncBannerOut {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
   }
 
   .txn-page::before {
@@ -1714,24 +1860,31 @@
   /* ── Category Dot ── */
 
   .txn-dot {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--dot-color) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--dot-color) 25%, transparent);
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--dot-color) 20%, transparent) 0%,
+      transparent 70%
+    );
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: box-shadow 0.3s;
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--dot-color) 50%, transparent));
+    transition:
+      filter 0.3s ease,
+      transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .txn-row:hover .txn-dot {
-    box-shadow: 0 0 10px color-mix(in srgb, var(--dot-color) 20%, transparent);
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--dot-color) 60%, transparent));
+    transform: scale(1.05);
   }
 
   .txn-dot-icon {
-    font-size: 0.85rem;
+    font-size: 1rem;
     line-height: 1;
   }
 
@@ -1741,6 +1894,15 @@
     border-radius: 50%;
     background: var(--dot-color);
     opacity: 0.6;
+  }
+
+  /* ── Recurring Badge ── */
+
+  .recurring-badge {
+    font-size: 0.65rem;
+    opacity: 0.5;
+    margin-left: 4px;
+    vertical-align: middle;
   }
 
   /* ── Description & Counterparty ── */
@@ -1912,6 +2074,39 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
+  }
+
+  .detail-control-cat {
+    gap: 0.35rem;
+  }
+
+  .recat-btn {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--txn-radius-sm);
+    border: 1px solid var(--txn-border);
+    background: var(--txn-surface);
+    color: var(--txn-text-dim);
+    cursor: pointer;
+    transition:
+      color 0.2s,
+      border-color 0.2s,
+      background 0.2s;
+  }
+
+  .recat-btn:hover:not(:disabled) {
+    color: var(--txn-gold);
+    border-color: color-mix(in srgb, var(--txn-gold) 40%, transparent);
+    background: color-mix(in srgb, var(--txn-gold) 6%, transparent);
+  }
+
+  .recat-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 
   .detail-select {
@@ -2173,11 +2368,6 @@
     .txn-row {
       padding: 0.8rem 0.85rem;
       gap: 0.85rem;
-    }
-
-    .txn-dot {
-      width: 36px;
-      height: 36px;
     }
 
     .txn-desc {

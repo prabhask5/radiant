@@ -1,0 +1,2352 @@
+<!--
+  @fileoverview Budget page — comprehensive monthly budget tracking with
+  category breakdowns, cumulative spending chart, recurring transactions,
+  historical comparison, and budget configuration.
+
+  Features:
+    - Month navigation with prev/next arrows
+    - BudgetLineChart for cumulative spending vs pace
+    - Summary metrics (spent / remaining) with GemPieChart category splits
+    - Category list with progress bars and over-budget highlighting
+    - Collapsible recurring transactions section
+    - Historical monthly bar chart (last 6 months)
+    - Budget Config Modal (bottom sheet) for managing categories + amounts
+    - Add Recurring Modal for manual recurring entries
+-->
+<script lang="ts">
+  /**
+   * @fileoverview Budget page script — reactive budget derivations,
+   * category spending, month navigation, recurring management,
+   * modal state, and historical data computation.
+   */
+
+  // ==========================================================================
+  //                                IMPORTS
+  // ==========================================================================
+
+  /* ── Svelte ── */
+  import { onMount } from 'svelte';
+
+  /* ── App Data Stores ── */
+  import {
+    accountsStore,
+    transactionsStore,
+    budgetItemsStore,
+    recurringTransactionsStore,
+    categoriesStore
+  } from '$lib/stores/data';
+
+  /* ── Utilities ── */
+  import {
+    formatCurrency,
+    formatCurrencyCompact,
+    getCurrentMonth,
+    getPreviousMonth,
+    formatMonth
+  } from '$lib/utils/currency';
+
+  /* ── Components ── */
+  import BudgetLineChart from '$lib/components/BudgetLineChart.svelte';
+  import GemPieChart from '$lib/components/GemPieChart.svelte';
+  import type { PieSegment } from '$lib/components/GemPieChart.svelte';
+  import GemBarChart from '$lib/components/GemBarChart.svelte';
+  import type { BarData, ThresholdConfig } from '$lib/components/GemBarChart.svelte';
+
+  /* ── Types ── */
+  import type {
+    Account,
+    Transaction,
+    BudgetItem,
+    RecurringTransaction,
+    Category
+  } from '$lib/types';
+
+  // ==========================================================================
+  //                          COMPONENT STATE
+  // ==========================================================================
+
+  /** Controls staggered entrance animation. */
+  let mounted = $state(false);
+
+  /** Whether stores have been loaded. */
+  let dataLoaded = $state(false);
+
+  /** Whether a save operation is in progress. */
+  let saving = $state(false);
+
+  // ==========================================================================
+  //                        MONTH NAVIGATION
+  // ==========================================================================
+
+  let selectedMonth = $state(getCurrentMonth());
+  const isCurrentMonth = $derived(selectedMonth === getCurrentMonth());
+
+  function prevMonth() {
+    selectedMonth = getPreviousMonth(selectedMonth);
+  }
+
+  function nextMonth() {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    selectedMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  // ==========================================================================
+  //                         MODAL STATE
+  // ==========================================================================
+
+  /** Budget Config Modal */
+  let showConfigModal = $state(false);
+  let configSelectedCategories = $state<Map<string, string>>(new Map());
+
+  /** Add Recurring Modal */
+  let showRecurringModal = $state(false);
+  let recurringForm = $state({
+    name: '',
+    amount: '',
+    category_id: '',
+    frequency: 'monthly' as 'weekly' | 'biweekly' | 'monthly' | 'yearly',
+    account_id: '',
+    next_date: ''
+  });
+  let recurringFormSaving = $state(false);
+
+  /** Editing Recurring */
+  let editingRecurringId = $state<string | null>(null);
+
+  /** Recurring section collapsed state */
+  let recurringCollapsed = $state(false);
+
+  // ==========================================================================
+  //                         DERIVED DATA
+  // ==========================================================================
+
+  /* ── Accounts ── */
+  const accounts = $derived(
+    ($accountsStore ?? []).filter((a: Account) => !a.is_hidden && a.status === 'open')
+  );
+  const acctTypeMap = $derived(new Map(accounts.map((a: Account) => [a.id, a.type])));
+
+  /* ── Budget ── */
+  const budgetItems = $derived($budgetItemsStore ?? []);
+  const totalBudget = $derived(
+    budgetItems.reduce((s: number, b: BudgetItem) => s + (parseFloat(b.amount) || 0), 0)
+  );
+  const hasBudget = $derived(budgetItems.length > 0);
+  const budgetCategoryIds = $derived(new Set(budgetItems.map((b: BudgetItem) => b.category_id)));
+
+  /* ── Categories ── */
+  const categories = $derived($categoriesStore ?? []);
+  const categoryMap = $derived(new Map(categories.map((c: Category) => [c.id, c])));
+
+  /** Expense categories available for budgeting. */
+  const expenseCategories = $derived(
+    categories
+      .filter((c: Category) => c.type === 'expense' && !c.deleted)
+      .sort((a: Category, b: Category) => a.order - b.order)
+  );
+
+  /* ── Selected month transactions ── */
+  const selectedMonthTxns = $derived.by(() => {
+    const txns = $transactionsStore ?? [];
+    const prefix = selectedMonth;
+    return txns.filter(
+      (t: Transaction) => t.date.startsWith(prefix) && !t.is_excluded && !t.deleted
+    );
+  });
+
+  /* ── Category spending for selected month ── */
+  const categorySpending = $derived.by(() => {
+    const spending = new Map<string, number>();
+    for (const t of selectedMonthTxns) {
+      if (!t.category_id || !budgetCategoryIds.has(t.category_id)) continue;
+      const amt = parseFloat(t.amount) || 0;
+      const type = acctTypeMap.get(t.account_id);
+      const spent = type === 'credit' ? (amt > 0 ? amt : 0) : amt < 0 ? Math.abs(amt) : 0;
+      if (spent > 0) spending.set(t.category_id, (spending.get(t.category_id) ?? 0) + spent);
+    }
+    return spending;
+  });
+
+  /* ── Total spent ── */
+  const totalSpent = $derived(Array.from(categorySpending.values()).reduce((s, v) => s + v, 0));
+
+  /* ── Remaining ── */
+  const totalRemaining = $derived(totalBudget - totalSpent);
+  const isOverBudget = $derived(totalSpent > totalBudget);
+  const spentPercent = $derived(
+    totalBudget > 0 ? Math.min((totalSpent / totalBudget) * 100, 100) : 0
+  );
+
+  /* ── Daily spending for BudgetLineChart ── */
+  const dailySpending = $derived.by(() => {
+    const byDate = new Map<string, number>();
+    for (const t of selectedMonthTxns) {
+      if (!t.category_id || !budgetCategoryIds.has(t.category_id)) continue;
+      const amt = parseFloat(t.amount) || 0;
+      const type = acctTypeMap.get(t.account_id);
+      const spent = type === 'credit' ? (amt > 0 ? amt : 0) : amt < 0 ? Math.abs(amt) : 0;
+      if (spent > 0) byDate.set(t.date, (byDate.get(t.date) ?? 0) + spent);
+    }
+    const sorted = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    let cumulative = 0;
+    return sorted.map(([date, value]) => {
+      cumulative += value;
+      return { date, value: cumulative };
+    });
+  });
+
+  /* ── Current month info for line chart ── */
+  const selectedMonthInfo = $derived.by(() => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const now = new Date();
+    const isThisMonth = y === now.getFullYear() && m === now.getMonth() + 1;
+    return {
+      currentDay: isThisMonth ? now.getDate() : new Date(y, m, 0).getDate(),
+      daysInMonth: new Date(y, m, 0).getDate()
+    };
+  });
+
+  /* ── Recurring ── */
+  const recurringItems = $derived(
+    ($recurringTransactionsStore ?? []).filter(
+      (r: RecurringTransaction) => r.status === 'active' && !r.deleted
+    )
+  );
+  const recurringTotal = $derived(
+    recurringItems.reduce(
+      (s: number, r: RecurringTransaction) => s + (parseFloat(r.amount) || 0),
+      0
+    )
+  );
+
+  /* ── Pie segments ── */
+  const pieSegments: PieSegment[] = $derived.by(() => {
+    return budgetItems
+      .map((bi: BudgetItem) => {
+        const cat = categoryMap.get(bi.category_id);
+        const spent = categorySpending.get(bi.category_id) ?? 0;
+        return {
+          label: cat?.name ?? 'Unknown',
+          value: spent,
+          color: cat?.color ?? '#706450',
+          icon: cat?.icon
+        };
+      })
+      .filter((s: PieSegment) => s.value > 0);
+  });
+
+  /* ── Category rows for display ── */
+  const categoryRows = $derived.by(() => {
+    return budgetItems
+      .map((bi: BudgetItem) => {
+        const cat = categoryMap.get(bi.category_id);
+        const budgetAmt = parseFloat(bi.amount) || 0;
+        const spent = categorySpending.get(bi.category_id) ?? 0;
+        const pct = budgetAmt > 0 ? (spent / budgetAmt) * 100 : 0;
+        const over = spent > budgetAmt;
+        return {
+          id: bi.id,
+          categoryId: bi.category_id,
+          name: cat?.name ?? 'Unknown',
+          icon: cat?.icon ?? '?',
+          color: cat?.color ?? '#706450',
+          budget: budgetAmt,
+          spent,
+          pct,
+          over
+        };
+      })
+      .sort((a, b) => b.spent - a.spent);
+  });
+
+  /* ── Historical monthly data for bar chart (last 6 months) ── */
+  const historicalBars: BarData[] = $derived.by(() => {
+    const txns = $transactionsStore ?? [];
+    const bars: BarData[] = [];
+    let month = getCurrentMonth();
+    for (let i = 0; i < 6; i++) {
+      const prefix = month;
+      let monthSpent = 0;
+      for (const t of txns) {
+        if (!t.date.startsWith(prefix) || t.is_excluded || t.deleted) continue;
+        if (!t.category_id || !budgetCategoryIds.has(t.category_id)) continue;
+        const amt = parseFloat(t.amount) || 0;
+        const type = acctTypeMap.get(t.account_id);
+        const spent = type === 'credit' ? (amt > 0 ? amt : 0) : amt < 0 ? Math.abs(amt) : 0;
+        monthSpent += spent;
+      }
+      const [y, m] = prefix.split('-');
+      const label = new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString('en-US', {
+        month: 'short'
+      });
+      bars.unshift({ label, value: monthSpent });
+      month = getPreviousMonth(month);
+    }
+    return bars;
+  });
+
+  /** Threshold for bar chart (current total budget). */
+  const barThreshold: ThresholdConfig | undefined = $derived(
+    totalBudget > 0 ? { value: totalBudget, label: 'Budget', color: '#dbb044' } : undefined
+  );
+
+  // ==========================================================================
+  //                        ACTION HANDLERS
+  // ==========================================================================
+
+  /** Open the budget config modal, pre-filling existing items. */
+  function openConfigModal() {
+    const map = new Map<string, string>();
+    for (const bi of budgetItems) {
+      map.set(bi.category_id, bi.amount);
+    }
+    configSelectedCategories = map;
+    showConfigModal = true;
+  }
+
+  /** Toggle a category in the config modal. */
+  function toggleConfigCategory(categoryId: string) {
+    const next = new Map(configSelectedCategories);
+    if (next.has(categoryId)) {
+      next.delete(categoryId);
+    } else {
+      next.set(categoryId, '');
+    }
+    configSelectedCategories = next;
+  }
+
+  /** Update the amount for a category in the config modal. */
+  function setConfigAmount(categoryId: string, amount: string) {
+    const next = new Map(configSelectedCategories);
+    next.set(categoryId, amount);
+    configSelectedCategories = next;
+  }
+
+  /** Config modal running total. */
+  const configTotal = $derived.by(() => {
+    let total = 0;
+    for (const [, amt] of configSelectedCategories) {
+      total += parseFloat(amt) || 0;
+    }
+    return total;
+  });
+
+  /** Save budget config — create, update, or remove items as needed. */
+  async function saveConfig() {
+    saving = true;
+    try {
+      const existingMap = new Map(budgetItems.map((b: BudgetItem) => [b.category_id, b]));
+
+      // Remove items no longer selected
+      for (const bi of budgetItems) {
+        if (!configSelectedCategories.has(bi.category_id)) {
+          await budgetItemsStore.remove(bi.id);
+        }
+      }
+
+      // Create or update selected items
+      for (const [catId, amt] of configSelectedCategories) {
+        const amountStr = amt || '0';
+        const existing = existingMap.get(catId);
+        if (existing) {
+          if (existing.amount !== amountStr) {
+            await budgetItemsStore.update(existing.id, amountStr);
+          }
+        } else {
+          await budgetItemsStore.create(catId, amountStr);
+        }
+      }
+
+      showConfigModal = false;
+    } finally {
+      saving = false;
+    }
+  }
+
+  /** Open the add recurring modal. */
+  function openRecurringModal(editId?: string) {
+    if (editId) {
+      const item = recurringItems.find((r: RecurringTransaction) => r.id === editId);
+      if (item) {
+        editingRecurringId = editId;
+        recurringForm = {
+          name: item.name,
+          amount: item.amount,
+          category_id: item.category_id ?? '',
+          frequency: item.frequency as 'weekly' | 'biweekly' | 'monthly' | 'yearly',
+          account_id: item.account_id ?? '',
+          next_date: item.next_date ?? ''
+        };
+      }
+    } else {
+      editingRecurringId = null;
+      recurringForm = {
+        name: '',
+        amount: '',
+        category_id: '',
+        frequency: 'monthly',
+        account_id: '',
+        next_date: ''
+      };
+    }
+    showRecurringModal = true;
+  }
+
+  /** Save recurring transaction (create or update). */
+  async function saveRecurring() {
+    if (!recurringForm.name.trim() || !recurringForm.amount.trim()) return;
+    recurringFormSaving = true;
+    try {
+      const data = {
+        name: recurringForm.name.trim(),
+        amount: recurringForm.amount.trim(),
+        category_id: recurringForm.category_id || null,
+        frequency: recurringForm.frequency,
+        source: 'manual' as const,
+        status: 'active' as const,
+        account_id: recurringForm.account_id || null,
+        merchant_pattern: null,
+        last_detected_date: null,
+        next_date: recurringForm.next_date || null
+      };
+
+      if (editingRecurringId) {
+        await recurringTransactionsStore.update(editingRecurringId, data);
+      } else {
+        await recurringTransactionsStore.create(data);
+      }
+
+      showRecurringModal = false;
+    } finally {
+      recurringFormSaving = false;
+    }
+  }
+
+  /** Remove a recurring transaction. */
+  async function removeRecurring(id: string) {
+    await recurringTransactionsStore.remove(id);
+  }
+
+  /** Format a recurring frequency for display. */
+  function formatFrequency(freq: string): string {
+    switch (freq) {
+      case 'weekly':
+        return '/wk';
+      case 'biweekly':
+        return '/2wk';
+      case 'monthly':
+        return '/mo';
+      case 'yearly':
+        return '/yr';
+      default:
+        return '';
+    }
+  }
+
+  /** Format a date string for display (short). */
+  function formatShortDate(dateStr: string | null): string {
+    if (!dateStr) return '--';
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  // ==========================================================================
+  //                           LIFECYCLE
+  // ==========================================================================
+
+  onMount(async () => {
+    try {
+      await Promise.all([
+        accountsStore.load(),
+        transactionsStore.load(),
+        budgetItemsStore.load(),
+        recurringTransactionsStore.load(),
+        categoriesStore.load()
+      ]);
+    } finally {
+      dataLoaded = true;
+    }
+
+    requestAnimationFrame(() => {
+      mounted = true;
+    });
+  });
+</script>
+
+<svelte:head>
+  <title>Budget - Radiant Finance</title>
+</svelte:head>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     BUDGET PAGE LAYOUT
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="budget-page" class:mounted>
+  <!-- ─────────────────────────────────────────────────────────────────────
+       HEADER + MONTH NAV
+       ───────────────────────────────────────────────────────────────────── -->
+  <header class="page-header anim-item" style="--delay: 0">
+    <div class="header-row">
+      <h1 class="page-title">Budget</h1>
+      <button class="config-btn" onclick={openConfigModal} aria-label="Configure budget">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path
+            d="M8.325 2.317a1.5 1.5 0 013.35 0l.148.654a1.5 1.5 0 002.058.868l.592-.302a1.5 1.5 0 011.676 2.369l-.444.558a1.5 1.5 0 00.558 2.245l.594.297a1.5 1.5 0 010 2.685l-.594.297a1.5 1.5 0 00-.558 2.245l.444.558a1.5 1.5 0 01-1.676 2.37l-.592-.303a1.5 1.5 0 00-2.058.868l-.148.654a1.5 1.5 0 01-3.35 0l-.148-.654a1.5 1.5 0 00-2.058-.868l-.592.302a1.5 1.5 0 01-1.676-2.369l.444-.558a1.5 1.5 0 00-.558-2.245l-.594-.297a1.5 1.5 0 010-2.685l.594-.297a1.5 1.5 0 00.558-2.245l-.444-.558A1.5 1.5 0 015.527 3.537l.592.302a1.5 1.5 0 002.058-.868l.148-.654z"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.3" />
+        </svg>
+      </button>
+    </div>
+    <div class="month-nav-group">
+      {#if !isCurrentMonth}
+        <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}>
+          Today
+        </button>
+      {/if}
+      <div class="month-nav">
+        <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M12.5 15L7.5 10L12.5 5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <span class="month-label">{formatMonth(selectedMonth)}</span>
+        <button
+          class="month-arrow"
+          onclick={nextMonth}
+          disabled={isCurrentMonth}
+          aria-label="Next month"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M7.5 15L12.5 10L7.5 5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─────────────────────────────────────────────────────────────────────
+       LOADING SKELETON
+       ───────────────────────────────────────────────────────────────────── -->
+  {#if !dataLoaded}
+    <div class="skeleton-group anim-item" style="--delay: 1">
+      <div class="skeleton-card skeleton-chart"></div>
+      <div class="skeleton-card skeleton-summary"></div>
+      <div class="skeleton-card skeleton-list">
+        {#each Array(4) as _, i (i)}
+          <div class="skeleton-row"></div>
+        {/each}
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────────────────────────────────────────────
+       EMPTY STATE (no budget configured)
+       ───────────────────────────────────────────────────────────────────── -->
+  {:else if !hasBudget}
+    <div class="empty-state anim-item" style="--delay: 1">
+      <div class="empty-icon">
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+          <circle
+            cx="28"
+            cy="28"
+            r="27"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-dasharray="4 3"
+          />
+          <path
+            d="M28 18v20M18 28h20"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </svg>
+      </div>
+      <h2 class="empty-title">No budget set</h2>
+      <p class="empty-desc">
+        Create a monthly budget to track your spending against limits for each category.
+      </p>
+      <button class="empty-cta" onclick={openConfigModal}>Set Up Budget</button>
+    </div>
+
+    <!-- ─────────────────────────────────────────────────────────────────────
+       MAIN CONTENT (budget exists)
+       ───────────────────────────────────────────────────────────────────── -->
+  {:else}
+    <!-- ── Budget Line Chart ── -->
+    <div class="anim-item" style="--delay: 1">
+      <div class="chart-card">
+        <BudgetLineChart
+          spendingData={dailySpending}
+          budgetTotal={totalBudget}
+          recurringDeduction={recurringTotal}
+          currentDay={selectedMonthInfo.currentDay}
+          daysInMonth={selectedMonthInfo.daysInMonth}
+          formatValue={formatCurrencyCompact}
+          height={180}
+        />
+      </div>
+    </div>
+
+    <!-- ── Summary Metrics + Pie ── -->
+    <div class="summary-section anim-item" style="--delay: 2">
+      <div class="summary-numbers">
+        <div class="summary-metric">
+          <span class="metric-label">Spent</span>
+          <span class="metric-value" class:over={isOverBudget}>
+            {formatCurrency(totalSpent)}
+          </span>
+        </div>
+        <div class="summary-divider"></div>
+        <div class="summary-metric">
+          <span class="metric-label">Remaining</span>
+          <span class="metric-value" class:over={isOverBudget} class:under={!isOverBudget}>
+            {isOverBudget ? '-' : ''}{formatCurrency(Math.abs(totalRemaining))}
+          </span>
+        </div>
+      </div>
+
+      <div class="summary-bar-wrap">
+        <div class="summary-bar">
+          <div
+            class="summary-bar-fill"
+            class:over={isOverBudget}
+            style="width: {spentPercent}%"
+          ></div>
+        </div>
+        <div class="summary-bar-labels">
+          <span>{formatCurrencyCompact(totalSpent)}</span>
+          <span>of {formatCurrencyCompact(totalBudget)}</span>
+        </div>
+      </div>
+
+      {#if pieSegments.length > 0}
+        <div class="pie-wrap">
+          <GemPieChart
+            segments={pieSegments}
+            formatValue={(v) => formatCurrency(v)}
+            height={200}
+            donut={true}
+            centerLabel="Spent"
+            centerValue={formatCurrencyCompact(totalSpent)}
+          />
+        </div>
+      {/if}
+    </div>
+
+    <!-- ── Category List ── -->
+    <div class="category-section anim-item" style="--delay: 3">
+      <h2 class="section-title">Categories</h2>
+      <div class="category-list">
+        {#each categoryRows as row (row.id)}
+          <div class="category-row" class:over-budget={row.over}>
+            <div class="cat-icon-circle" style="--cat-color: {row.color}">
+              <span class="cat-icon-emoji">{row.icon}</span>
+            </div>
+            <div class="cat-info">
+              <div class="cat-name-row">
+                <span class="cat-name">{row.name}</span>
+                <span class="cat-amounts">
+                  <span class="cat-spent" class:over={row.over}>
+                    {formatCurrency(row.spent)}
+                  </span>
+                  <span class="cat-separator">/</span>
+                  <span class="cat-budget">{formatCurrency(row.budget)}</span>
+                </span>
+              </div>
+              <div class="cat-progress-bar">
+                <div
+                  class="cat-progress-fill"
+                  class:over={row.over}
+                  style="width: {Math.min(row.pct, 100)}%"
+                ></div>
+              </div>
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+
+    <!-- ── Recurring Transactions ── -->
+    <div class="recurring-section anim-item" style="--delay: 4">
+      <button
+        class="section-header-btn"
+        onclick={() => (recurringCollapsed = !recurringCollapsed)}
+        aria-expanded={!recurringCollapsed}
+      >
+        <div class="section-header-left">
+          <h2 class="section-title">Recurring</h2>
+          {#if recurringItems.length > 0}
+            <span class="recurring-badge">{recurringItems.length}</span>
+          {/if}
+        </div>
+        <div class="section-header-right">
+          {#if recurringTotal > 0}
+            <span class="recurring-total">{formatCurrency(recurringTotal)}/mo</span>
+          {/if}
+          <svg
+            class="chevron-icon"
+            class:collapsed={recurringCollapsed}
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+          >
+            <path
+              d="M4 6L8 10L12 6"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+      </button>
+
+      {#if !recurringCollapsed}
+        <div class="recurring-content">
+          {#if recurringItems.length === 0}
+            <p class="recurring-empty">No active recurring transactions.</p>
+          {:else}
+            <div class="recurring-list">
+              {#each recurringItems as item (item.id)}
+                {@const cat = categoryMap.get(item.category_id ?? '')}
+                <div class="recurring-row">
+                  <div class="cat-icon-circle small" style="--cat-color: {cat?.color ?? '#706450'}">
+                    <span class="cat-icon-emoji">{cat?.icon ?? '?'}</span>
+                  </div>
+                  <div class="recurring-info">
+                    <div class="recurring-name-row">
+                      <span class="recurring-name">{item.name}</span>
+                      {#if item.source === 'auto-detected'}
+                        <span class="auto-badge">(auto)</span>
+                      {/if}
+                    </div>
+                    <span class="recurring-meta">
+                      {formatCurrency(item.amount)}{formatFrequency(item.frequency)}
+                      {#if item.next_date}
+                        <span class="recurring-next">
+                          Next: {formatShortDate(item.next_date)}
+                        </span>
+                      {/if}
+                    </span>
+                  </div>
+                  <div class="recurring-actions">
+                    <button
+                      class="recurring-edit-btn"
+                      onclick={() => openRecurringModal(item.id)}
+                      aria-label="Edit {item.name}"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path
+                          d="M11.333 2a1.886 1.886 0 012.667 2.667L5.333 13.333 2 14l.667-3.333L11.333 2z"
+                          stroke="currentColor"
+                          stroke-width="1.2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      class="recurring-delete-btn"
+                      onclick={() => removeRecurring(item.id)}
+                      aria-label="Remove {item.name}"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path
+                          d="M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z"
+                          stroke="currentColor"
+                          stroke-width="1.2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <button class="add-recurring-btn" onclick={() => openRecurringModal()}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M8 3v10M3 8h10"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              />
+            </svg>
+            Add Recurring
+          </button>
+        </div>
+      {/if}
+    </div>
+
+    <!-- ── Historical Bar Chart ── -->
+    {#if historicalBars.some((b) => b.value > 0)}
+      <div class="history-section anim-item" style="--delay: 5">
+        <GemBarChart
+          title="Monthly Spending"
+          bars={historicalBars}
+          formatValue={formatCurrencyCompact}
+          height={200}
+          threshold={barThreshold}
+          overColor="#ef4444"
+          underColor="#10b981"
+        />
+      </div>
+    {/if}
+  {/if}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     BUDGET CONFIG MODAL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+{#if showConfigModal}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    onclick={() => (showConfigModal = false)}
+    onkeydown={(e) => e.key === 'Escape' && (showConfigModal = false)}
+  >
+    <div
+      class="modal-sheet"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.key === 'Escape' && (showConfigModal = false)}
+      role="dialog"
+      tabindex="-1"
+      aria-label="Budget Configuration"
+    >
+      <!-- Drag handle -->
+      <div class="sheet-handle-bar">
+        <div class="sheet-handle"></div>
+      </div>
+
+      <div class="sheet-header">
+        <h2 class="sheet-title">Budget Categories</h2>
+        <button class="sheet-close" onclick={() => (showConfigModal = false)} aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M5 5L15 15M15 5L5 15"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet-body">
+        <p class="sheet-desc">
+          Select categories to include in your budget and set monthly limits.
+        </p>
+
+        <div class="config-category-grid">
+          {#each expenseCategories as cat (cat.id)}
+            {@const isSelected = configSelectedCategories.has(cat.id)}
+            <button
+              class="config-cat-chip"
+              class:selected={isSelected}
+              onclick={() => toggleConfigCategory(cat.id)}
+              style="--cat-color: {cat.color}"
+            >
+              <span class="config-cat-icon">{cat.icon}</span>
+              <span class="config-cat-name">{cat.name}</span>
+            </button>
+          {/each}
+        </div>
+
+        <!-- Amount inputs for selected categories -->
+        {#if configSelectedCategories.size > 0}
+          <div class="config-amounts">
+            {#each [...configSelectedCategories.entries()] as [catId, amt] (catId)}
+              {@const cat = categoryMap.get(catId)}
+              <div class="config-amount-row">
+                <div class="config-amount-label">
+                  <span class="config-cat-icon-sm">{cat?.icon ?? '?'}</span>
+                  <span>{cat?.name ?? 'Unknown'}</span>
+                </div>
+                <div class="config-amount-input-wrap">
+                  <span class="config-dollar">$</span>
+                  <input
+                    type="number"
+                    class="config-amount-input"
+                    value={amt}
+                    oninput={(e) => setConfigAmount(catId, e.currentTarget.value)}
+                    placeholder="0"
+                    min="0"
+                    step="1"
+                    inputmode="decimal"
+                  />
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <div class="sheet-footer">
+        <div class="config-total-row">
+          <span class="config-total-label">Monthly Total</span>
+          <span class="config-total-value">{formatCurrency(configTotal)}</span>
+        </div>
+        <button
+          class="save-budget-btn"
+          onclick={saveConfig}
+          disabled={saving || configSelectedCategories.size === 0}
+        >
+          {#if saving}
+            Saving...
+          {:else}
+            Save Budget
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     ADD / EDIT RECURRING MODAL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+{#if showRecurringModal}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    onclick={() => (showRecurringModal = false)}
+    onkeydown={(e) => e.key === 'Escape' && (showRecurringModal = false)}
+  >
+    <div
+      class="modal-sheet recurring-sheet"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.key === 'Escape' && (showRecurringModal = false)}
+      role="dialog"
+      tabindex="-1"
+      aria-label={editingRecurringId ? 'Edit Recurring Transaction' : 'Add Recurring Transaction'}
+    >
+      <div class="sheet-handle-bar">
+        <div class="sheet-handle"></div>
+      </div>
+
+      <div class="sheet-header">
+        <h2 class="sheet-title">
+          {editingRecurringId ? 'Edit Recurring' : 'Add Recurring'}
+        </h2>
+        <button class="sheet-close" onclick={() => (showRecurringModal = false)} aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M5 5L15 15M15 5L5 15"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet-body">
+        <div class="form-group">
+          <label class="form-label" for="rec-name">Name</label>
+          <input
+            id="rec-name"
+            type="text"
+            class="form-input"
+            bind:value={recurringForm.name}
+            placeholder="e.g. Netflix, Rent"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="rec-amount">Amount</label>
+          <div class="form-input-wrap">
+            <span class="form-dollar">$</span>
+            <input
+              id="rec-amount"
+              type="number"
+              class="form-input with-prefix"
+              bind:value={recurringForm.amount}
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              inputmode="decimal"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="rec-freq">Frequency</label>
+          <select id="rec-freq" class="form-select" bind:value={recurringForm.frequency}>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Biweekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="rec-category">Category</label>
+          <select id="rec-category" class="form-select" bind:value={recurringForm.category_id}>
+            <option value="">None</option>
+            {#each expenseCategories as cat (cat.id)}
+              <option value={cat.id}>{cat.icon} {cat.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="rec-account">Account</label>
+          <select id="rec-account" class="form-select" bind:value={recurringForm.account_id}>
+            <option value="">None</option>
+            {#each accounts as acct (acct.id)}
+              <option value={acct.id}>{acct.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="rec-next">Next Date</label>
+          <input
+            id="rec-next"
+            type="date"
+            class="form-input"
+            bind:value={recurringForm.next_date}
+          />
+        </div>
+      </div>
+
+      <div class="sheet-footer">
+        {#if editingRecurringId}
+          <button
+            class="delete-recurring-btn"
+            onclick={() => {
+              if (editingRecurringId) removeRecurring(editingRecurringId);
+              showRecurringModal = false;
+            }}
+          >
+            Delete
+          </button>
+        {/if}
+        <button
+          class="save-budget-btn"
+          onclick={saveRecurring}
+          disabled={recurringFormSaving ||
+            !recurringForm.name.trim() ||
+            !recurringForm.amount.trim()}
+        >
+          {#if recurringFormSaving}
+            Saving...
+          {:else}
+            {editingRecurringId ? 'Update' : 'Add'}
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     STYLES
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<style>
+  /* ══════════════════════════════════════════════════════════════════════════
+     DESIGN TOKENS (Gem Radiant)
+     ══════════════════════════════════════════════════════════════════════════ */
+  .budget-page {
+    --bg-surface: #161310;
+    --bg-raised: #1e1a14;
+    --bg-raised-2: #252018;
+    --bg-void: #0e0c08;
+    --citrine: #dbb044;
+    --citrine-dim: rgba(219, 176, 68, 0.15);
+    --citrine-glow: rgba(219, 176, 68, 0.25);
+    --text: #f0e8d0;
+    --text-muted: #a09478;
+    --text-dim: #706450;
+    --border: rgba(180, 150, 80, 0.1);
+    --border-hover: rgba(180, 150, 80, 0.2);
+    --emerald: #10b981;
+    --emerald-dim: rgba(16, 185, 129, 0.15);
+    --ruby: #ef4444;
+    --ruby-dim: rgba(239, 68, 68, 0.12);
+    --ruby-glow: rgba(239, 68, 68, 0.25);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --frost: rgba(30, 26, 20, 0.6);
+    --frost-hover: rgba(40, 34, 26, 0.8);
+    --glass-border: rgba(180, 150, 80, 0.12);
+    --gradient-shimmer: linear-gradient(
+      110deg,
+      transparent 25%,
+      rgba(219, 176, 68, 0.06) 37%,
+      rgba(219, 176, 68, 0.12) 50%,
+      rgba(219, 176, 68, 0.06) 63%,
+      transparent 75%
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     LAYOUT
+     ══════════════════════════════════════════════════════════════════════════ */
+  .budget-page {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-sizing: border-box;
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 0.4s ease,
+      transform 0.4s ease;
+  }
+
+  .budget-page.mounted {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     ENTRANCE ANIMATIONS
+     ══════════════════════════════════════════════════════════════════════════ */
+  .anim-item {
+    opacity: 0;
+    transform: translateY(28px);
+    transition:
+      opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: calc(var(--delay) * 90ms);
+  }
+
+  .budget-page.mounted .anim-item {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .anim-item,
+    .budget-page {
+      transition-duration: 0.01ms !important;
+      transition-delay: 0.01ms !important;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     HEADER
+     ══════════════════════════════════════════════════════════════════════════ */
+  .page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+    background: linear-gradient(135deg, var(--text) 0%, var(--citrine) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .config-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--frost);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      color 0.2s,
+      border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .config-btn:hover {
+    background: var(--frost-hover);
+    color: var(--citrine);
+    border-color: var(--border-hover);
+  }
+
+  /* ── Month Navigation ── */
+  .month-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .month-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .month-arrow {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--frost);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      color 0.2s,
+      border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .month-arrow::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+
+  .month-arrow:hover:not(:disabled) {
+    background: var(--frost-hover);
+    color: var(--text);
+    border-color: var(--glass-border);
+  }
+
+  .month-arrow:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+
+  .month-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    min-width: 130px;
+    text-align: center;
+    letter-spacing: 0.01em;
+  }
+
+  .today-btn {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--citrine);
+    background: var(--citrine-dim);
+    border: 1px solid rgba(219, 176, 68, 0.15);
+    border-radius: 6px;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .today-btn:hover {
+    background: var(--citrine-glow);
+    border-color: rgba(219, 176, 68, 0.3);
+  }
+
+  @media (max-width: 640px) {
+    .month-nav-group {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .today-btn {
+      order: 1;
+    }
+
+    .month-label {
+      font-size: 0.82rem;
+      min-width: 110px;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     SKELETON LOADING
+     ══════════════════════════════════════════════════════════════════════════ */
+  .skeleton-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .skeleton-card {
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skeleton-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gradient-shimmer);
+    background-size: 200% 100%;
+    animation: shimmer 1.8s ease-in-out infinite;
+  }
+
+  .skeleton-chart {
+    height: 200px;
+  }
+
+  .skeleton-summary {
+    height: 120px;
+  }
+
+  .skeleton-list {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .skeleton-row {
+    height: 52px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised-2);
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     EMPTY STATE
+     ══════════════════════════════════════════════════════════════════════════ */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 56px 24px;
+    gap: 16px;
+  }
+
+  .empty-icon {
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .empty-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+  }
+
+  .empty-desc {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-width: 300px;
+    margin: 0;
+  }
+
+  .empty-cta {
+    margin-top: 8px;
+    padding: 12px 28px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1a1500;
+    background: linear-gradient(135deg, #f0c040 0%, #d4a030 50%, #c09020 100%);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition:
+      transform 0.15s,
+      box-shadow 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .empty-cta:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 20px rgba(219, 176, 68, 0.3);
+  }
+
+  .empty-cta:active {
+    transform: scale(0.98);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     CHART CARD
+     ══════════════════════════════════════════════════════════════════════════ */
+  .chart-card {
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    padding: 16px;
+    backdrop-filter: blur(20px);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     SUMMARY METRICS
+     ══════════════════════════════════════════════════════════════════════════ */
+  .summary-section {
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .summary-numbers {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .summary-metric {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .metric-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+  }
+
+  .metric-value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .metric-value.over {
+    color: var(--ruby);
+  }
+
+  .metric-value.under {
+    color: var(--emerald);
+  }
+
+  .summary-divider {
+    width: 1px;
+    height: 40px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ── Summary Progress Bar ── */
+  .summary-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .summary-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(112, 100, 80, 0.2);
+    overflow: hidden;
+  }
+
+  .summary-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--emerald);
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .summary-bar-fill.over {
+    background: var(--ruby);
+  }
+
+  .summary-bar-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  .pie-wrap {
+    margin-top: 4px;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     CATEGORY LIST
+     ══════════════════════════════════════════════════════════════════════════ */
+  .category-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .section-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin: 0;
+  }
+
+  .category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .category-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .category-row.over-budget {
+    border-color: var(--ruby-dim);
+    box-shadow: 0 0 12px var(--ruby-dim);
+  }
+
+  /* ── Category Icon Circle ── */
+  .cat-icon-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: radial-gradient(
+      circle at 35% 35%,
+      color-mix(in srgb, var(--cat-color) 30%, transparent),
+      color-mix(in srgb, var(--cat-color) 10%, transparent)
+    );
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cat-color) 25%, transparent));
+  }
+
+  .cat-icon-circle.small {
+    width: 28px;
+    height: 28px;
+  }
+
+  .cat-icon-emoji {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .cat-icon-circle.small .cat-icon-emoji {
+    font-size: 13px;
+  }
+
+  .cat-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .cat-name-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .cat-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cat-amounts {
+    font-size: 0.78rem;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .cat-spent {
+    color: var(--text);
+  }
+
+  .cat-spent.over {
+    color: var(--ruby);
+  }
+
+  .cat-separator {
+    color: var(--text-dim);
+    margin: 0 2px;
+  }
+
+  .cat-budget {
+    color: var(--text-dim);
+  }
+
+  /* ── Category Progress Bar ── */
+  .cat-progress-bar {
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(112, 100, 80, 0.15);
+    overflow: hidden;
+  }
+
+  .cat-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--emerald);
+    transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .cat-progress-fill.over {
+    background: var(--ruby);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     RECURRING SECTION
+     ══════════════════════════════════════════════════════════════════════════ */
+  .recurring-section {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .section-header-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 14px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .section-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .recurring-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--citrine);
+    background: var(--citrine-dim);
+    border-radius: 10px;
+    padding: 2px 7px;
+    line-height: 1.3;
+  }
+
+  .recurring-total {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .chevron-icon {
+    color: var(--text-dim);
+    transition: transform 0.25s ease;
+  }
+
+  .chevron-icon.collapsed {
+    transform: rotate(-90deg);
+  }
+
+  .recurring-content {
+    padding: 0 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .recurring-empty {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 12px 0;
+    margin: 0;
+  }
+
+  .recurring-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .recurring-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised-2);
+    border: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+
+  .recurring-row:hover {
+    border-color: var(--border);
+  }
+
+  .recurring-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .recurring-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .recurring-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .auto-badge {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .recurring-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .recurring-next {
+    color: var(--text-dim);
+  }
+
+  .recurring-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .recurring-edit-btn,
+  .recurring-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .recurring-edit-btn:hover {
+    background: var(--citrine-dim);
+    color: var(--citrine);
+  }
+
+  .recurring-delete-btn:hover {
+    background: var(--ruby-dim);
+    color: var(--ruby);
+  }
+
+  .add-recurring-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--citrine);
+    background: var(--citrine-dim);
+    border: 1px dashed rgba(219, 176, 68, 0.2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    margin-top: 4px;
+  }
+
+  .add-recurring-btn:hover {
+    background: var(--citrine-glow);
+    border-color: rgba(219, 176, 68, 0.35);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     HISTORICAL BAR CHART
+     ══════════════════════════════════════════════════════════════════════════ */
+  .history-section {
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    padding: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     MODAL OVERLAY + BOTTOM SHEET
+     ══════════════════════════════════════════════════════════════════════════ */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: overlayFadeIn 0.25s ease;
+  }
+
+  @keyframes overlayFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .modal-sheet {
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    animation: sheetSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+  }
+
+  @keyframes sheetSlideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .sheet-handle-bar {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 4px;
+  }
+
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--text-dim);
+    opacity: 0.4;
+  }
+
+  .sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sheet-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+  }
+
+  .sheet-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sheet-close:hover {
+    background: var(--frost-hover);
+    color: var(--text);
+  }
+
+  .sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sheet-desc {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .sheet-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    /* Safe area for bottom sheet on notched devices */
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     CONFIG MODAL — Category Grid
+     ══════════════════════════════════════════════════════════════════════════ */
+  .config-category-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .config-cat-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-raised-2);
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      border-color 0.15s,
+      transform 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .config-cat-chip:hover {
+    border-color: var(--border-hover);
+  }
+
+  .config-cat-chip:active {
+    transform: scale(0.95);
+  }
+
+  .config-cat-chip.selected {
+    border-color: var(--citrine);
+    background: var(--citrine-dim);
+    box-shadow: 0 0 10px var(--citrine-dim);
+  }
+
+  .config-cat-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .config-cat-name {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .config-cat-chip.selected .config-cat-name {
+    color: var(--text);
+  }
+
+  /* ── Amount Inputs ── */
+  .config-amounts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  .config-amount-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .config-amount-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text);
+    min-width: 0;
+    flex: 1;
+  }
+
+  .config-cat-icon-sm {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .config-amount-input-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-void);
+    padding: 0 10px;
+    width: 120px;
+    flex-shrink: 0;
+    transition: border-color 0.2s;
+  }
+
+  .config-amount-input-wrap:focus-within {
+    border-color: var(--citrine);
+  }
+
+  .config-dollar {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  .config-amount-input {
+    width: 100%;
+    height: 36px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 0.88rem;
+    font-family: inherit;
+    font-weight: 600;
+    outline: none;
+    text-align: right;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  .config-amount-input::-webkit-outer-spin-button,
+  .config-amount-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* ── Config Total ── */
+  .config-total-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .config-total-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .config-total-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--citrine);
+  }
+
+  /* ── Save Button ── */
+  .save-budget-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #1a1500;
+    background: linear-gradient(135deg, #f0c040 0%, #d4a030 50%, #c09020 100%);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition:
+      transform 0.12s,
+      box-shadow 0.2s,
+      opacity 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .save-budget-btn:hover:not(:disabled) {
+    transform: scale(1.01);
+    box-shadow: 0 4px 20px rgba(219, 176, 68, 0.3);
+  }
+
+  .save-budget-btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .save-budget-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     RECURRING MODAL — Form
+     ══════════════════════════════════════════════════════════════════════════ */
+  .recurring-sheet .sheet-footer {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .delete-recurring-btn {
+    padding: 14px 20px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--ruby);
+    background: var(--ruby-dim);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+  }
+
+  .delete-recurring-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .form-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+  }
+
+  .form-input,
+  .form-select {
+    height: 44px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-void);
+    color: var(--text);
+    font-size: 0.88rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .form-input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .form-input:focus,
+  .form-select:focus {
+    border-color: var(--citrine);
+  }
+
+  .form-select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23706450' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+
+  .form-select option {
+    background: var(--bg-raised);
+    color: var(--text);
+  }
+
+  .form-input-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-void);
+    padding: 0 12px;
+    transition: border-color 0.2s;
+  }
+
+  .form-input-wrap:focus-within {
+    border-color: var(--citrine);
+  }
+
+  .form-dollar {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    font-weight: 500;
+    margin-right: 4px;
+  }
+
+  .form-input.with-prefix {
+    border: none;
+    background: transparent;
+    padding: 0;
+    height: 42px;
+  }
+
+  .form-input.with-prefix:focus {
+    border-color: transparent;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     RESPONSIVE — Desktop
+     ══════════════════════════════════════════════════════════════════════════ */
+  @media (min-width: 768px) {
+    .budget-page {
+      gap: 24px;
+    }
+
+    .page-title {
+      font-size: 1.65rem;
+    }
+
+    .month-arrow {
+      width: 32px;
+      height: 32px;
+    }
+
+    .modal-sheet {
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      max-height: 80vh;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sheet-footer {
+      padding-bottom: 16px;
+    }
+
+    .config-category-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .summary-numbers {
+      gap: 24px;
+    }
+
+    .metric-value {
+      font-size: 1.6rem;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     REDUCED MOTION
+     ══════════════════════════════════════════════════════════════════════════ */
+  @media (prefers-reduced-motion: reduce) {
+    .modal-overlay,
+    .modal-sheet,
+    .config-cat-chip,
+    .save-budget-btn,
+    .empty-cta {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    @keyframes shimmer {
+      0%,
+      100% {
+        background-position: 0 0;
+      }
+    }
+  }
+</style>

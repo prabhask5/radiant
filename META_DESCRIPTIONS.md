@@ -17,7 +17,7 @@
 personal-finance, finance-tracker, bank-sync, teller-io, transaction-viewer,
 offline-first, local-first, pwa, progressive-web-app, sveltekit, svelte-5,
 supabase, indexeddb, typescript, self-hosted, privacy, open-source,
-real-time-sync, conflict-resolution, crdt, schema-driven, mtls, webhook
+real-time-sync, conflict-resolution, schema-driven, mtls, webhook
 
 ---
 
@@ -54,7 +54,7 @@ KEY FEATURES:
   writes, and a background sync queue
 - Transaction viewer with category-based organization
 - Multi-device sync with field-level conflict resolution using
-  CRDT-inspired merging, grace periods, and device-ID tiebreaking
+  last-writer-wins merging, grace periods, and device-ID tiebreaking
 - PWA with smart caching -- cache-first for immutable assets,
   network-first for navigation, background precaching
 

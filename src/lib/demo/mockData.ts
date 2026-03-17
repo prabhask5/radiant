@@ -7,8 +7,10 @@
  *
  * - **Teller Enrollments** — two linked bank institutions (Chase, BofA).
  * - **Accounts** — five accounts across checking, savings, and credit cards.
- * - **Categories** — twelve expense/income/transfer categories with icons.
+ * - **Categories** — subset of 54 default emoji categories.
  * - **Transactions** — ~45 entries spanning the last 60 days.
+ * - **Budget Items** — 8 categories with monthly spending limits.
+ * - **Recurring Transactions** — 4 auto-detected recurring charges.
  *
  * Sign conventions (matching Teller / currency.ts):
  * - **Depository (bank)**: positive = deposit (money IN), negative = withdrawal (money OUT)
@@ -46,6 +48,15 @@ function daysAgo(days: number): string {
 }
 
 /**
+ * Return an ISO date string (YYYY-MM-DD) for a date `days` days in the future.
+ */
+function daysFromNow(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * Build the shared base fields that every Dexie record requires.
  */
 function base(id: string) {
@@ -73,19 +84,25 @@ const ACCT_CHASE_CREDIT = 'demo-acct-chase-credit';
 const ACCT_BOFA_CHECKING = 'demo-acct-bofa-checking';
 const ACCT_BOFA_CREDIT = 'demo-acct-bofa-credit';
 
-// Categories
-const CAT_GROCERIES = 'demo-cat-groceries';
-const CAT_DINING = 'demo-cat-dining';
-const CAT_TRANSPORT = 'demo-cat-transport';
-const CAT_SHOPPING = 'demo-cat-shopping';
-const CAT_ENTERTAINMENT = 'demo-cat-entertainment';
-const CAT_UTILITIES = 'demo-cat-utilities';
-const CAT_HEALTH = 'demo-cat-health';
-const CAT_HOUSING = 'demo-cat-housing';
-const CAT_INCOME = 'demo-cat-income';
-const CAT_SUBSCRIPTIONS = 'demo-cat-subscriptions';
-const CAT_INSURANCE = 'demo-cat-insurance';
-const CAT_TRANSFER = 'demo-cat-transfer';
+// Categories — deterministic IDs matching categories.ts `cat-{key}` pattern
+const CAT_GROCERIES = 'cat-groceries';
+const CAT_DINING = 'cat-dining';
+const CAT_COFFEE = 'cat-coffee';
+const CAT_RENT = 'cat-rent';
+const CAT_UTILITIES = 'cat-utilities';
+const CAT_GAS_FUEL = 'cat-gas-fuel';
+const CAT_RIDESHARE = 'cat-rideshare';
+const CAT_SHOPPING = 'cat-shopping';
+const CAT_ENTERTAINMENT = 'cat-entertainment';
+const CAT_STREAMING = 'cat-streaming';
+const CAT_HEALTH_INSURANCE = 'cat-health-insurance';
+const CAT_CAR_INSURANCE = 'cat-car-insurance';
+const CAT_SALARY = 'cat-salary';
+const CAT_FREELANCE = 'cat-freelance';
+const CAT_TRANSFER = 'cat-transfer';
+const CAT_CREDIT_CARD_PAYMENT = 'cat-credit-card-payment';
+const CAT_PHARMACY = 'cat-pharmacy';
+const CAT_GYM_FITNESS = 'cat-gym-fitness';
 
 // =============================================================================
 //                            SEED FUNCTION
@@ -94,11 +111,13 @@ const CAT_TRANSFER = 'demo-cat-transfer';
 /**
  * Populate the demo Dexie database with realistic financial mock data.
  *
- * Called once when demo mode is activated. Seeds four Dexie tables in sequence
- * (enrollments, accounts, categories, transactions).
+ * Called once when demo mode is activated. Seeds six Dexie tables in sequence
+ * (enrollments, accounts, categories, transactions, budget_items,
+ * recurring_transactions).
  *
- * Uses `bulkPut` with deterministic `demo-` prefixed IDs, so the function is
- * fully idempotent — calling it multiple times on the same DB is a no-op.
+ * Uses `bulkPut` with deterministic `demo-` / `cat-` prefixed IDs, so the
+ * function is fully idempotent — calling it multiple times on the same DB is
+ * a no-op.
  */
 export async function seedDemoData(db: Dexie): Promise<void> {
   // ---------------------------------------------------------------------------
@@ -219,133 +238,193 @@ export async function seedDemoData(db: Dexie): Promise<void> {
   ]);
 
   // ---------------------------------------------------------------------------
-  //  3. Categories
+  //  3. Categories — emoji-based defaults (subset of 54)
   // ---------------------------------------------------------------------------
   await db.table('categories').bulkPut([
     {
       ...base(CAT_GROCERIES),
       name: 'Groceries',
-      icon: 'cart',
+      icon: '🛒',
       color: '#10b981',
       type: 'expense',
       parent_id: null,
-      teller_categories: null,
+      teller_categories: ['groceries'],
       order: 1
     },
     {
       ...base(CAT_DINING),
       name: 'Dining',
-      icon: 'utensils',
+      icon: '🍽️',
       color: '#f59e0b',
       type: 'expense',
       parent_id: null,
-      teller_categories: null,
+      teller_categories: ['dining'],
       order: 2
     },
     {
-      ...base(CAT_TRANSPORT),
-      name: 'Transportation',
-      icon: 'car',
-      color: '#3b82f6',
+      ...base(CAT_COFFEE),
+      name: 'Coffee',
+      icon: '☕',
+      color: '#92400e',
       type: 'expense',
       parent_id: null,
-      teller_categories: null,
+      teller_categories: [],
       order: 3
     },
     {
-      ...base(CAT_SHOPPING),
-      name: 'Shopping',
-      icon: 'bag',
-      color: '#8b5cf6',
+      ...base(CAT_RENT),
+      name: 'Rent',
+      icon: '🏠',
+      color: '#14b8a6',
       type: 'expense',
       parent_id: null,
-      teller_categories: null,
-      order: 4
-    },
-    {
-      ...base(CAT_ENTERTAINMENT),
-      name: 'Entertainment',
-      icon: 'film',
-      color: '#ec4899',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: null,
+      teller_categories: [],
       order: 5
     },
     {
       ...base(CAT_UTILITIES),
       name: 'Utilities',
-      icon: 'zap',
+      icon: '💡',
       color: '#6366f1',
       type: 'expense',
       parent_id: null,
-      teller_categories: null,
-      order: 6
-    },
-    {
-      ...base(CAT_HEALTH),
-      name: 'Health',
-      icon: 'heart',
-      color: '#ef4444',
-      type: 'expense',
-      parent_id: null,
-      teller_categories: null,
+      teller_categories: ['utilities'],
       order: 7
     },
     {
-      ...base(CAT_HOUSING),
-      name: 'Housing',
-      icon: 'home',
-      color: '#14b8a6',
+      ...base(CAT_GAS_FUEL),
+      name: 'Gas/Fuel',
+      icon: '⛽',
+      color: '#f97316',
       type: 'expense',
       parent_id: null,
-      teller_categories: null,
-      order: 8
+      teller_categories: ['fuel'],
+      order: 12
     },
     {
-      ...base(CAT_INCOME),
-      name: 'Income',
-      icon: 'dollar',
-      color: '#22c55e',
-      type: 'income',
+      ...base(CAT_RIDESHARE),
+      name: 'Rideshare',
+      icon: '🚕',
+      color: '#7c3aed',
+      type: 'expense',
       parent_id: null,
-      teller_categories: null,
-      order: 9
+      teller_categories: [],
+      order: 17
     },
     {
-      ...base(CAT_SUBSCRIPTIONS),
-      name: 'Subscriptions',
-      icon: 'repeat',
+      ...base(CAT_SHOPPING),
+      name: 'Shopping',
+      icon: '🛍️',
+      color: '#8b5cf6',
+      type: 'expense',
+      parent_id: null,
+      teller_categories: ['shopping'],
+      order: 26
+    },
+    {
+      ...base(CAT_ENTERTAINMENT),
+      name: 'Entertainment',
+      icon: '🎬',
+      color: '#ec4899',
+      type: 'expense',
+      parent_id: null,
+      teller_categories: ['entertainment'],
+      order: 29
+    },
+    {
+      ...base(CAT_STREAMING),
+      name: 'Streaming',
+      icon: '📺',
       color: '#a855f7',
       type: 'expense',
       parent_id: null,
-      teller_categories: null,
-      order: 10
+      teller_categories: ['software'],
+      order: 30
     },
     {
-      ...base(CAT_INSURANCE),
-      name: 'Insurance',
-      icon: 'shield',
+      ...base(CAT_HEALTH_INSURANCE),
+      name: 'Health Insurance',
+      icon: '🏥',
+      color: '#ef4444',
+      type: 'expense',
+      parent_id: null,
+      teller_categories: ['health'],
+      order: 19
+    },
+    {
+      ...base(CAT_CAR_INSURANCE),
+      name: 'Car Insurance',
+      icon: '🛡️',
       color: '#64748b',
       type: 'expense',
       parent_id: null,
-      teller_categories: null,
-      order: 11
+      teller_categories: ['insurance'],
+      order: 14
+    },
+    {
+      ...base(CAT_PHARMACY),
+      name: 'Pharmacy',
+      icon: '💊',
+      color: '#fb923c',
+      type: 'expense',
+      parent_id: null,
+      teller_categories: [],
+      order: 21
+    },
+    {
+      ...base(CAT_GYM_FITNESS),
+      name: 'Gym/Fitness',
+      icon: '🏋️',
+      color: '#22c55e',
+      type: 'expense',
+      parent_id: null,
+      teller_categories: ['sport'],
+      order: 23
+    },
+    {
+      ...base(CAT_SALARY),
+      name: 'Salary',
+      icon: '💰',
+      color: '#22c55e',
+      type: 'income',
+      parent_id: null,
+      teller_categories: ['income'],
+      order: 41
+    },
+    {
+      ...base(CAT_FREELANCE),
+      name: 'Freelance',
+      icon: '💼',
+      color: '#10b981',
+      type: 'income',
+      parent_id: null,
+      teller_categories: [],
+      order: 42
     },
     {
       ...base(CAT_TRANSFER),
       name: 'Transfer',
-      icon: 'arrows',
+      icon: '🔄',
       color: '#94a3b8',
       type: 'transfer',
       parent_id: null,
-      teller_categories: null,
-      order: 12
+      teller_categories: [],
+      order: 49
+    },
+    {
+      ...base(CAT_CREDIT_CARD_PAYMENT),
+      name: 'Credit Card Payment',
+      icon: '💳',
+      color: '#64748b',
+      type: 'transfer',
+      parent_id: null,
+      teller_categories: [],
+      order: 51
     }
   ]);
 
   // ---------------------------------------------------------------------------
-  //  4. Transactions (~45 entries spanning the past 60 days)
+  //  4. Transactions (~46 entries spanning the past 60 days)
   //
   //  Sign conventions:
   //    Depository: positive = deposit (money IN), negative = withdrawal (money OUT)
@@ -361,7 +440,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_INCOME,
+      CAT_SALARY,
       'posted'
     ),
     txn(
@@ -372,7 +451,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_INCOME,
+      CAT_SALARY,
       'posted'
     ),
     txn(
@@ -383,7 +462,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_INCOME,
+      CAT_SALARY,
       'posted'
     ),
     txn(
@@ -394,7 +473,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Freelance Payment - Design Work',
       'DesignCo',
       'organization',
-      CAT_INCOME,
+      CAT_FREELANCE,
       'posted',
       null,
       'Side project UI redesign'
@@ -407,7 +486,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_INCOME,
+      CAT_SALARY,
       'posted'
     ),
 
@@ -420,8 +499,12 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'RENT PAYMENT - AVALON APT',
       'Avalon Apartments',
       'organization',
-      CAT_HOUSING,
-      'posted'
+      CAT_RENT,
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
     txn(
       '07',
@@ -431,8 +514,12 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'RENT PAYMENT - AVALON APT',
       'Avalon Apartments',
       'organization',
-      CAT_HOUSING,
-      'posted'
+      CAT_RENT,
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
 
     // ── Groceries ────────────────────────────────────────────────────────
@@ -549,7 +636,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'STARBUCKS #14523',
       'Starbucks',
       'organization',
-      CAT_DINING,
+      CAT_COFFEE,
       'posted'
     ),
     txn(
@@ -595,7 +682,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'UBER TRIP',
       'Uber',
       'organization',
-      CAT_TRANSPORT,
+      CAT_RIDESHARE,
       'pending'
     ),
     txn(
@@ -606,7 +693,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'SHELL OIL #54231',
       'Shell',
       'organization',
-      CAT_TRANSPORT,
+      CAT_GAS_FUEL,
       'posted'
     ),
     txn(
@@ -617,7 +704,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'UBER TRIP',
       'Uber',
       'organization',
-      CAT_TRANSPORT,
+      CAT_RIDESHARE,
       'posted'
     ),
     txn(
@@ -628,7 +715,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'CHEVRON #41029',
       'Chevron',
       'organization',
-      CAT_TRANSPORT,
+      CAT_GAS_FUEL,
       'posted'
     ),
 
@@ -716,7 +803,11 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'PG&E',
       'organization',
       CAT_UTILITIES,
-      'posted'
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
     txn(
       '32',
@@ -727,7 +818,11 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'AT&T',
       'organization',
       CAT_UTILITIES,
-      'posted'
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
     txn(
       '33',
@@ -738,7 +833,11 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'PG&E',
       'organization',
       CAT_UTILITIES,
-      'posted'
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
 
     // ── Health ───────────────────────────────────────────────────────────
@@ -750,7 +849,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'CVS PHARMACY #8832',
       'CVS',
       'organization',
-      CAT_HEALTH,
+      CAT_PHARMACY,
       'posted'
     ),
     txn(
@@ -761,11 +860,11 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'KAISER PERMANENTE COPAY',
       'Kaiser',
       'organization',
-      CAT_HEALTH,
+      CAT_HEALTH_INSURANCE,
       'posted'
     ),
 
-    // ── Subscriptions (credit card charges) ──────────────────────────────
+    // ── Streaming (recurring subscriptions on credit card) ───────────────
     txn(
       '36',
       ACCT_CHASE_CREDIT,
@@ -774,8 +873,12 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'NETFLIX.COM',
       'Netflix',
       'organization',
-      CAT_SUBSCRIPTIONS,
-      'posted'
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
     txn(
       '37',
@@ -785,8 +888,12 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'SPOTIFY USA',
       'Spotify',
       'organization',
-      CAT_SUBSCRIPTIONS,
-      'posted'
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
     txn(
       '38',
@@ -796,8 +903,12 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'OPENAI *CHATGPT PLUS',
       'OpenAI',
       'organization',
-      CAT_SUBSCRIPTIONS,
-      'posted'
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
     txn(
       '39',
@@ -807,8 +918,12 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'NETFLIX.COM',
       'Netflix',
       'organization',
-      CAT_SUBSCRIPTIONS,
-      'posted'
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
     txn(
       '40',
@@ -818,8 +933,12 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'SPOTIFY USA',
       'Spotify',
       'organization',
-      CAT_SUBSCRIPTIONS,
-      'posted'
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
     ),
 
     // ── Insurance (negative on depository = money out) ───────────────────
@@ -831,12 +950,43 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'GEICO AUTO INSURANCE',
       'GEICO',
       'organization',
-      CAT_INSURANCE,
+      CAT_CAR_INSURANCE,
       'posted'
     ),
 
+    // ── Gym (recurring) ──────────────────────────────────────────────────
+    txn(
+      '47',
+      ACCT_CHASE_CREDIT,
+      '49.99',
+      daysAgo(6),
+      'EQUINOX FITNESS',
+      'Equinox',
+      'organization',
+      CAT_GYM_FITNESS,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
+      '48',
+      ACCT_CHASE_CREDIT,
+      '49.99',
+      daysAgo(36),
+      'EQUINOX FITNESS',
+      'Equinox',
+      'organization',
+      CAT_GYM_FITNESS,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+
     // ── Transfers ────────────────────────────────────────────────────────
-    // Transfer out of checking (negative = money leaves checking)
     txn(
       '42',
       ACCT_CHASE_CHECKING,
@@ -848,7 +998,6 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       CAT_TRANSFER,
       'posted'
     ),
-    // Transfer into savings (positive = money arrives in savings)
     txn(
       '43',
       ACCT_CHASE_SAVINGS,
@@ -870,7 +1019,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'PAYMENT THANK YOU',
       'Chase',
       'organization',
-      CAT_TRANSFER,
+      CAT_CREDIT_CARD_PAYMENT,
       'posted'
     ),
     txn(
@@ -881,7 +1030,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'ONLINE PAYMENT THANK YOU',
       'Bank of America',
       'organization',
-      CAT_TRANSFER,
+      CAT_CREDIT_CARD_PAYMENT,
       'posted'
     ),
 
@@ -900,6 +1049,78 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Splitting rent with roommate — exclude from totals',
       true
     )
+  ]);
+
+  // ---------------------------------------------------------------------------
+  //  5. Budget Items — single global budget with 8 category allocations
+  // ---------------------------------------------------------------------------
+  await db.table('budgetItems').bulkPut([
+    { ...base('demo-bi-groceries'), category_id: CAT_GROCERIES, amount: '600' },
+    { ...base('demo-bi-dining'), category_id: CAT_DINING, amount: '300' },
+    { ...base('demo-bi-utilities'), category_id: CAT_UTILITIES, amount: '250' },
+    { ...base('demo-bi-gas-fuel'), category_id: CAT_GAS_FUEL, amount: '150' },
+    { ...base('demo-bi-shopping'), category_id: CAT_SHOPPING, amount: '200' },
+    { ...base('demo-bi-entertainment'), category_id: CAT_ENTERTAINMENT, amount: '150' },
+    { ...base('demo-bi-streaming'), category_id: CAT_STREAMING, amount: '60' },
+    { ...base('demo-bi-rent'), category_id: CAT_RENT, amount: '2200' }
+  ]);
+
+  // ---------------------------------------------------------------------------
+  //  6. Recurring Transactions — 4 auto-detected recurring charges
+  // ---------------------------------------------------------------------------
+  await db.table('recurringTransactions').bulkPut([
+    {
+      ...base('demo-rec-netflix'),
+      name: 'Netflix',
+      amount: '15.99',
+      category_id: CAT_STREAMING,
+      frequency: 'monthly',
+      source: 'auto-detected',
+      status: 'active',
+      account_id: ACCT_CHASE_CREDIT,
+      merchant_pattern: 'netflix',
+      last_detected_date: daysAgo(5),
+      next_date: daysFromNow(25)
+    },
+    {
+      ...base('demo-rec-spotify'),
+      name: 'Spotify',
+      amount: '10.99',
+      category_id: CAT_STREAMING,
+      frequency: 'monthly',
+      source: 'auto-detected',
+      status: 'active',
+      account_id: ACCT_CHASE_CREDIT,
+      merchant_pattern: 'spotify',
+      last_detected_date: daysAgo(8),
+      next_date: daysFromNow(22)
+    },
+    {
+      ...base('demo-rec-rent'),
+      name: 'Rent - Avalon Apartments',
+      amount: '2200.00',
+      category_id: CAT_RENT,
+      frequency: 'monthly',
+      source: 'auto-detected',
+      status: 'active',
+      account_id: ACCT_CHASE_CHECKING,
+      merchant_pattern: 'avalon',
+      last_detected_date: daysAgo(2),
+      next_date: daysFromNow(28)
+    },
+    {
+      ...base('demo-rec-gym'),
+      name: 'Equinox Fitness',
+      amount: '49.99',
+      category_id: CAT_GYM_FITNESS,
+      frequency: 'monthly',
+      source: 'auto-detected',
+      status: 'active',
+      account_id: ACCT_CHASE_CREDIT,
+      merchant_pattern: 'equinox',
+      last_detected_date: daysAgo(6),
+      next_date: daysFromNow(24)
+    }
   ]);
 }
 
@@ -924,6 +1145,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
  * @param csvHash - Optional CSV import hash for deduplication.
  * @param notes - Optional user notes.
  * @param isExcluded - Whether to exclude from summaries.
+ * @param isRecurring - Whether this is a recurring transaction.
  */
 function txn(
   seq: string,
@@ -937,7 +1159,8 @@ function txn(
   status: 'posted' | 'pending',
   csvHash: string | null = null,
   notes: string | null = null,
-  isExcluded = false
+  isExcluded = false,
+  isRecurring = false
 ) {
   return {
     ...base(`demo-txn-${seq}`),
@@ -954,6 +1177,8 @@ function txn(
     type: parseFloat(amount) < 0 ? 'credit' : 'debit',
     running_balance: null,
     is_excluded: isExcluded,
+    is_recurring: isRecurring,
+    is_auto_categorized: true,
     notes,
     csv_import_hash: csvHash
   };

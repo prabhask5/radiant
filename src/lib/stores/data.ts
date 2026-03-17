@@ -23,7 +23,37 @@ import type { BatchOperation } from 'stellar-drive/data';
 import { generateId, now } from 'stellar-drive/utils';
 import { createCollectionStore, onSyncComplete, remoteChangesStore } from 'stellar-drive/stores';
 import { debug } from 'stellar-drive/utils';
-import type { Account, Transaction, Category, TellerEnrollment } from '$lib/types';
+import type {
+  Account,
+  Transaction,
+  Category,
+  TellerEnrollment,
+  BudgetItem,
+  RecurringTransaction
+} from '$lib/types';
+
+/* ── ML Sync (debounced triggers) ── */
+import { syncRecurringDetections } from '$lib/ml/recurringSync';
+import { syncCategorizationResults } from '$lib/ml/categorizationSync';
+
+let mlSyncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Schedule ML sync operations (recurring detection + auto-categorization)
+ * after a debounced delay. Safe to call repeatedly — only the last call
+ * within the delay window triggers the actual sync.
+ */
+function scheduleMLSync() {
+  if (mlSyncTimeout) clearTimeout(mlSyncTimeout);
+  mlSyncTimeout = setTimeout(async () => {
+    try {
+      await syncCategorizationResults();
+      await syncRecurringDetections();
+    } catch (e) {
+      debug('error', '[ML] Sync error:', e);
+    }
+  }, 1500);
+}
 
 /** System columns managed by stellar-drive — omit these from create payloads. */
 type SystemKeys =
@@ -121,6 +151,7 @@ function createTransactionsStore() {
       debug('log', '[DATA] transactions — refreshing');
       await store.load();
       debug('log', '[DATA] transactions — refresh complete');
+      scheduleMLSync();
     },
 
     /* ── User-editable field updates ── */
@@ -159,6 +190,13 @@ function createTransactionsStore() {
       await engineUpdate('transactions', transactionId, { notes });
       await store.load();
       debug('log', '[DATA] transactions — updateNotes complete', { transactionId });
+    },
+    async updateRecurring(transactionId: string, isRecurring: boolean) {
+      debug('log', '[DATA] transactions — updateRecurring', { transactionId, isRecurring });
+      remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
+      await engineUpdate('transactions', transactionId, { is_recurring: isRecurring });
+      await store.load();
+      debug('log', '[DATA] transactions — updateRecurring complete', { transactionId });
     },
 
     /* ── Delete operations ── */
@@ -234,6 +272,8 @@ function createTransactionsStore() {
             type: null,
             running_balance: null,
             is_excluded: false,
+            is_recurring: false,
+            is_auto_categorized: false,
             notes: null,
             csv_import_hash: t.csv_import_hash
           }
@@ -362,3 +402,124 @@ function createEnrollmentsStore() {
 /** Reactive store of all {@link TellerEnrollment} rows. */
 export const enrollmentsStore = createEnrollmentsStore();
 onSyncComplete(() => enrollmentsStore.refresh());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUDGET ITEMS STORE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Create the reactive budget items store.
+ *
+ * Each budget item represents a single category's monthly spending limit
+ * within the one global budget. There is no month parameter — the budget
+ * applies retroactively to all historical months.
+ */
+function createBudgetItemsStore() {
+  const store = createCollectionStore<BudgetItem>({
+    load: () => engineGetAll('budget_items') as unknown as Promise<BudgetItem[]>
+  });
+
+  return {
+    ...store,
+    async refresh() {
+      debug('log', '[DATA] budget_items — refreshing');
+      await store.load();
+      debug('log', '[DATA] budget_items — refresh complete');
+    },
+    async create(categoryId: string, amount: string) {
+      // Enforce one budget item per category
+      const existing = (await engineGetAll('budget_items')) as unknown as BudgetItem[];
+      const duplicate = existing.find((b) => b.category_id === categoryId && !b.deleted);
+      if (duplicate) {
+        debug(
+          'warn',
+          '[DATA] budget_items — duplicate category_id, updating existing',
+          duplicate.id
+        );
+        remoteChangesStore.recordLocalChange(duplicate.id, 'budget_items', 'update');
+        await engineUpdate('budget_items', duplicate.id, { amount });
+        await store.load();
+        return duplicate.id;
+      }
+
+      const id = generateId();
+      debug('log', '[DATA] budget_items — create', { id, categoryId, amount });
+      remoteChangesStore.recordLocalChange(id, 'budget_items', 'create');
+      await engineCreate('budget_items', { id, category_id: categoryId, amount });
+      await store.load();
+      debug('log', '[DATA] budget_items — create complete', { id });
+      return id;
+    },
+    async update(id: string, amount: string) {
+      debug('log', '[DATA] budget_items — update', { id, amount });
+      remoteChangesStore.recordLocalChange(id, 'budget_items', 'update');
+      await engineUpdate('budget_items', id, { amount });
+      await store.load();
+      debug('log', '[DATA] budget_items — update complete', { id });
+    },
+    async remove(id: string) {
+      debug('log', '[DATA] budget_items — remove', { id });
+      await remoteChangesStore.markPendingDelete(id, 'budget_items');
+      await engineDelete('budget_items', id);
+      await store.load();
+      debug('log', '[DATA] budget_items — remove complete', { id });
+    }
+  };
+}
+
+/** Reactive store of all {@link BudgetItem} rows (the single global budget). */
+export const budgetItemsStore = createBudgetItemsStore();
+onSyncComplete(() => budgetItemsStore.refresh());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RECURRING TRANSACTIONS STORE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Create the reactive recurring transactions store.
+ *
+ * Tracks recurring charges (subscriptions, rent, etc.). Entries may be
+ * auto-detected by the ML pipeline or created manually by the user.
+ * All fields are fully user-editable regardless of source.
+ */
+function createRecurringTransactionsStore() {
+  const store = createCollectionStore<RecurringTransaction>({
+    load: () => engineGetAll('recurring_transactions') as unknown as Promise<RecurringTransaction[]>
+  });
+
+  return {
+    ...store,
+    async refresh() {
+      debug('log', '[DATA] recurring_transactions — refreshing');
+      await store.load();
+      debug('log', '[DATA] recurring_transactions — refresh complete');
+    },
+    async create(data: Omit<RecurringTransaction, SystemKeys>) {
+      const id = generateId();
+      debug('log', '[DATA] recurring_transactions — create', { id, name: data.name });
+      remoteChangesStore.recordLocalChange(id, 'recurring_transactions', 'create');
+      await engineCreate('recurring_transactions', { id, ...data });
+      await store.load();
+      debug('log', '[DATA] recurring_transactions — create complete', { id });
+      return id;
+    },
+    async update(id: string, data: Partial<RecurringTransaction>) {
+      debug('log', '[DATA] recurring_transactions — update', { id });
+      remoteChangesStore.recordLocalChange(id, 'recurring_transactions', 'update');
+      await engineUpdate('recurring_transactions', id, data);
+      await store.load();
+      debug('log', '[DATA] recurring_transactions — update complete', { id });
+    },
+    async remove(id: string) {
+      debug('log', '[DATA] recurring_transactions — remove', { id });
+      await remoteChangesStore.markPendingDelete(id, 'recurring_transactions');
+      await engineDelete('recurring_transactions', id);
+      await store.load();
+      debug('log', '[DATA] recurring_transactions — remove complete', { id });
+    }
+  };
+}
+
+/** Reactive store of all {@link RecurringTransaction} rows. */
+export const recurringTransactionsStore = createRecurringTransactionsStore();
+onSyncComplete(() => recurringTransactionsStore.refresh());

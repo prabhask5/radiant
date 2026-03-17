@@ -25,7 +25,7 @@ import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
-    const { accessToken } = await request.json();
+    const { accessToken, sinceDate } = await request.json();
 
     if (!accessToken) {
       return json({ error: 'Missing accessToken' }, { status: 400 });
@@ -48,18 +48,19 @@ export const POST: RequestHandler = async ({ request }) => {
       })
     );
 
-    /* ── Fetch ALL transactions (full sync with pagination) ──
-       Manual sync always does a full fetch. Paginates using cursor-based
-       `from_id` to get beyond the 500-per-request Teller limit.
-       Only the webhook uses incremental 7-day buffer logic. */
+    /* ── Fetch transactions with optional incremental window ──
+       When `sinceDate` (YYYY-MM-DD) is provided, only fetch transactions
+       from that date onwards. Otherwise fetch everything for completeness.
+       The client deduplicates against local data either way. */
     const transactions: Array<Record<string, unknown>> = [];
     for (const account of tellerAccounts) {
       try {
         let fromId: string | undefined;
         let hasMore = true;
         while (hasMore) {
-          const opts: { count: number; from_id?: string } = { count: 500 };
+          const opts: { count: number; from_id?: string; start_date?: string } = { count: 500 };
           if (fromId) opts.from_id = fromId;
+          if (sinceDate) opts.start_date = sinceDate;
           const txns = await listTransactions(accessToken, account.id, opts);
           for (const txn of txns) {
             const { links: _, ...rest } = txn;

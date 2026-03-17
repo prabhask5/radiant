@@ -19,9 +19,6 @@
   import { browser } from '$app/environment';
   import { accountsStore, enrollmentsStore, transactionsStore } from '$lib/stores/data';
   import { isDemoMode } from 'stellar-drive/demo';
-  import { engineBatchWrite, engineGetAll } from 'stellar-drive/data';
-  import type { BatchOperation } from 'stellar-drive/data';
-  import { generateId, now } from 'stellar-drive/utils';
   import { remoteChangesStore } from 'stellar-drive/stores';
   import { getConfig } from 'stellar-drive/config';
   import { debug } from 'stellar-drive/utils';
@@ -37,6 +34,7 @@
     mapCSVToTransactions,
     type CSVColumnMapping
   } from '$lib/utils/csv';
+  import { processTellerSyncData, autoSyncStaleEnrollments } from '$lib/teller/autoSync';
 
   // ==========================================================================
   //                           COMPONENT STATE
@@ -438,181 +436,7 @@
   //                     TELLER SYNC DATA PROCESSING
   // ==========================================================================
 
-  /**
-   * Process raw Teller API data into local IndexedDB via engine functions.
-   *
-   * All writes go through engineBatchWrite → IndexedDB + sync queue → Supabase.
-   * This preserves the offline-first architecture: local-first, then sync.
-   */
-  async function processTellerSyncData(
-    rawData: {
-      accounts: Array<Record<string, unknown>>;
-      transactions: Array<Record<string, unknown>>;
-    },
-    localEnrollmentId: string
-  ) {
-    debug('log', '[ACCOUNTS] processTellerSyncData — enrollmentId:', localEnrollmentId);
-
-    // Build local lookup maps from IndexedDB
-    const allLocalAccounts = (await engineGetAll('accounts')) as unknown as Account[];
-    const localAccountMap = new Map(
-      allLocalAccounts.filter((a) => a.teller_account_id).map((a) => [a.teller_account_id, a])
-    );
-
-    const allLocalTxns = (await engineGetAll('transactions')) as unknown as Array<
-      Record<string, unknown> & {
-        id: string;
-        teller_transaction_id: string | null;
-        deleted?: boolean;
-      }
-    >;
-    const localTxnMap = new Map(
-      allLocalTxns.filter((t) => t.teller_transaction_id).map((t) => [t.teller_transaction_id!, t])
-    );
-
-    const ops: BatchOperation[] = [];
-    const tellerIdToLocalId = new Map<string, string>();
-
-    // Process accounts: create new, update existing
-    for (const tellerAcct of rawData.accounts) {
-      const tellerId = tellerAcct.id as string;
-      const existing = localAccountMap.get(tellerId);
-
-      if (existing) {
-        // Update balance + status only
-        tellerIdToLocalId.set(tellerId, existing.id);
-        const updateFields = {
-          balance_available: tellerAcct.balance_available ?? existing.balance_available,
-          balance_ledger: tellerAcct.balance_ledger ?? existing.balance_ledger,
-          balance_updated_at: now(),
-          status: tellerAcct.status ?? existing.status
-        };
-        ops.push({ type: 'update', table: 'accounts', id: existing.id, fields: updateFields });
-        remoteChangesStore.recordLocalChange(existing.id, 'accounts', 'update');
-      } else {
-        // Create new account
-        const id = generateId();
-        tellerIdToLocalId.set(tellerId, id);
-        ops.push({
-          type: 'create',
-          table: 'accounts',
-          data: {
-            id,
-            enrollment_id: localEnrollmentId,
-            teller_account_id: tellerId,
-            institution_name: (tellerAcct.institution as { name: string })?.name ?? 'Unknown',
-            name: tellerAcct.name as string,
-            type: tellerAcct.type as string,
-            subtype: tellerAcct.subtype as string,
-            currency: (tellerAcct.currency as string) ?? 'USD',
-            last_four: (tellerAcct.last_four as string) ?? null,
-            status: (tellerAcct.status as string) ?? 'open',
-            source: 'teller',
-            balance_available: (tellerAcct.balance_available as string) ?? null,
-            balance_ledger: (tellerAcct.balance_ledger as string) ?? null,
-            balance_updated_at: now(),
-            is_hidden: false
-          }
-        });
-        remoteChangesStore.recordLocalChange(id, 'accounts', 'create');
-      }
-    }
-
-    // Teller-owned fields that can change on existing active transactions
-    const TELLER_OWNED_FIELDS = [
-      'amount',
-      'status',
-      'running_balance',
-      'counterparty_name',
-      'counterparty_type',
-      'teller_category',
-      'type'
-    ] as const;
-
-    // Process transactions: create new, update existing Teller-owned fields, skip deleted
-    for (const tellerTxn of rawData.transactions) {
-      const tellerTxnId = tellerTxn.id as string;
-      const tellerAcctId = tellerTxn.account_id as string;
-      const accountId = tellerIdToLocalId.get(tellerAcctId);
-      if (!accountId) continue;
-
-      const existing = localTxnMap.get(tellerTxnId);
-
-      if (!existing) {
-        // New transaction
-        const id = generateId();
-        const details = tellerTxn.details as
-          | { counterparty?: { name?: string; type?: string }; category?: string }
-          | undefined;
-        ops.push({
-          type: 'create',
-          table: 'transactions',
-          data: {
-            id,
-            account_id: accountId,
-            teller_transaction_id: tellerTxnId,
-            amount: tellerTxn.amount as string,
-            date: tellerTxn.date as string,
-            description: tellerTxn.description as string,
-            counterparty_name: details?.counterparty?.name ?? null,
-            counterparty_type: details?.counterparty?.type ?? null,
-            teller_category: details?.category ?? null,
-            category_id: null,
-            status: tellerTxn.status as string,
-            type: (tellerTxn.type as string) ?? null,
-            running_balance: (tellerTxn.running_balance as string) ?? null,
-            is_excluded: false,
-            notes: null,
-            csv_import_hash: null
-          }
-        });
-        remoteChangesStore.recordLocalChange(id, 'transactions', 'create');
-      } else if (existing.deleted) {
-        // User deleted this transaction — respect their decision
-        continue;
-      } else {
-        // Existing active transaction — update Teller-owned fields only if changed
-        const details = tellerTxn.details as
-          | { counterparty?: { name?: string; type?: string }; category?: string }
-          | undefined;
-        const updateFields: Record<string, unknown> = {};
-        const existingRecord = existing;
-        for (const field of TELLER_OWNED_FIELDS) {
-          let newVal: unknown;
-          if (field === 'counterparty_name') newVal = details?.counterparty?.name ?? null;
-          else if (field === 'counterparty_type') newVal = details?.counterparty?.type ?? null;
-          else if (field === 'teller_category') newVal = details?.category ?? null;
-          else newVal = tellerTxn[field] ?? null;
-          // Only include fields that actually changed
-          if (String(newVal ?? '') !== String(existingRecord[field] ?? '')) {
-            updateFields[field] = newVal;
-          }
-        }
-        if (Object.keys(updateFields).length > 0) {
-          ops.push({
-            type: 'update',
-            table: 'transactions',
-            id: existing.id,
-            fields: updateFields
-          });
-          remoteChangesStore.recordLocalChange(existing.id, 'transactions', 'update');
-        }
-      }
-    }
-
-    // Single atomic batch write → IndexedDB + sync queue
-    const createOps = ops.filter((o) => o.type === 'create');
-    const updateOps = ops.filter((o) => o.type === 'update');
-    debug('log', '[ACCOUNTS] processTellerSyncData — batch ops:', {
-      creates: createOps.length,
-      updates: updateOps.length,
-      total: ops.length
-    });
-    if (ops.length > 0) {
-      await engineBatchWrite(ops);
-      debug('log', '[ACCOUNTS] processTellerSyncData — batch write complete');
-    }
-  }
+  // processTellerSyncData is imported from $lib/teller/autoSync
 
   // ==========================================================================
   //                     TELLER CONNECT INTEGRATION
@@ -1321,6 +1145,21 @@
         // Silent fail — will retry when user clicks Connect
       });
     }
+
+    // Auto-sync stale enrollments in the background
+    autoSyncStaleEnrollments(enrollments, (id, status) => enrollmentsStore.updateStatus(id, status))
+      .then(async (newCount) => {
+        if (newCount > 0) {
+          await Promise.all([
+            accountsStore.refresh(),
+            transactionsStore.refresh(),
+            enrollmentsStore.refresh()
+          ]);
+        }
+      })
+      .catch((err) => {
+        debug('warn', '[ACCOUNTS] Background auto-sync failed:', err);
+      });
   });
 </script>
 

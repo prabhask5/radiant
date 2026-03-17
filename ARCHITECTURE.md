@@ -128,7 +128,7 @@ Local-first:    Client reads/writes IndexedDB --async--> Server (eventually)
 
 ### Conflict Resolution Strategy
 
-Radiant uses a **CRDT-inspired last-writer-wins** strategy with field-level granularity:
+Radiant uses a **last-writer-wins** strategy with field-level granularity:
 
 ```
 Device A:  { description: "Coffee", amount: 4.50, category: "food" }
@@ -1091,7 +1091,7 @@ Vercel detects push --> triggers build
 
 | Area | Complexity | Why It Exists |
 |------|-----------|---------------|
-| **Field-level conflict resolution** | CRDT-inspired merge with grace period tiebreaking | Two devices editing the same transaction offline must converge to the same result |
+| **Field-level conflict resolution** | Last-writer-wins merge with grace period tiebreaking | Two devices editing the same transaction offline must converge to the same result |
 | **Tombstone lifecycle** | Soft delete --> sync --> retention period --> hard delete | Deletions must propagate to all devices before permanent removal |
 | **Version tracking** | Monotonic `_version` counter per record | Detects stale writes and prevents lost updates during concurrent edits |
 | **mTLS proxy** | Server-side certificate-authenticated proxy for Teller API | Browsers cannot perform mutual TLS; bank API requires client certificates |

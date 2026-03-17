@@ -227,21 +227,6 @@
         },
         conflicts: { recentHistory: [], totalCount: 0 },
         errors: { lastError: null, lastErrorDetails: null, recentErrors: [] },
-        crdt: {
-          enabled: false,
-          config: null,
-          activeDocuments: [],
-          activeDocumentCount: 0,
-          offline: {
-            documentCount: 0,
-            maxDocuments: 0,
-            totalSizeBytes: 0,
-            totalSizeFormatted: '0 B',
-            documents: []
-          },
-          pendingUpdates: [],
-          totalPendingUpdates: 0
-        },
         config: {
           tableCount: 4,
           tableNames: ['teller_enrollments', 'accounts', 'transactions', 'categories'],

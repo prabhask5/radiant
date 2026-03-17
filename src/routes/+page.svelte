@@ -20,7 +20,12 @@
   import { authState } from 'stellar-drive/stores';
 
   /* ── App Data Stores ── */
-  import { accountsStore, transactionsStore } from '$lib/stores/data';
+  import {
+    accountsStore,
+    transactionsStore,
+    budgetItemsStore,
+    recurringTransactionsStore
+  } from '$lib/stores/data';
 
   /* ── Utilities ── */
   import { formatCurrency, formatCurrencyCompact } from '$lib/utils/currency';
@@ -28,9 +33,10 @@
   /* ── Components ── */
   import GemChart from '$lib/components/GemChart.svelte';
   import type { ChartDataPoint } from '$lib/components/GemChart.svelte';
+  import BudgetLineChart from '$lib/components/BudgetLineChart.svelte';
 
   /* ── Types ── */
-  import type { Account } from '$lib/types';
+  import type { Account, BudgetItem } from '$lib/types';
 
   // ==========================================================================
   //                          COMPONENT STATE
@@ -247,6 +253,59 @@
   });
 
   // ==========================================================================
+  //                      BUDGET CHART DATA
+  // ==========================================================================
+
+  /** Budget items for the single global budget. */
+  const budgetItems = $derived(($budgetItemsStore ?? []) as BudgetItem[]);
+  const totalBudget = $derived(budgetItems.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0));
+  const hasBudget = $derived(budgetItems.length > 0 && totalBudget > 0);
+  const budgetCategoryIds = $derived(new Set(budgetItems.map((b) => b.category_id)));
+
+  /** Recurring transactions — monthly total for deduction line. */
+  const recurringDeduction = $derived.by(() => {
+    const items = ($recurringTransactionsStore ?? []).filter(
+      (r) => r.status === 'active' && !r.deleted
+    );
+    return items.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+  });
+
+  /** Current month info for the budget chart. */
+  const currentMonthNow = $derived.by(() => {
+    const now = new Date();
+    return {
+      prefix: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+      currentDay: now.getDate(),
+      daysInMonth: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    };
+  });
+
+  /** Cumulative daily spending for the current month (budget categories only). */
+  const budgetDailySpending = $derived.by(() => {
+    if (!hasBudget) return [];
+    const txns = $transactionsStore ?? [];
+    const { prefix } = currentMonthNow;
+    const acctMap = new Map(accounts.map((a) => [a.id, a.type]));
+
+    const byDate = new Map<string, number>();
+    for (const t of txns) {
+      if (!t.date.startsWith(prefix) || t.is_excluded || t.deleted) continue;
+      if (!t.category_id || !budgetCategoryIds.has(t.category_id)) continue;
+      const amt = parseFloat(t.amount) || 0;
+      const type = acctMap.get(t.account_id);
+      const spent = type === 'credit' ? (amt > 0 ? amt : 0) : amt < 0 ? Math.abs(amt) : 0;
+      if (spent > 0) byDate.set(t.date, (byDate.get(t.date) ?? 0) + spent);
+    }
+
+    const sorted = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    let cumulative = 0;
+    return sorted.map(([date, value]) => {
+      cumulative += value;
+      return { date, value: cumulative };
+    });
+  });
+
+  // ==========================================================================
   //                           LIFECYCLE
   // ==========================================================================
 
@@ -257,7 +316,12 @@
     });
 
     // Load data stores for the dashboard
-    Promise.all([accountsStore.load(), transactionsStore.load()]).then(() => {
+    Promise.all([
+      accountsStore.load(),
+      transactionsStore.load(),
+      budgetItemsStore.load(),
+      recurringTransactionsStore.load()
+    ]).then(() => {
       dataLoaded = true;
     });
   });
@@ -315,6 +379,29 @@
         formatValue={formatCurrencyCompact}
         loading={!dataLoaded}
       />
+    </div>
+  {/if}
+
+  <!-- ─────────────────────────────────────────────────────────────────────
+       BUDGET PROGRESS CHART
+       ───────────────────────────────────────────────────────────────────── -->
+  {#if dataLoaded && hasBudget}
+    <div class="anim-item" style="--delay: 2">
+      <div class="budget-card">
+        <div class="budget-card-header">
+          <span class="budget-card-label">Budget Progress</span>
+          <a href="/budget" class="budget-card-link">Details</a>
+        </div>
+        <BudgetLineChart
+          spendingData={budgetDailySpending}
+          budgetTotal={totalBudget}
+          {recurringDeduction}
+          currentDay={currentMonthNow.currentDay}
+          daysInMonth={currentMonthNow.daysInMonth}
+          formatValue={formatCurrencyCompact}
+          height={160}
+        />
+      </div>
     </div>
   {/if}
 </div>
@@ -538,6 +625,44 @@
     .hero-greeting {
       font-size: 2rem;
     }
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     BUDGET CARD
+     ────────────────────────────────────────────────────────────────────────── */
+  .budget-card {
+    background: var(--gem-obsidian);
+    border: 1px solid var(--gem-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  .budget-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .budget-card-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gem-citrine);
+  }
+
+  .budget-card-link {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--gem-text-dim);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .budget-card-link:hover {
+    color: var(--gem-citrine);
   }
 
   /* ──────────────────────────────────────────────────────────────────────────

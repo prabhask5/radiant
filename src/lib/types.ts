@@ -11,7 +11,14 @@
 export type { SyncStatus, AuthMode, OfflineCredentials } from 'stellar-drive/types';
 
 // Re-export all generated entity types
-export type { TellerEnrollment, Account, Transaction, Category } from './types.generated';
+export type {
+  TellerEnrollment,
+  Account,
+  Transaction,
+  Category,
+  BudgetItem,
+  RecurringTransaction
+} from './types.generated';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPE NARROWINGS — Refine generated `string` types to precise unions
@@ -95,6 +102,21 @@ export type TellerCategory =
  * Classification for user-defined categories.
  */
 export type CategoryType = 'expense' | 'income' | 'transfer';
+
+/**
+ * How often a recurring transaction repeats.
+ */
+export type RecurringFrequency = 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+
+/**
+ * How a recurring transaction entry was created.
+ */
+export type RecurringSource = 'manual' | 'auto-detected';
+
+/**
+ * Lifecycle state of a recurring transaction.
+ */
+export type RecurringStatus = 'active' | 'paused' | 'ended';
 
 /**
  * Connection health of a Teller enrollment.

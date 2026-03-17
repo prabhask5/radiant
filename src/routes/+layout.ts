@@ -5,7 +5,7 @@
  * is responsible for three critical jobs:
  *
  * 1. **Engine bootstrap** (module-scope, runs once) — calls `initEngine()`
- *    to wire up Dexie (IndexedDB), Supabase, the CRDT sync engine, and
+ *    to wire up Dexie (IndexedDB), Supabase, the sync engine, and
  *    auth callbacks. The schema in `$lib/schema.ts` is the single source
  *    of truth for database shape.
  *
@@ -38,6 +38,7 @@ import { resolveRootLayout } from 'stellar-drive/kit';
 import { isSafeRedirect } from 'stellar-drive/utils';
 import { schema } from '$lib/schema';
 import { demoConfig } from '$lib/demo/config';
+import { seedDefaultCategories } from '$lib/categories';
 import type { RootLayoutData } from 'stellar-drive/kit';
 import type { LayoutLoad } from './$types';
 
@@ -182,6 +183,14 @@ export const load: LayoutLoad = async ({ url }): Promise<RootLayoutData> => {
         });
         redirect(307, '/setup');
       }
+    }
+
+    // Seed default categories after engine + auth resolution is complete
+    // (idempotent, gated by localStorage flag — safe to fire-and-forget)
+    if (result.authMode !== 'none') {
+      seedDefaultCategories().catch((err) =>
+        debug('warn', '[layout] Failed to seed default categories:', err)
+      );
     }
 
     if (result.authMode === 'none') {

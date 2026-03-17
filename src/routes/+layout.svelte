@@ -89,7 +89,7 @@
    * Navbar only shows on the four main app pages (dashboard, transactions,
    * accounts, profile). All other routes hide the app shell chrome.
    */
-  const NAV_ROUTES = ['/', '/transactions', '/accounts', '/profile'];
+  const NAV_ROUTES = ['/', '/budget', '/transactions', '/accounts', '/profile'];
   const isNavPage = $derived(
     NAV_ROUTES.some((r) =>
       r === '/' ? $page.url.pathname === '/' : $page.url.pathname.startsWith(r)
@@ -108,6 +108,7 @@
    */
   const navItems = [
     { href: '/', label: 'Dashboard', icon: 'grid' },
+    { href: '/budget', label: 'Budget', icon: 'gem' },
     { href: '/transactions', label: 'Transactions', icon: 'list' },
     { href: '/accounts', label: 'Accounts', icon: 'credit-card' }
   ];
@@ -512,6 +513,23 @@
                     <rect x="14" y="14" width="7" height="7"></rect>
                     <rect x="3" y="14" width="7" height="7"></rect>
                   </svg>
+                {:else if item.icon === 'gem'}
+                  <!-- Budget / gem icon -->
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M6 3h12l4 6-10 13L2 9z" />
+                    <path d="M11 3l1 6h6" />
+                    <path d="M2 9h20" />
+                    <path d="M13 3l-1 6H6" />
+                  </svg>
                 {:else if item.icon === 'list'}
                   <!-- Transactions / list icon -->
                   <svg
@@ -628,6 +646,22 @@
                   <rect x="14" y="14" width="7" height="7"></rect>
                   <rect x="3" y="14" width="7" height="7"></rect>
                 </svg>
+              {:else if item.icon === 'gem'}
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M6 3h12l4 6-10 13L2 9z" />
+                  <path d="M11 3l1 6h6" />
+                  <path d="M2 9h20" />
+                  <path d="M13 3l-1 6H6" />
+                </svg>
               {:else if item.icon === 'list'}
                 <svg
                   width="22"
@@ -671,7 +705,7 @@
           href="/profile"
           class="tab-item tab-profile"
           class:active={isActive('/profile')}
-          style="--tab-index: 4;"
+          style="--tab-index: 5;"
         >
           {#if isActive('/profile')}
             <span class="tab-active-indicator"></span>

@@ -109,7 +109,8 @@ export const schema: SchemaDefinition = {
        - `[account_id+date]` — compound index for efficient per-account date queries
      ═══════════════════════════════════════════════════════════════════════ */
   transactions: {
-    indexes: 'account_id, date, category_id, status, [account_id+date], csv_import_hash',
+    indexes:
+      'account_id, date, category_id, status, [account_id+date], csv_import_hash, teller_transaction_id',
     ownership: { parent: 'accounts', fk: 'account_id' },
     fields: {
       account_id: 'uuid',
@@ -125,9 +126,15 @@ export const schema: SchemaDefinition = {
       type: 'string?',
       running_balance: 'string?',
       is_excluded: 'boolean',
+      is_recurring: 'boolean',
+      is_auto_categorized: 'boolean',
       notes: 'string?',
       csv_import_hash: 'string?'
-    }
+    },
+    uniqueConstraints: [
+      { columns: ['teller_transaction_id'], where: 'teller_transaction_id is not null' },
+      { columns: ['account_id', 'csv_import_hash'], where: 'csv_import_hash is not null' }
+    ]
   },
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -158,6 +165,63 @@ export const schema: SchemaDefinition = {
       parent_id: 'uuid?',
       teller_categories: 'json?',
       order: 'number'
+    }
+  },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     BUDGET ITEMS — Per-category monthly allocations for the single global budget
+     ═══════════════════════════════════════════════════════════════════════
+
+     Each row represents one category's monthly spending limit. The total
+     budget is the sum of all budget_items rows. There is no month or
+     is_active field — there is ONE global budget that retroactively
+     applies to all historical months.
+
+     To add/remove a category from the budget, create/delete its row.
+
+     Relationships:
+       - Many budget_items → one `categories` (via `category_id`)
+
+     Indexes:
+       - `category_id` — lookup budget for a specific category
+     ═══════════════════════════════════════════════════════════════════════ */
+  budget_items: {
+    indexes: 'category_id',
+    fields: {
+      category_id: 'uuid',
+      amount: 'string'
+    }
+  },
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     RECURRING TRANSACTIONS — Detected or manually created recurring charges
+     ═══════════════════════════════════════════════════════════════════════
+
+     Tracks recurring financial obligations (subscriptions, rent, etc.).
+     Entries are either auto-detected by the ML pipeline or created
+     manually by the user. All fields are user-editable regardless of
+     source.
+
+     Relationships:
+       - Many recurring_transactions → one `categories` (via `category_id`, nullable)
+
+     Indexes:
+       - `category_id` — aggregate recurring charges per category
+       - `status` — filter active vs paused vs ended
+     ═══════════════════════════════════════════════════════════════════════ */
+  recurring_transactions: {
+    indexes: 'category_id, status',
+    fields: {
+      name: 'string',
+      amount: 'string',
+      category_id: 'uuid?',
+      frequency: 'string',
+      source: 'string',
+      status: 'string',
+      account_id: 'uuid?',
+      merchant_pattern: 'string?',
+      last_detected_date: 'string?',
+      next_date: 'string?'
     }
   }
 };
