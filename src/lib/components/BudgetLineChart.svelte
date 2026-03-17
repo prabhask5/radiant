@@ -496,19 +496,30 @@
 <div class="blc" class:mounted bind:this={wrapperEl}>
   <!-- Summary labels -->
   <div class="blc-header">
-    <div class="blc-remaining">
-      <span class="blc-remaining-value" class:over={remaining < 0}>
-        {formatValue(Math.abs(remaining))}
-      </span>
-      <span class="blc-remaining-label">
-        {remaining >= 0 ? 'remaining' : 'over budget'}
-      </span>
-    </div>
-    <div class="blc-pace-status" class:under-pace={overUnder < 0} class:over-pace={overUnder >= 0}>
-      <span class="blc-pace-arrow">{overUnder < 0 ? '\u25BC' : '\u25B2'}</span>
-      <span class="blc-pace-amount">{formatValue(Math.abs(overUnder))}</span>
-      <span class="blc-pace-label">{overUnder < 0 ? 'under' : 'over'} pace</span>
-    </div>
+    {#if hasData && !loading}
+      <div class="blc-remaining">
+        <span class="blc-remaining-value" class:over={remaining < 0}>
+          {formatValue(Math.abs(remaining))}
+        </span>
+        <span class="blc-remaining-label">
+          {remaining >= 0 ? 'remaining' : 'over budget'}
+        </span>
+      </div>
+      <div
+        class="blc-pace-status"
+        class:under-pace={overUnder < 0}
+        class:over-pace={overUnder >= 0}
+      >
+        <span class="blc-pace-arrow">{overUnder < 0 ? '\u25BC' : '\u25B2'}</span>
+        <span class="blc-pace-amount">{formatValue(Math.abs(overUnder))}</span>
+        <span class="blc-pace-label">{overUnder < 0 ? 'under' : 'over'} pace</span>
+      </div>
+    {:else if !loading}
+      <div class="blc-remaining">
+        <span class="blc-remaining-value">{formatValue(budgetTotal)}</span>
+        <span class="blc-remaining-label">monthly budget</span>
+      </div>
+    {/if}
   </div>
 
   <!-- Loading skeleton -->

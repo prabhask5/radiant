@@ -1382,19 +1382,17 @@
     </div>
 
     <!-- ── Balance History Chart ──────────────────────────────────── -->
-    {#if chartLines.length > 0}
-      <div class="chart-section">
-        <GemChart
-          title="Balance History"
-          lines={chartLines}
-          timeRanges={chartTimeRanges}
-          selectedRange={chartRange}
-          onRangeChange={(r) => (chartRange = r)}
-          height={200}
-          formatValue={formatCurrencyCompact}
-        />
-      </div>
-    {/if}
+    <div class="chart-section">
+      <GemChart
+        title="Balance History"
+        lines={chartLines}
+        timeRanges={chartTimeRanges}
+        selectedRange={chartRange}
+        onRangeChange={(r) => (chartRange = r)}
+        height={200}
+        formatValue={formatCurrencyCompact}
+      />
+    </div>
 
     <!-- ── Institution Groups ────────────────────────────────────── -->
     <div class="institutions-list">
