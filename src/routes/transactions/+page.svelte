@@ -133,7 +133,9 @@
 
   /** Sorted categories list for the filter and re-categorize dropdowns. */
   const sortedCategories = $derived(
-    [...($categoriesStore ?? [])].sort((a: Category, b: Category) => a.name.localeCompare(b.name))
+    [...($categoriesStore ?? [])]
+      .filter((c: Category) => !c.deleted)
+      .sort((a: Category, b: Category) => a.name.localeCompare(b.name))
   );
 
   /** Sorted accounts list for the filter dropdown. */

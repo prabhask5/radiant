@@ -284,139 +284,23 @@
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Build a closed path that covers the region between spending line and
-   * pace line, clipped to the spending data range. We sample both curves
-   * at each spending data day and close the shape.
+   * Build a single closed fill area between the spending curve and the
+   * pace line. Uses the EXACT same `spendingPath` as the rendered line
+   * so there are zero gaps. SVG clipPaths split it into green/red halves.
    */
-  const shadedRegions = $derived.by(() => {
-    if (spendingData.length < 2 || daysInMonth <= 1) return { underPath: '', overPath: '' };
+  const fillAreaPath = $derived.by(() => {
+    if (spendingPts.length < 2 || daysInMonth <= 1) return '';
 
-    // Pace value at a given day
-    function paceAt(day: number): number {
-      const pacePerDay = (budgetTotal - recurringDeduction) / (daysInMonth - 1);
-      return recurringDeduction + pacePerDay * (day - 1);
-    }
+    // Pace Y at the first and last spending data point's X position
+    const firstDay = new Date(spendingData[0].date + 'T00:00:00').getDate();
+    const lastDay = new Date(spendingData[spendingData.length - 1].date + 'T00:00:00').getDate();
+    const pacePerDay = (budgetTotal - recurringDeduction) / (daysInMonth - 1);
+    const paceYFirst = sy(recurringDeduction + pacePerDay * (firstDay - 1));
+    const paceYLast = sy(recurringDeduction + pacePerDay * (lastDay - 1));
 
-    // Build sample points for both spending and pace at each data day
-    interface Segment {
-      day: number;
-      spendY: number;
-      paceY: number;
-      spendVal: number;
-      paceVal: number;
-    }
-
-    const segments: Segment[] = spendingData.map((d) => {
-      const date = new Date(d.date + 'T00:00:00');
-      const day = date.getDate();
-      const pVal = paceAt(day);
-      return {
-        day,
-        spendY: sy(d.value),
-        paceY: sy(pVal),
-        spendVal: d.value,
-        paceVal: pVal
-      };
-    });
-
-    // Split into under-pace and over-pace regions by finding crossover points
-    // and building separate closed paths for each region
-    let underParts: string[] = [];
-    let overParts: string[] = [];
-
-    // For simplicity, build a polygon-based approach:
-    // Top edge = spending line points, bottom edge = pace line points (reversed)
-    // Then clip by whether spending is above or below pace
-    // We'll generate two clip paths using the intersection approach
-
-    // Find intersection day between adjacent segments where status changes
-    function findCrossDay(s1: Segment, s2: Segment): number | null {
-      const diff1 = s1.spendVal - s1.paceVal;
-      const diff2 = s2.spendVal - s2.paceVal;
-      if (diff1 * diff2 >= 0) return null; // No sign change
-      const t = diff1 / (diff1 - diff2);
-      return s1.day + t * (s2.day - s1.day);
-    }
-
-    // Build expanded segment list with intersection points inserted
-    interface Point {
-      day: number;
-      spendVal: number;
-      paceVal: number;
-    }
-
-    const points: Point[] = [];
-    for (let i = 0; i < segments.length; i++) {
-      points.push({
-        day: segments[i].day,
-        spendVal: segments[i].spendVal,
-        paceVal: segments[i].paceVal
-      });
-      if (i < segments.length - 1) {
-        const crossDay = findCrossDay(segments[i], segments[i + 1]);
-        if (crossDay !== null) {
-          const pVal = paceAt(crossDay);
-          points.push({ day: crossDay, spendVal: pVal, paceVal: pVal });
-        }
-      }
-    }
-
-    // Now group consecutive points into under/over runs
-    let currentRun: Point[] = [];
-    let currentStatus: 'under' | 'over' | 'equal' = 'equal';
-
-    function flushRun() {
-      if (currentRun.length < 2) return;
-      // Build closed shape: spending edge uses same cubic curves as the
-      // rendered line (avoids gaps between curve and straight polygon edges),
-      // pace edge uses straight lines (pace is linear).
-      const spendPts = currentRun.map((p) => ({ x: sx(p.day), y: sy(p.spendVal) }));
-      const spendEdge = toPath(spendPts); // Monotone cubic bezier
-      const paceCoords = currentRun
-        .slice()
-        .reverse()
-        .map((p) => `${sx(p.day)},${sy(p.paceVal)}`);
-      const path = `${spendEdge}L${paceCoords.join('L')}Z`;
-      if (currentStatus === 'under') {
-        underParts.push(path);
-      } else if (currentStatus === 'over') {
-        overParts.push(path);
-      }
-    }
-
-    for (const pt of points) {
-      const status: 'under' | 'over' | 'equal' =
-        pt.spendVal < pt.paceVal - 0.01
-          ? 'under'
-          : pt.spendVal > pt.paceVal + 0.01
-            ? 'over'
-            : 'equal';
-
-      if (status === 'equal') {
-        // Intersection point — belongs to both runs
-        currentRun.push(pt);
-        flushRun();
-        currentRun = [pt];
-        currentStatus = 'equal';
-      } else if (status !== currentStatus) {
-        if (currentRun.length > 0) {
-          currentRun.push(pt);
-          flushRun();
-          currentRun = [pt];
-        } else {
-          currentRun.push(pt);
-        }
-        currentStatus = status;
-      } else {
-        currentRun.push(pt);
-      }
-    }
-    flushRun();
-
-    return {
-      underPath: underParts.join(' '),
-      overPath: overParts.join(' ')
-    };
+    // Spending curve forward (exact same path as the rendered line),
+    // then straight line along pace backwards, then close.
+    return `${spendingPath}L${sx(lastDay)},${paceYLast}L${sx(firstDay)},${paceYFirst}Z`;
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -580,6 +464,23 @@
               <stop offset="80%" stop-color="rgba(219,176,68,0.35)" />
               <stop offset="100%" stop-color="rgba(219,176,68,0)" />
             </linearGradient>
+
+            <!-- Clip: area BELOW pace line (where spending < pace = under budget = green) -->
+            <clipPath id="{uid}-clip-under">
+              <polygon
+                points="{paceStart.x},{paceStart.y} {paceEnd.x},{paceEnd.y} {paceEnd.x},{margin.top +
+                  plotH +
+                  10} {paceStart.x},{margin.top + plotH + 10}"
+              />
+            </clipPath>
+
+            <!-- Clip: area ABOVE pace line (where spending > pace = over budget = red) -->
+            <clipPath id="{uid}-clip-over">
+              <polygon
+                points="{paceStart.x},{paceStart.y} {paceEnd.x},{paceEnd.y} {paceEnd.x},{margin.top -
+                  10} {paceStart.x},{margin.top - 10}"
+              />
+            </clipPath>
           </defs>
 
           <!-- Grid lines -->
@@ -645,21 +546,19 @@
             class:line-visible={mounted}
           />
 
-          <!-- Shaded regions between spending and pace -->
-          {#if shadedRegions.underPath}
+          <!-- Shaded regions between spending and pace (clip-based, gap-free) -->
+          {#if fillAreaPath}
             <path
-              d={shadedRegions.underPath}
+              d={fillAreaPath}
               fill={EMERALD}
-              opacity="0.15"
+              clip-path="url(#{uid}-clip-under)"
               class="shaded-region"
               class:region-on={mounted}
             />
-          {/if}
-          {#if shadedRegions.overPath}
             <path
-              d={shadedRegions.overPath}
+              d={fillAreaPath}
               fill={RUBY}
-              opacity="0.15"
+              clip-path="url(#{uid}-clip-over)"
               class="shaded-region"
               class:region-on={mounted}
             />
