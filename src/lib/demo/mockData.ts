@@ -227,7 +227,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       last_four: '3356',
       status: 'open',
       source: 'teller',
-      balance_available: '9,476.60',
+      balance_available: '9476.60',
       balance_ledger: '523.40',
       balance_updated_at: now(),
       is_hidden: false
