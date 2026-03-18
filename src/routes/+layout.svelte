@@ -41,6 +41,10 @@
   /* ── App Components ── */
   import UpdatePrompt from '$lib/components/UpdatePrompt.svelte';
 
+  /* ── Global Toast ── */
+  import { toastStore, dismissToast as dismissGlobalToast, addToast } from '$lib/stores/toast';
+  import type { ToastGem } from '$lib/stores/toast';
+
   /* ── Types ── */
   import type { LayoutData } from './+layout';
 
@@ -62,15 +66,14 @@
   //  Component State
   // =============================================================================
 
-  /* ── Toast Notification ── */
-  /** Whether the toast notification is currently visible. */
-  let showToast = $state(false);
-
-  /** The text content of the current toast notification. */
-  let toastMessage = $state('');
-
-  /** The visual style of the toast — `'info'` (purple) or `'error'` (pink). */
-  let toastType = $state<'info' | 'error'>('info');
+  /* ── Toast Notification (global gem-themed system) ── */
+  /** Gem icon SVG paths for each toast type. */
+  const GEM_ICONS: Record<ToastGem, string> = {
+    ruby: 'M12 2L2 7l10 15L22 7z',
+    emerald: 'M12 2L2 7l10 15L22 7z',
+    sapphire: 'M12 2L2 7l10 15L22 7z',
+    amethyst: 'M12 2L2 7l10 15L22 7z'
+  };
 
   /* ── Sign-Out ── */
   /** When `true`, a full-screen overlay is shown to mask the sign-out transition. */
@@ -151,12 +154,11 @@
       if (isChunkError && !navigator.onLine) {
         event.preventDefault(); // Prevent default error handling
         // Show offline navigation toast
-        toastMessage = "This page isn't available offline. Please reconnect or go back.";
-        toastType = 'info';
-        showToast = true;
-        setTimeout(() => {
-          showToast = false;
-        }, 5000);
+        addToast(
+          "This page isn't available offline. Please reconnect or go back.",
+          'amethyst',
+          5000
+        );
       }
     };
 
@@ -284,12 +286,7 @@
     return $page.url.pathname.startsWith(href);
   }
 
-  /**
-   * Dismisses the currently visible toast notification.
-   */
-  function dismissToast() {
-    showToast = false;
-  }
+  /* dismissToast is imported from the global toast store as dismissGlobalToast */
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -339,64 +336,41 @@
     </div>
   {/if}
 
-  <!-- ── Toast Notification — glassmorphic floating toast ── -->
-  {#if showToast}
-    <div
-      class="app-toast"
-      class:toast-error={toastType === 'error'}
-      transition:fade={{ duration: 150 }}
-    >
-      <div class="toast-content">
-        {#if toastType === 'error'}
+  <!-- ── Gem Toast Notifications — global cinematic toast queue ── -->
+  {#each $toastStore as toast (toast.id)}
+    <div class="gem-toast gem-toast-{toast.gem}" transition:fade={{ duration: 180 }}>
+      <div class="gem-toast-content">
+        <svg class="gem-toast-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path
+            d={GEM_ICONS[toast.gem]}
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linejoin="round"
+          />
+          <path d="M2 7h20" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
+          <path d="M8 7l4 15 4-15" stroke="currentColor" stroke-width="1.2" opacity="0.4" />
+        </svg>
+        <span class="gem-toast-text">{toast.message}</span>
+        <button
+          class="gem-toast-dismiss"
+          onclick={() => dismissGlobalToast(toast.id)}
+          aria-label="Dismiss"
+        >
           <svg
-            width="20"
-            height="20"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            stroke-width="2"
+            stroke-width="2.5"
             stroke-linecap="round"
-            stroke-linejoin="round"
           >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-        {:else}
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-          </svg>
-        {/if}
-        <span>{toastMessage}</span>
-        <button class="toast-dismiss" onclick={dismissToast} aria-label="Dismiss notification">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
     </div>
-  {/if}
+  {/each}
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        Mobile Dynamic Island Header (visible < 768px)
@@ -924,24 +898,33 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
-     TOAST NOTIFICATION — Glassmorphic
+     GEM TOAST NOTIFICATIONS — Cinematic gem-themed toast system
      ═══════════════════════════════════════════════════════════════════════════ */
 
-  .app-toast {
+  .gem-toast {
     position: fixed;
-    bottom: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     z-index: 9000;
     max-width: 420px;
     width: calc(100% - 32px);
-    animation: appToastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: gemToastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    pointer-events: auto;
   }
 
-  @keyframes appToastSlideUp {
+  /* Stack multiple toasts */
+  .gem-toast + .gem-toast {
+    bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .gem-toast + .gem-toast + .gem-toast {
+    bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @keyframes gemToastSlideUp {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(16px) scale(0.96);
+      transform: translateX(-50%) translateY(20px) scale(0.94);
     }
     to {
       opacity: 1;
@@ -949,7 +932,7 @@
     }
   }
 
-  .toast-content {
+  .gem-toast-content {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -961,24 +944,73 @@
     border-radius: 14px;
     color: var(--color-text);
     font-size: 0.875rem;
+    line-height: 1.4;
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(212, 160, 57, 0.08);
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition:
+      border-color 0.3s,
+      box-shadow 0.3s;
   }
 
-  .toast-error .toast-content {
-    border-color: rgba(232, 93, 117, 0.25);
+  /* ── Ruby (deletions / errors / blocked) ── */
+  .gem-toast-ruby .gem-toast-content {
+    border-color: rgba(220, 50, 70, 0.3);
     box-shadow:
-      0 8px 32px rgba(232, 93, 117, 0.15),
-      inset 0 1px 0 rgba(232, 93, 117, 0.08);
+      0 8px 32px rgba(220, 50, 70, 0.12),
+      0 0 0 1px rgba(220, 50, 70, 0.06),
+      inset 0 1px 0 rgba(220, 50, 70, 0.08);
+  }
+  .gem-toast-ruby .gem-toast-icon {
+    color: #e85d75;
   }
 
-  .toast-content span {
+  /* ── Emerald (success) ── */
+  .gem-toast-emerald .gem-toast-content {
+    border-color: rgba(16, 185, 129, 0.3);
+    box-shadow:
+      0 8px 32px rgba(16, 185, 129, 0.12),
+      0 0 0 1px rgba(16, 185, 129, 0.06),
+      inset 0 1px 0 rgba(16, 185, 129, 0.08);
+  }
+  .gem-toast-emerald .gem-toast-icon {
+    color: #34d399;
+  }
+
+  /* ── Sapphire (info) ── */
+  .gem-toast-sapphire .gem-toast-content {
+    border-color: rgba(96, 165, 250, 0.3);
+    box-shadow:
+      0 8px 32px rgba(96, 165, 250, 0.12),
+      0 0 0 1px rgba(96, 165, 250, 0.06),
+      inset 0 1px 0 rgba(96, 165, 250, 0.08);
+  }
+  .gem-toast-sapphire .gem-toast-icon {
+    color: #60a5fa;
+  }
+
+  /* ── Amethyst (warning) ── */
+  .gem-toast-amethyst .gem-toast-content {
+    border-color: rgba(167, 139, 250, 0.3);
+    box-shadow:
+      0 8px 32px rgba(167, 139, 250, 0.12),
+      0 0 0 1px rgba(167, 139, 250, 0.06),
+      inset 0 1px 0 rgba(167, 139, 250, 0.08);
+  }
+  .gem-toast-amethyst .gem-toast-icon {
+    color: #a78bfa;
+  }
+
+  .gem-toast-icon {
+    flex-shrink: 0;
+    opacity: 0.9;
+  }
+
+  .gem-toast-text {
     flex: 1;
-    line-height: 1.4;
   }
 
-  .toast-dismiss {
+  .gem-toast-dismiss {
     flex-shrink: 0;
     background: none;
     border: none;
@@ -991,9 +1023,22 @@
       background 0.15s;
   }
 
-  .toast-dismiss:hover {
+  .gem-toast-dismiss:hover {
     color: var(--color-text);
     background: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Push toasts above the mobile tab bar */
+  @media (max-width: 767px) {
+    .gem-toast {
+      bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    }
+    .gem-toast + .gem-toast {
+      bottom: calc(9rem + env(safe-area-inset-bottom, 0px));
+    }
+    .gem-toast + .gem-toast + .gem-toast {
+      bottom: calc(12.5rem + env(safe-area-inset-bottom, 0px));
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════

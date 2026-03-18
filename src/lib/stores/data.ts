@@ -5,7 +5,7 @@
  * that write optimistically to IndexedDB and queue sync to Supabase.
  *
  * Stores auto-refresh when the sync engine reports new data from the
- * server via `onSyncComplete()`.
+ * server via the factory's built-in `onSyncComplete()` listener.
  *
  * Debug logging is gated by the stellar-drive debug mode flag.
  * Enable it via `localStorage.setItem('<prefix>_debug_mode', 'true')`
@@ -21,7 +21,7 @@ import {
 } from 'stellar-drive/data';
 import type { BatchOperation } from 'stellar-drive/data';
 import { generateId, now } from 'stellar-drive/utils';
-import { createCollectionStore, onSyncComplete, remoteChangesStore } from 'stellar-drive/stores';
+import { createCollectionStore, remoteChangesStore } from 'stellar-drive/stores';
 import { debug } from 'stellar-drive/utils';
 import type {
   Account,
@@ -77,7 +77,10 @@ type SystemKeys =
  */
 function createAccountsStore() {
   const store = createCollectionStore<Account>({
-    load: () => engineGetAll('accounts') as unknown as Promise<Account[]>
+    load: async () => {
+      const all = await engineGetAll('accounts');
+      return all.filter((r) => !r.deleted) as unknown as Account[];
+    }
   });
 
   return {
@@ -127,7 +130,6 @@ function createAccountsStore() {
 
 /** Reactive store of all {@link Account} rows. */
 export const accountsStore = createAccountsStore();
-onSyncComplete(() => accountsStore.refresh());
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TRANSACTIONS STORE
@@ -142,7 +144,10 @@ onSyncComplete(() => accountsStore.refresh());
  */
 function createTransactionsStore() {
   const store = createCollectionStore<Transaction>({
-    load: () => engineGetAll('transactions') as unknown as Promise<Transaction[]>
+    load: async () => {
+      const all = await engineGetAll('transactions');
+      return all.filter((r) => !r.deleted) as unknown as Transaction[];
+    }
   });
 
   return {
@@ -313,7 +318,6 @@ function createTransactionsStore() {
 
 /** Reactive store of all {@link Transaction} rows. */
 export const transactionsStore = createTransactionsStore();
-onSyncComplete(() => transactionsStore.refresh());
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CATEGORIES STORE
@@ -327,7 +331,10 @@ onSyncComplete(() => transactionsStore.refresh());
  */
 function createCategoriesStore() {
   const store = createCollectionStore<Category>({
-    load: () => engineGetAll('categories') as unknown as Promise<Category[]>
+    load: async () => {
+      const all = await engineGetAll('categories');
+      return all.filter((r) => !r.deleted) as unknown as Category[];
+    }
   });
 
   return {
@@ -386,7 +393,6 @@ function createCategoriesStore() {
 
 /** Reactive store of all {@link Category} rows. */
 export const categoriesStore = createCategoriesStore();
-onSyncComplete(() => categoriesStore.refresh());
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ENROLLMENTS STORE
@@ -401,7 +407,10 @@ onSyncComplete(() => categoriesStore.refresh());
  */
 function createEnrollmentsStore() {
   const store = createCollectionStore<TellerEnrollment>({
-    load: () => engineGetAll('teller_enrollments') as unknown as Promise<TellerEnrollment[]>
+    load: async () => {
+      const all = await engineGetAll('teller_enrollments');
+      return all.filter((r) => !r.deleted) as unknown as TellerEnrollment[];
+    }
   });
 
   return {
@@ -443,7 +452,6 @@ function createEnrollmentsStore() {
 
 /** Reactive store of all {@link TellerEnrollment} rows. */
 export const enrollmentsStore = createEnrollmentsStore();
-onSyncComplete(() => enrollmentsStore.refresh());
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RECURRING TRANSACTIONS STORE
@@ -458,7 +466,10 @@ onSyncComplete(() => enrollmentsStore.refresh());
  */
 function createRecurringTransactionsStore() {
   const store = createCollectionStore<RecurringTransaction>({
-    load: () => engineGetAll('recurring_transactions') as unknown as Promise<RecurringTransaction[]>
+    load: async () => {
+      const all = await engineGetAll('recurring_transactions');
+      return all.filter((r) => !r.deleted) as unknown as RecurringTransaction[];
+    }
   });
 
   return {
@@ -496,4 +507,3 @@ function createRecurringTransactionsStore() {
 
 /** Reactive store of all {@link RecurringTransaction} rows. */
 export const recurringTransactionsStore = createRecurringTransactionsStore();
-onSyncComplete(() => recurringTransactionsStore.refresh());

@@ -129,6 +129,18 @@ function getTellerUpdateFields(
   return hasChanges ? changed : null;
 }
 
+/** Result of a Teller sync operation with accurate counts for toast messages. */
+export interface TellerSyncResult {
+  /** New transactions created from Teller data. */
+  newTransactions: number;
+  /** Existing transactions updated (e.g. pending → posted). */
+  updatedTransactions: number;
+  /** New accounts created. */
+  newAccounts: number;
+  /** Existing accounts whose balance/status was refreshed. */
+  updatedAccounts: number;
+}
+
 /**
  * Process raw Teller API data into local IndexedDB via engine functions.
  *
@@ -138,7 +150,7 @@ function getTellerUpdateFields(
  * Guarded by a module-level mutex — concurrent calls will await the first
  * call's completion before proceeding, ensuring no duplicate writes.
  *
- * @returns The number of new transactions created.
+ * @returns Structured sync result with accurate counts.
  */
 export function processTellerSyncData(
   rawData: {
@@ -146,14 +158,16 @@ export function processTellerSyncData(
     transactions: Array<Record<string, unknown>>;
   },
   localEnrollmentId: string
-): Promise<number> {
+): Promise<TellerSyncResult> {
   // If a sync is already in progress, wait for it then run ours
   if (syncInProgress) {
-    return syncInProgress.then(() => processTellerSyncDataInternal(rawData, localEnrollmentId));
+    return (syncInProgress as Promise<unknown>).then(() =>
+      processTellerSyncDataInternal(rawData, localEnrollmentId)
+    ) as Promise<TellerSyncResult>;
   }
 
   const task = processTellerSyncDataInternal(rawData, localEnrollmentId);
-  syncInProgress = task;
+  syncInProgress = task as unknown as Promise<number>;
   task.finally(() => {
     syncInProgress = null;
   });
@@ -166,7 +180,7 @@ async function processTellerSyncDataInternal(
     transactions: Array<Record<string, unknown>>;
   },
   localEnrollmentId: string
-): Promise<number> {
+): Promise<TellerSyncResult> {
   debug('log', '[TELLER-SYNC] processTellerSyncData — enrollmentId:', localEnrollmentId);
 
   // Build local lookup maps from IndexedDB
@@ -179,6 +193,8 @@ async function processTellerSyncDataInternal(
 
   const ops: BatchOperation[] = [];
   const tellerIdToLocalId = new Map<string, string>();
+  let newAccountCount = 0;
+  let updatedAccountCount = 0;
 
   // Process accounts: create new, update existing
   for (const tellerAcct of rawData.accounts) {
@@ -188,6 +204,7 @@ async function processTellerSyncDataInternal(
     if (existing) {
       // Update balance + status only
       tellerIdToLocalId.set(tellerId, existing.id);
+      updatedAccountCount++;
       const updateFields = {
         balance_available: tellerAcct.balance_available ?? existing.balance_available,
         balance_ledger: tellerAcct.balance_ledger ?? existing.balance_ledger,
@@ -222,6 +239,7 @@ async function processTellerSyncDataInternal(
         }
       });
       remoteChangesStore.recordLocalChange(id, 'accounts', 'create');
+      newAccountCount++;
     }
   }
 
@@ -336,7 +354,12 @@ async function processTellerSyncDataInternal(
     debug('log', '[TELLER-SYNC] processTellerSyncData — batch write complete');
   }
 
-  return newTxnCount + updatedCount;
+  return {
+    newTransactions: newTxnCount,
+    updatedTransactions: updatedCount,
+    newAccounts: newAccountCount,
+    updatedAccounts: updatedAccountCount
+  };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -413,12 +436,12 @@ async function autoSyncStaleEnrollmentsInternal(
       }
 
       const rawData = await response.json();
-      const newCount = await processTellerSyncData(rawData, enrollment.id);
-      totalNew += newCount;
+      const result = await processTellerSyncData(rawData, enrollment.id);
+      totalNew += result.newTransactions + result.updatedTransactions;
       await updateStatus(enrollment.id, 'connected');
       debug(
         'log',
-        `[TELLER-SYNC] Auto-sync complete: ${enrollment.institution_name} — ${newCount} new`
+        `[TELLER-SYNC] Auto-sync complete: ${enrollment.institution_name} — ${result.newTransactions} new, ${result.updatedTransactions} updated`
       );
     } catch (err) {
       debug('warn', `[TELLER-SYNC] Auto-sync error for ${enrollment.institution_name}:`, err);

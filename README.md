@@ -12,7 +12,7 @@ Try it at: [https://finance.prabhas.io/demo](https://finance.prabhas.io/demo)
 |----------|-------------|
 | [FRAMEWORKS.md](./FRAMEWORKS.md) | Complete guide to all frameworks and architectural patterns |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, sync engine, conflict resolution, auth flows |
-| [stellar-drive](https://www.npmjs.com/package/@prabhask5/stellar-engine) | Offline-first sync engine powering the data layer |
+| [stellar-drive](https://www.npmjs.com/package/stellar-drive) | Offline-first sync engine powering the data layer |
 
 ---
 
@@ -204,7 +204,7 @@ Radiant includes a full demo mode for evaluating the app without any backend con
 | Layer | Technology |
 |-------|-----------|
 | Framework | SvelteKit 2 + Svelte 5 |
-| Sync Engine | stellar-drive (`@prabhask5/stellar-engine`) |
+| Sync Engine | stellar-drive (`stellar-drive`) |
 | Database | Supabase (PostgreSQL) |
 | Local Storage | IndexedDB (Dexie) |
 | Auth | Supabase Auth + PIN gate |

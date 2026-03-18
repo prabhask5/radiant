@@ -43,6 +43,7 @@
   import { autoSyncStaleEnrollments } from '$lib/teller/autoSync';
   import { categorizeTransaction } from '$lib/ml/categorizer';
   import { categorizer } from '$lib/ml/classifier';
+  import { addToast } from '$lib/stores/toast';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -77,26 +78,8 @@
   let selectionMode = $state(false);
   let selectedIds = $state<Set<string>>(new Set());
 
-  /* ── Auto-sync ── */
-  let autoSyncBanner = $state<string | null>(null);
-  let autoSyncBannerFading = $state(false);
-
-  /* ── Categorization toast ── */
-  let catToast = $state<{ message: string; type: 'success' | 'info' } | null>(null);
-  let catToastFading = $state(false);
-  let catToastTimer: ReturnType<typeof setTimeout> | null = null;
-
   function showCatToast(message: string, type: 'success' | 'info' = 'success') {
-    if (catToastTimer) clearTimeout(catToastTimer);
-    catToastFading = false;
-    catToast = { message, type };
-    catToastTimer = setTimeout(() => {
-      catToastFading = true;
-      setTimeout(() => {
-        catToast = null;
-        catToastFading = false;
-      }, 500);
-    }, 3000);
+    addToast(message, type === 'success' ? 'emerald' : 'sapphire');
   }
 
   /* ── Page entrance ── */
@@ -291,15 +274,10 @@
       .then(async (newCount) => {
         if (newCount > 0) {
           await Promise.all([transactionsStore.refresh(), accountsStore.refresh()]);
-          autoSyncBanner = `${newCount} new transaction${newCount !== 1 ? 's' : ''} synced`;
-          // Auto-dismiss after 4 seconds with fade
-          setTimeout(() => {
-            autoSyncBannerFading = true;
-            setTimeout(() => {
-              autoSyncBanner = null;
-              autoSyncBannerFading = false;
-            }, 500);
-          }, 4000);
+          addToast(
+            `Background sync: ${newCount} transaction${newCount !== 1 ? 's' : ''} updated`,
+            'sapphire'
+          );
         }
       })
       .catch((err) => {
@@ -374,9 +352,15 @@
   /** Bulk delete all selected transactions. */
   async function bulkDeleteSelected() {
     const ids = [...selectedIds];
-    debug('log', '[TRANSACTIONS] bulkDeleteSelected —', ids.length, 'transactions');
+    const count = ids.length;
+    debug('log', '[TRANSACTIONS] bulkDeleteSelected —', count, 'transactions');
     clearSelection();
-    await transactionsStore.bulkDelete(ids);
+    try {
+      await transactionsStore.bulkDelete(ids);
+      addToast(`${count} transaction${count !== 1 ? 's' : ''} deleted`, 'ruby');
+    } catch {
+      addToast('Failed to delete transactions', 'ruby');
+    }
   }
 
   /** Load more transactions. */
@@ -535,7 +519,12 @@
   async function deleteSingle(transactionId: string) {
     debug('log', '[TRANSACTIONS] deleteSingle —', transactionId);
     expandedId = null;
-    await transactionsStore.deleteTransaction(transactionId);
+    try {
+      await transactionsStore.deleteTransaction(transactionId);
+      addToast('Transaction deleted', 'ruby');
+    } catch {
+      addToast('Failed to delete transaction', 'ruby');
+    }
   }
 
   /** Re-run ML categorization on a single transaction. */
@@ -1191,55 +1180,6 @@
 </div>
 
 <!-- ─── Floating Selection Bar (outside page container to avoid clipping) ─── -->
-<!-- ─── Auto-sync floating toast ─── -->
-{#if autoSyncBanner}
-  <div class="auto-sync-toast" class:fading={autoSyncBannerFading}>
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-    {autoSyncBanner}
-  </div>
-{/if}
-
-<!-- ─── Categorization toast ─── -->
-{#if catToast}
-  <div class="cat-toast" class:info={catToast.type === 'info'} class:fading={catToastFading}>
-    {#if catToast.type === 'success'}
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    {:else}
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
-    {/if}
-    {catToast.message}
-  </div>
-{/if}
-
 {#if selectionMode && selectedIds.size > 0}
   <div class="selection-bar">
     <div class="selection-bar-inner">
@@ -1308,93 +1248,6 @@
     transition:
       opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
       transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  /* ── Auto-sync floating toast ── */
-  .auto-sync-toast {
-    position: fixed;
-    bottom: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9000;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0.55rem 1rem;
-    background: var(--txn-glass-bg);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-    border: 1px solid rgba(61, 214, 140, 0.2);
-    border-radius: var(--txn-radius);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(61, 214, 140, 0.06);
-    color: var(--txn-emerald);
-    font-size: 0.82rem;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-    white-space: nowrap;
-    animation: toastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-  .auto-sync-toast.fading {
-    animation: toastFadeOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  }
-  @keyframes toastSlideUp {
-    from {
-      opacity: 0;
-      transform: translateX(-50%) translateY(16px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
-    }
-  }
-  @keyframes toastFadeOut {
-    from {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
-    }
-    to {
-      opacity: 0;
-      transform: translateX(-50%) translateY(20px) scale(0.95);
-    }
-  }
-
-  /* ── Categorization toast ── */
-  .cat-toast {
-    position: fixed;
-    bottom: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9000;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0.55rem 1rem;
-    background: var(--txn-glass-bg);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-    border: 1px solid rgba(61, 214, 140, 0.2);
-    border-radius: var(--txn-radius);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(61, 214, 140, 0.06);
-    color: var(--txn-emerald);
-    font-size: 0.82rem;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-    white-space: nowrap;
-    animation: toastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-  .cat-toast.info {
-    border-color: rgba(180, 150, 80, 0.2);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(180, 150, 80, 0.06);
-    color: var(--txn-gold);
-  }
-  .cat-toast.fading {
-    animation: toastFadeOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
   .txn-page::before {

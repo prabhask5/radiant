@@ -35,6 +35,7 @@
     type CSVColumnMapping
   } from '$lib/utils/csv';
   import { processTellerSyncData, autoSyncStaleEnrollments } from '$lib/teller/autoSync';
+  import { addToast } from '$lib/stores/toast';
 
   // ==========================================================================
   //                           COMPONENT STATE
@@ -55,12 +56,6 @@
   /** Whether a sync operation is in progress after enrollment. */
   let syncing = $state(false);
 
-  /** Feedback message shown after sync or error. */
-  let feedbackMessage = $state('');
-
-  /** Feedback message type for styling. */
-  let feedbackType = $state<'success' | 'error' | ''>('');
-
   /** Enrollment ID pending disconnection confirmation. */
   let confirmDisconnectId = $state<string | null>(null);
 
@@ -69,12 +64,6 @@
 
   /** Account ID whose balance visibility is being toggled. */
   let togglingHidden = $state<string | null>(null);
-
-  /** Auto-dismiss timeout reference. */
-  let feedbackTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  /** Whether the feedback toast is fading out. */
-  let feedbackFading = $state(false);
 
   /** Whether the manual account creation modal is open. */
   let showManualModal = $state(false);
@@ -576,7 +565,7 @@
       });
 
       // Process data client-side: IndexedDB + sync queue (offline-first)
-      await processTellerSyncData(rawData, localEnrollmentId);
+      const syncResult = await processTellerSyncData(rawData, localEnrollmentId);
 
       // Update enrollment last_synced_at
       await enrollmentsStore.updateStatus(localEnrollmentId, 'connected');
@@ -589,10 +578,21 @@
       ]);
 
       debug('log', '[ACCOUNTS] Enrollment sync complete');
-      showFeedback(
-        'success',
-        `${enrollment.enrollment.institution.name} accounts synced successfully.`
-      );
+      const parts: string[] = [];
+      if (syncResult.newAccounts > 0)
+        parts.push(
+          `${syncResult.newAccounts} account${syncResult.newAccounts !== 1 ? 's' : ''} linked`
+        );
+      if (syncResult.newTransactions > 0)
+        parts.push(
+          `${syncResult.newTransactions} new transaction${syncResult.newTransactions !== 1 ? 's' : ''}`
+        );
+      if (syncResult.updatedTransactions > 0)
+        parts.push(
+          `${syncResult.updatedTransactions} transaction${syncResult.updatedTransactions !== 1 ? 's' : ''} updated`
+        );
+      const detail = parts.length > 0 ? ` — ${parts.join(', ')}` : '';
+      showFeedback('success', `${enrollment.enrollment.institution.name} synced${detail}.`);
     } catch (err) {
       debug('error', '[ACCOUNTS] Enrollment sync error:', err);
       console.error('Enrollment sync error:', err);
@@ -641,7 +641,7 @@
       const rawData = await response.json();
 
       // Process data client-side: IndexedDB + sync queue (offline-first)
-      await processTellerSyncData(rawData, enrollment.id);
+      const syncResult = await processTellerSyncData(rawData, enrollment.id);
 
       // Update enrollment last_synced_at
       await enrollmentsStore.updateStatus(enrollment.id, 'connected');
@@ -652,7 +652,16 @@
         enrollmentsStore.refresh()
       ]);
       debug('log', '[ACCOUNTS] retrySyncEnrollment complete —', enrollment.institution_name);
-      showFeedback('success', `${enrollment.institution_name} accounts synced successfully.`);
+      const parts: string[] = [];
+      if (syncResult.newTransactions > 0)
+        parts.push(
+          `${syncResult.newTransactions} new transaction${syncResult.newTransactions !== 1 ? 's' : ''}`
+        );
+      if (syncResult.updatedTransactions > 0)
+        parts.push(`${syncResult.updatedTransactions} updated`);
+      if (syncResult.newTransactions === 0 && syncResult.updatedTransactions === 0)
+        parts.push('already up to date');
+      showFeedback('success', `${enrollment.institution_name} — ${parts.join(', ')}.`);
     } catch (err) {
       debug('error', '[ACCOUNTS] retrySyncEnrollment failed:', err);
       console.error('Retry sync error:', err);
@@ -692,8 +701,13 @@
       remoteChangesStore.recordLocalChange(accountId, 'accounts', 'toggle');
       await engineUpdate('accounts', accountId, { is_hidden: !currentlyHidden });
       await accountsStore.refresh();
+      addToast(
+        !currentlyHidden ? 'Account hidden from totals' : 'Account visible in totals',
+        'sapphire'
+      );
     } catch (err) {
       console.error('Toggle hidden error:', err);
+      addToast('Failed to update account visibility', 'ruby');
     } finally {
       togglingHidden = null;
     }
@@ -704,34 +718,11 @@
   // ==========================================================================
 
   /**
-   * Display a feedback message with auto-dismiss.
+   * Display a feedback message via the global gem toast system.
+   * Maps success → emerald, error → ruby.
    */
   function showFeedback(type: 'success' | 'error', message: string) {
-    feedbackType = type;
-    feedbackMessage = message;
-    feedbackFading = false;
-    if (feedbackTimeout) clearTimeout(feedbackTimeout);
-    feedbackTimeout = setTimeout(() => {
-      feedbackFading = true;
-      setTimeout(() => {
-        feedbackMessage = '';
-        feedbackType = '';
-        feedbackFading = false;
-      }, 600);
-    }, 4000);
-  }
-
-  /**
-   * Dismiss the current feedback message.
-   */
-  function dismissFeedback() {
-    feedbackFading = true;
-    if (feedbackTimeout) clearTimeout(feedbackTimeout);
-    setTimeout(() => {
-      feedbackMessage = '';
-      feedbackType = '';
-      feedbackFading = false;
-    }, 600);
+    addToast(message, type === 'success' ? 'emerald' : 'ruby');
   }
 
   /**
@@ -875,12 +866,13 @@
         balance_updated_at: new Date().toISOString(),
         is_hidden: false
       });
+      const accountName = manualName.trim();
       debug('log', '[ACCOUNTS] Manual account created — id:', id);
       showManualModal = false;
       resetManualForm();
       showFeedback(
         'success',
-        `Account "${manualName.trim()}" created. You can now import transactions via CSV.`
+        `Account "${accountName}" created. You can now import transactions via CSV.`
       );
 
       // Optionally open CSV import for the new account
@@ -1753,62 +1745,6 @@
   {/if}
 </div>
 
-<!-- ── Feedback Toast (floating, outside page container) ──────────────────── -->
-{#if feedbackMessage}
-  <div class="feedback-toast feedback-{feedbackType}" class:fading={feedbackFading} role="alert">
-    <div class="feedback-content">
-      {#if feedbackType === 'success'}
-        <svg
-          class="feedback-icon"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline
-            points="22 4 12 14.01 9 11.01"
-          /></svg
-        >
-      {:else}
-        <svg
-          class="feedback-icon"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line
-            x1="9"
-            y1="9"
-            x2="15"
-            y2="15"
-          /></svg
-        >
-      {/if}
-      <span>{feedbackMessage}</span>
-    </div>
-    <button class="feedback-dismiss" onclick={dismissFeedback} aria-label="Dismiss">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
-      >
-    </button>
-  </div>
-{/if}
-
 <!-- ═══════════════════════════════════════════════════════════════════════════
      TELLER CONNECT BACKDROP
      ═══════════════════════════════════════════════════════════════════════════ -->
@@ -2502,99 +2438,6 @@
     to {
       transform: rotate(360deg);
     }
-  }
-
-  /* ── Feedback Toast — floating bottom bar ──────────────────────────────── */
-  .feedback-toast {
-    position: fixed;
-    bottom: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9000;
-    max-width: 420px;
-    width: calc(100% - 32px);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.65rem 1rem;
-    border-radius: 12px;
-    background: rgba(14, 12, 8, 0.75);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-    border: 1px solid rgba(180, 150, 80, 0.12);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(180, 150, 80, 0.06);
-    animation: toastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  @keyframes toastSlideUp {
-    from {
-      opacity: 0;
-      transform: translateX(-50%) translateY(16px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
-    }
-  }
-
-  .feedback-toast.fading {
-    animation: toastFadeOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  }
-
-  @keyframes toastFadeOut {
-    from {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
-    }
-    to {
-      opacity: 0;
-      transform: translateX(-50%) translateY(16px) scale(0.96);
-    }
-  }
-
-  .feedback-success {
-    border-color: rgba(52, 211, 153, 0.25);
-    color: var(--emerald);
-  }
-
-  .feedback-error {
-    border-color: rgba(248, 113, 113, 0.25);
-    color: var(--ruby);
-  }
-
-  .feedback-content {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.82rem;
-    line-height: 1.4;
-  }
-
-  .feedback-icon {
-    flex-shrink: 0;
-  }
-
-  .feedback-dismiss {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    background: transparent;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    opacity: 0.6;
-    border-radius: 6px;
-    transition: opacity 0.2s;
-    flex-shrink: 0;
-  }
-
-  .feedback-dismiss:hover {
-    opacity: 1;
   }
 
   /* ── Loading State ──────────────────────────────────────────────────────── */

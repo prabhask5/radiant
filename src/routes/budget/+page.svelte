@@ -37,6 +37,7 @@
     recurringTransactionsStore,
     categoriesStore
   } from '$lib/stores/data';
+  import { addToast } from '$lib/stores/toast';
 
   /* ── Utilities ── */
   import {
@@ -349,11 +350,15 @@
 
       if (editingCategoryId) {
         await categoriesStore.update(editingCategoryId, data);
+        addToast(`Category "${data.name}" updated`, 'emerald');
       } else {
         await categoriesStore.create(data);
+        addToast(`Category "${data.name}" created`, 'emerald');
       }
       await categoriesStore.refresh();
       categoryFormMode = 'list';
+    } catch {
+      addToast('Failed to save category', 'ruby');
     } finally {
       saving = false;
     }
@@ -361,12 +366,16 @@
 
   /** Delete a category (uncategorizes all its transactions via store). */
   async function deleteCategory(id: string) {
+    const cat = categories.find((c: Category) => c.id === id);
     saving = true;
     try {
       await categoriesStore.remove(id);
       await categoriesStore.refresh();
       confirmDeleteId = null;
       if (categoryFormMode === 'edit') categoryFormMode = 'list';
+      addToast(`Category "${cat?.name ?? ''}" deleted`, 'ruby');
+    } catch {
+      addToast('Failed to delete category', 'ruby');
     } finally {
       saving = false;
     }
@@ -426,11 +435,15 @@
 
       if (editingRecurringId) {
         await recurringTransactionsStore.update(editingRecurringId, data);
+        addToast(`"${data.name}" updated`, 'emerald');
       } else {
         await recurringTransactionsStore.create(data);
+        addToast(`"${data.name}" added to recurring`, 'emerald');
       }
 
       showRecurringModal = false;
+    } catch {
+      addToast('Failed to save recurring transaction', 'ruby');
     } finally {
       recurringFormSaving = false;
     }
@@ -438,7 +451,13 @@
 
   /** Remove a recurring transaction. */
   async function removeRecurring(id: string) {
-    await recurringTransactionsStore.remove(id);
+    const item = recurringItems.find((r: RecurringTransaction) => r.id === id);
+    try {
+      await recurringTransactionsStore.remove(id);
+      addToast(`"${item?.name ?? 'Item'}" removed from recurring`, 'ruby');
+    } catch {
+      addToast('Failed to remove recurring transaction', 'ruby');
+    }
   }
 
   /** Format a recurring frequency for display. */

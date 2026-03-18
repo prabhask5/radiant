@@ -225,7 +225,7 @@ Snippets replace slots for passing renderable content between components. They a
 
 ### What is stellar-drive?
 
-stellar-drive (`@prabhask5/stellar-engine`) is an offline-first sync engine that manages local IndexedDB storage, Supabase cloud sync, authentication, and PWA infrastructure. It provides a single `initEngine()` call that sets up the entire data layer, and exposes typed CRUD functions and reactive Svelte stores.
+stellar-drive (`stellar-drive`) is an offline-first sync engine that manages local IndexedDB storage, Supabase cloud sync, authentication, and PWA infrastructure. It provides a single `initEngine()` call that sets up the entire data layer, and exposes typed CRUD functions and reactive Svelte stores.
 
 ### How Radiant uses stellar-drive
 
@@ -235,7 +235,7 @@ Radiant initializes stellar-drive once in the root `+layout.ts`. All data operat
 
 ```ts
 // src/routes/+layout.ts
-import { initEngine } from '@prabhask5/stellar-engine';
+import { initEngine } from 'stellar-drive';
 import { schema } from '$lib/schema';
 import { demoConfig } from '$lib/demo/config';
 
@@ -252,7 +252,7 @@ export const load: LayoutLoad = async () => {
 #### CRUD Operations
 
 ```ts
-import { create, update, remove, findAll, findOne } from '@prabhask5/stellar-engine';
+import { create, update, remove, findAll, findOne } from 'stellar-drive';
 
 // Create
 await create('transactions', { description: 'Coffee', amount: 4.50, category_id: '...' });
@@ -286,7 +286,7 @@ stellar-drive provides reactive store factories for Svelte 5 integration:
 
 ```svelte
 <script lang="ts">
-  import { createCollectionStore } from '@prabhask5/stellar-engine';
+  import { createCollectionStore } from 'stellar-drive';
 
   const transactions = createCollectionStore('transactions', {
     where: { account_id: accountId },
@@ -304,7 +304,7 @@ The `createDetailStore` function provides a reactive store for a single record:
 
 ```svelte
 <script lang="ts">
-  import { createDetailStore } from '@prabhask5/stellar-engine';
+  import { createDetailStore } from 'stellar-drive';
   const account = createDetailStore('accounts', accountId);
 </script>
 
