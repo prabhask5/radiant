@@ -74,7 +74,7 @@
   let manualType = $state<'depository' | 'credit'>('depository');
   let manualSubtype = $state('checking');
   let manualLastFour = $state('');
-  let manualCreditLimit = $state('');
+  let manualCreditLimit = $state(0.0);
   let creatingManual = $state(false);
 
   /** Account name editing state. */
@@ -839,7 +839,7 @@
     manualType = 'depository';
     manualSubtype = 'checking';
     manualLastFour = '';
-    manualCreditLimit = '';
+    manualCreditLimit = 0.0;
   }
 
   /** Create a new manual account. */
@@ -861,8 +861,7 @@
         currency: 'USD',
         last_four: manualLastFour.trim() ? manualLastFour.trim().slice(-4) : null,
         status: 'open',
-        balance_available:
-          manualType === 'credit' ? parseFloat(manualCreditLimit).toFixed(2) : '0.00',
+        balance_available: manualType === 'credit' ? manualCreditLimit.toFixed(2) : '0.00',
         balance_ledger: '0.00',
         balance_updated_at: new Date().toISOString(),
         is_hidden: false
@@ -1868,7 +1867,7 @@
           disabled={creatingManual ||
             !manualInstitution.trim() ||
             !manualName.trim() ||
-            (manualType === 'credit' && !manualCreditLimit.trim())}
+            (manualType === 'credit' && manualCreditLimit === 0.0)}
         >
           {#if creatingManual}
             <div class="btn-spinner"></div>
