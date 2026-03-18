@@ -969,16 +969,6 @@
     showCSVModal = true;
   }
 
-  /** Open CSV import for a specific manual institution group. */
-  function openCSVForGroup(group: (typeof accountsByInstitution)[number]) {
-    // Pick the first account in the group for import
-    if (group.accounts.length > 0) {
-      csvImportAccountId = group.accounts[0].id;
-      csvImportAccountType = group.accounts[0].type;
-    }
-    openCSVModal();
-  }
-
   /** Handle CSV file selection (from input or drag-drop). */
   function handleCSVFile(file: File) {
     const reader = new FileReader();
@@ -1445,26 +1435,6 @@
                     </button>
                   </div>
                 {:else}
-                  <button
-                    class="sync-btn"
-                    onclick={() => openCSVForGroup(group)}
-                    aria-label="Import CSV for {group.institutionName}"
-                    title="Import CSV"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
-                        points="17 8 12 3 7 8"
-                      /><line x1="12" y1="3" x2="12" y2="15" /></svg
-                    >
-                  </button>
                   <button
                     class="disconnect-btn"
                     onclick={() => (confirmDeleteManualInst = group.institutionName)}
