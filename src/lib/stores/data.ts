@@ -173,7 +173,10 @@ function createTransactionsStore() {
     async updateCategory(transactionId: string, categoryId: string | null) {
       debug('log', '[DATA] transactions — updateCategory', { transactionId, categoryId });
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
-      await engineUpdate('transactions', transactionId, { category_id: categoryId });
+      await engineUpdate('transactions', transactionId, {
+        category_id: categoryId,
+        is_auto_categorized: false
+      });
       await store.load();
       debug('log', '[DATA] transactions — updateCategory complete', { transactionId });
 
