@@ -46,6 +46,11 @@ export async function syncCategorizationResults(): Promise<void> {
   const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
   if (allTxns.length === 0) return;
 
+  // Skip ML when no categories exist — nothing useful to assign.
+  // Transactions stay in "never touched" state until the user creates categories.
+  const allCategories = (await engineGetAll('categories')) as unknown as { deleted?: boolean }[];
+  if (allCategories.filter((c) => !c.deleted).length === 0) return;
+
   // Train classifier on all transactions that have been through user categorization.
   // Include manually-categorized (category_id set) and manually-uncategorized
   // (category_id null but is_auto_categorized true, meaning user explicitly set "no category").

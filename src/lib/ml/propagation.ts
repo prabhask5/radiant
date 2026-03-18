@@ -144,10 +144,8 @@ export async function propagateCategory(
   // overwrites manual user categorizations — user intent always wins.
   const matches = allTxns.filter((t) => {
     if (t.deleted || t.id === sourceTransactionId) return false;
-    // Skip manually categorized (has category + not auto-categorized = user set it)
-    if (t.category_id !== null && !t.is_auto_categorized) return false;
-    // Skip if already set to the same category
-    if (t.category_id === categoryId) return false;
+    // Only propagate to never-touched transactions
+    if (t.category_id !== null || t.is_auto_categorized) return false;
     return similarity(sourceTokens, tokenize(t.description)) >= SIMILARITY_THRESHOLD;
   });
 
