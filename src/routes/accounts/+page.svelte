@@ -74,7 +74,7 @@
   let manualType = $state<'depository' | 'credit'>('depository');
   let manualSubtype = $state('checking');
   let manualLastFour = $state('');
-  let manualBalance = $state('');
+  let manualCreditLimit = $state('');
   let creatingManual = $state(false);
 
   /** Account name editing state. */
@@ -220,7 +220,7 @@
     return accounts
       .filter((a) => a.type === 'depository' && !a.is_hidden)
       .reduce((sum, a) => {
-        const balance = parseFloat(a.balance_available ?? a.balance_ledger ?? '0');
+        const balance = parseFloat(a.balance_available ?? a.balance_ledger ?? '0.00');
         return sum + (isNaN(balance) ? 0 : balance);
       }, 0);
   });
@@ -233,7 +233,7 @@
     return accounts
       .filter((a) => a.type === 'credit' && !a.is_hidden)
       .reduce((sum, a) => {
-        const balance = parseFloat(a.balance_ledger ?? a.balance_available ?? '0');
+        const balance = parseFloat(a.balance_ledger ?? a.balance_available ?? '0.00');
         return sum + (isNaN(balance) ? 0 : Math.abs(balance));
       }, 0);
   });
@@ -349,8 +349,8 @@
       const currentBal =
         parseFloat(
           acct.type === 'credit'
-            ? (acct.balance_ledger ?? acct.balance_available ?? '0')
-            : (acct.balance_available ?? acct.balance_ledger ?? '0')
+            ? (acct.balance_ledger ?? acct.balance_available ?? '0.00')
+            : (acct.balance_available ?? acct.balance_ledger ?? '0.00')
         ) || 0;
 
       const acctTxns = txns
@@ -750,7 +750,7 @@
     if (account.type === 'credit') {
       const ledger = account.balance_ledger;
       if (!ledger) return '--';
-      return formatCurrency(Math.abs(parseFloat(ledger)));
+      return formatCurrency(parseFloat(ledger));
     }
     const balance = account.balance_available ?? account.balance_ledger;
     if (!balance) return '--';
@@ -759,14 +759,14 @@
 
   /**
    * Get the credit limit for a credit card account.
-   * Limit = |ledger balance| + available credit.
+   * Limit = available balance + ledger balance.
    */
   function creditLimit(account: (typeof accounts)[0]): string | null {
     if (account.type !== 'credit') return null;
-    const ledger = parseFloat(account.balance_ledger ?? '0');
-    const available = parseFloat(account.balance_available ?? '0');
+    const ledger = parseFloat(account.balance_ledger ?? '0.00');
+    const available = parseFloat(account.balance_available ?? '0.00');
     if (!ledger && !available) return null;
-    return formatCurrency(Math.abs(ledger) + available);
+    return formatCurrency(available + ledger);
   }
 
   /**
@@ -839,7 +839,7 @@
     manualType = 'depository';
     manualSubtype = 'checking';
     manualLastFour = '';
-    manualBalance = '';
+    manualCreditLimit = '';
   }
 
   /** Create a new manual account. */
@@ -861,8 +861,9 @@
         currency: 'USD',
         last_four: manualLastFour.trim() ? manualLastFour.trim().slice(-4) : null,
         status: 'open',
-        balance_available: manualBalance ? parseFloat(manualBalance).toFixed(2) : '0.00',
-        balance_ledger: manualBalance ? parseFloat(manualBalance).toFixed(2) : '0.00',
+        balance_available:
+          manualType === 'credit' ? parseFloat(manualCreditLimit).toFixed(2) : '0.00',
+        balance_ledger: '0.00',
         balance_updated_at: new Date().toISOString(),
         is_hidden: false
       });
@@ -1842,16 +1843,21 @@
           </label>
         </div>
 
-        <label class="form-label">
-          Current Balance
-          <input
-            class="form-input"
-            type="number"
-            step="0.01"
-            bind:value={manualBalance}
-            placeholder="0.00"
-          />
-        </label>
+        {#if manualType === 'credit'}
+          <label class="form-label">
+            Credit Limit
+            <input
+              class="form-input"
+              type="number"
+              step="0.01"
+              bind:value={manualCreditLimit}
+              placeholder="0.00"
+            />
+            <span class="form-hint">
+              Current balance will be derived from imported transactions.
+            </span>
+          </label>
+        {/if}
       </div>
 
       <div class="modal-footer">
@@ -1859,7 +1865,10 @@
         <button
           class="btn-primary"
           onclick={createManualAccount}
-          disabled={creatingManual || !manualInstitution.trim() || !manualName.trim()}
+          disabled={creatingManual ||
+            !manualInstitution.trim() ||
+            !manualName.trim() ||
+            (manualType === 'credit' && !manualCreditLimit.trim())}
         >
           {#if creatingManual}
             <div class="btn-spinner"></div>

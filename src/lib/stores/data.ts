@@ -108,13 +108,38 @@ function createAccountsStore() {
       return id;
     },
     async updateBalance(accountId: string, balance: string) {
-      debug('log', '[DATA] accounts — updateBalance', { accountId, balance });
+      const account = (await engineGetAll('accounts')).find(
+        (row) => row.id === accountId && !row.deleted
+      ) as Account | undefined;
+      if (!account) return;
+
       remoteChangesStore.recordLocalChange(accountId, 'accounts', 'update');
-      await engineUpdate('accounts', accountId, {
-        balance_ledger: balance,
-        balance_available: balance,
-        balance_updated_at: now()
-      });
+      if (account.type === 'credit') {
+        const ledgerDelta = parseFloat(balance) - parseFloat(account.balance_ledger as string);
+        const updatedBalanceAvailable =
+          parseFloat(account.balance_available as string) - ledgerDelta;
+        debug('log', '[DATA] accounts — updateBalance: credit account', {
+          accountId,
+          balance_ledger: balance,
+          balance_available: updatedBalanceAvailable.toFixed(2)
+        });
+        await engineUpdate('accounts', accountId, {
+          balance_ledger: balance,
+          balance_available: updatedBalanceAvailable.toFixed(2),
+          balance_updated_at: now()
+        });
+      } else {
+        debug('log', '[DATA] accounts — updateBalance: depository account', {
+          accountId,
+          balance_ledger: balance,
+          balance_available: balance
+        });
+        await engineUpdate('accounts', accountId, {
+          balance_ledger: balance,
+          balance_available: balance,
+          balance_updated_at: now()
+        });
+      }
       await store.load();
       debug('log', '[DATA] accounts — updateBalance complete', { accountId });
     },

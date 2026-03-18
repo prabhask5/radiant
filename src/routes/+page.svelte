@@ -189,8 +189,8 @@
       const currentBal =
         parseFloat(
           acct.type === 'credit'
-            ? (acct.balance_ledger ?? acct.balance_available ?? '0')
-            : (acct.balance_available ?? acct.balance_ledger ?? '0')
+            ? (acct.balance_ledger ?? acct.balance_available ?? '0.00')
+            : (acct.balance_available ?? acct.balance_ledger ?? '0.00')
         ) || 0;
 
       const acctTxns = txns
