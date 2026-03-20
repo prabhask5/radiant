@@ -318,18 +318,30 @@ function createTransactionsStore() {
 
       // Also check Supabase for hashes that might not be in local IndexedDB.
       // This is a targeted query (only csv_import_hash column) to minimize egress.
+      // Paginate to avoid the default 1000-row limit — accounts with large transaction
+      // histories would silently truncate, causing duplicate key violations on push.
       if (typeof navigator !== 'undefined' && navigator.onLine) {
         try {
-          const { data: remoteHashes } = await supabase
-            .from('radiant_transactions')
-            .select('csv_import_hash')
-            .eq('account_id', accountId)
-            .not('csv_import_hash', 'is', null)
-            .or('deleted.is.null,deleted.eq.false');
-          if (remoteHashes) {
-            for (const row of remoteHashes) {
-              if (row.csv_import_hash) existingHashes.add(row.csv_import_hash);
+          const PAGE_SIZE = 1000;
+          let offset = 0;
+          let hasMore = true;
+          while (hasMore) {
+            const { data: remoteHashes } = await supabase
+              .from('radiant_transactions')
+              .select('csv_import_hash')
+              .eq('account_id', accountId)
+              .not('csv_import_hash', 'is', null)
+              .or('deleted.is.null,deleted.eq.false')
+              .range(offset, offset + PAGE_SIZE - 1);
+            if (remoteHashes) {
+              for (const row of remoteHashes) {
+                if (row.csv_import_hash) existingHashes.add(row.csv_import_hash);
+              }
+              hasMore = remoteHashes.length === PAGE_SIZE;
+            } else {
+              hasMore = false;
             }
+            offset += PAGE_SIZE;
           }
           debug('log', '[DATA] transactions — bulkCreateFromCSV remote dedup', {
             localHashes: all.filter((t) => t.account_id === accountId && t.csv_import_hash).length,
