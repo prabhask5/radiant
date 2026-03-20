@@ -678,10 +678,22 @@
     disconnecting = true;
     debug('log', '[ACCOUNTS] disconnectEnrollment —', enrollmentId);
     try {
+      // Cascade: delete all accounts (and their transactions) for this enrollment
+      const enrollmentAccounts = accounts.filter((a) => a.enrollment_id === enrollmentId);
+      debug(
+        'log',
+        '[ACCOUNTS] Cascade deleting',
+        enrollmentAccounts.length,
+        'accounts for enrollment',
+        enrollmentId
+      );
+      for (const acct of enrollmentAccounts) {
+        await accountsStore.deleteAccount(acct.id);
+      }
       await enrollmentsStore.remove(enrollmentId);
       await Promise.all([accountsStore.refresh(), enrollmentsStore.refresh()]);
       confirmDisconnectId = null;
-      showFeedback('success', 'Institution disconnected.');
+      showFeedback('success', 'Institution disconnected and all data removed.');
     } catch (err) {
       console.error('Disconnect error:', err);
       showFeedback('error', 'Failed to disconnect. Please try again.');
@@ -898,20 +910,7 @@
       );
       debug('log', '[ACCOUNTS] Deleting', manualAccounts.length, 'accounts for', institutionName);
       for (const acct of manualAccounts) {
-        const acctTxns = ($transactionsStore ?? []).filter(
-          (t: { account_id: string }) => t.account_id === acct.id
-        );
-        if (acctTxns.length > 0) {
-          debug(
-            'log',
-            '[ACCOUNTS] Bulk deleting',
-            acctTxns.length,
-            'transactions for account',
-            acct.id
-          );
-          await transactionsStore.bulkDelete(acctTxns.map((t: { id: string }) => t.id));
-        }
-        debug('log', '[ACCOUNTS] Deleting account', acct.id);
+        debug('log', '[ACCOUNTS] Deleting account (with cascade)', acct.id);
         await accountsStore.deleteAccount(acct.id);
       }
       confirmDeleteManualInst = null;

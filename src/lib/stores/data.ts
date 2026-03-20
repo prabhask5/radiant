@@ -23,6 +23,7 @@ import type { BatchOperation } from 'stellar-drive/data';
 import { generateId, now } from 'stellar-drive/utils';
 import { createCollectionStore, remoteChangesStore } from 'stellar-drive/stores';
 import { debug } from 'stellar-drive/utils';
+import { supabase } from 'stellar-drive';
 import type {
   Account,
   Transaction,
@@ -145,6 +146,26 @@ function createAccountsStore() {
     },
     async deleteAccount(accountId: string) {
       debug('log', '[DATA] accounts — deleteAccount', { accountId });
+
+      // Cascade: delete all transactions belonging to this account first.
+      // This ensures child records are removed from both IndexedDB and Supabase
+      // (as soft-delete tombstones that will be garbage-collected).
+      const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
+      const accountTxns = allTxns.filter((t) => t.account_id === accountId && !t.deleted);
+      if (accountTxns.length > 0) {
+        debug('log', '[DATA] accounts — cascade deleting', accountTxns.length, 'transactions');
+        await Promise.all(
+          accountTxns.map((t) => remoteChangesStore.markPendingDelete(t.id, 'transactions'))
+        );
+        const ops: BatchOperation[] = accountTxns.map((t) => ({
+          type: 'delete' as const,
+          table: 'transactions',
+          id: t.id
+        }));
+        await engineBatchWrite(ops);
+        debug('log', '[DATA] accounts — cascade delete complete');
+      }
+
       await remoteChangesStore.markPendingDelete(accountId, 'accounts');
       await engineDelete('accounts', accountId);
       await store.load();
@@ -285,13 +306,39 @@ function createTransactionsStore() {
     ) {
       debug('log', '[DATA] transactions — bulkCreateFromCSV', { count: transactions.length });
 
-      // Dedup: get existing hashes for this account
+      // Dedup: get existing hashes from both IndexedDB and Supabase.
+      // IndexedDB alone can be stale (app reinstall, cache clear, partial sync)
+      // which causes duplicate key violations on the server's unique constraint.
       const all = (await engineGetAll('transactions')) as unknown as Transaction[];
       const existingHashes = new Set(
         all
           .filter((t) => t.account_id === accountId && t.csv_import_hash)
           .map((t) => t.csv_import_hash)
       );
+
+      // Also check Supabase for hashes that might not be in local IndexedDB.
+      // This is a targeted query (only csv_import_hash column) to minimize egress.
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const { data: remoteHashes } = await supabase
+            .from('radiant_transactions')
+            .select('csv_import_hash')
+            .eq('account_id', accountId)
+            .not('csv_import_hash', 'is', null)
+            .or('deleted.is.null,deleted.eq.false');
+          if (remoteHashes) {
+            for (const row of remoteHashes) {
+              if (row.csv_import_hash) existingHashes.add(row.csv_import_hash);
+            }
+          }
+          debug('log', '[DATA] transactions — bulkCreateFromCSV remote dedup', {
+            localHashes: all.filter((t) => t.account_id === accountId && t.csv_import_hash).length,
+            totalHashes: existingHashes.size
+          });
+        } catch (e) {
+          debug('warn', '[DATA] transactions — remote dedup failed, using local only:', e);
+        }
+      }
 
       const newTxns = transactions.filter((t) => !existingHashes.has(t.csv_import_hash));
       debug('log', '[DATA] transactions — bulkCreateFromCSV dedup', {
