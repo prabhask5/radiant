@@ -140,8 +140,8 @@ export async function propagateCategory(
   });
 
   // Find similar transactions to propagate to.
-  // Overwrites auto-categorized and new transactions but never overwrites
-  // manual user categorizations — user intent always wins.
+  // Overwrites auto-ML, previous propagation, and new transactions but
+  // never overwrites manual user categorizations — user intent always wins.
   const matches = allTxns.filter((t) => {
     if (t.deleted || t.id === sourceTransactionId) return false;
     // Never overwrite manually-set categories (including manual "no category").
@@ -158,7 +158,7 @@ export async function propagateCategory(
       type: 'update' as const,
       table: 'transactions',
       id: t.id,
-      fields: { category_id: categoryId, category_source: 'auto' }
+      fields: { category_id: categoryId, category_source: 'propagation' }
     }));
     await engineBatchWrite(ops);
     debug('log', '[ML:PROPAGATE] Propagated category to similar transactions', {

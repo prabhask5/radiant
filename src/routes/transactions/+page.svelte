@@ -65,6 +65,8 @@
   /* ── Pagination ── */
   const PAGE_SIZE = 50;
   let visibleCount = $state(PAGE_SIZE);
+  /** Number of items already rendered — items beyond this skip stagger animation. */
+  let renderedCount = $state(0);
 
   /* ── Expanded transaction detail ── */
   let expandedId = $state<string | null>(null);
@@ -193,10 +195,16 @@
    * Group visible transactions by date for rendering with date headers.
    */
   const groupedTransactions = $derived.by(() => {
-    const groups: Array<{ date: string; label: string; transactions: typeof visibleTransactions }> =
-      [];
+    const groups: Array<{
+      date: string;
+      label: string;
+      transactions: typeof visibleTransactions;
+      /** Flat index of the first transaction in this group (for animation gating). */
+      offset: number;
+    }> = [];
     let currentDate = '';
     let currentGroup: (typeof groups)[number] | null = null;
+    let flatIdx = 0;
 
     for (const t of visibleTransactions) {
       if (t.date !== currentDate) {
@@ -204,11 +212,13 @@
         currentGroup = {
           date: currentDate,
           label: formatDateGroup(currentDate),
-          transactions: []
+          transactions: [],
+          offset: flatIdx
         };
         groups.push(currentGroup);
       }
       currentGroup!.transactions.push(t);
+      flatIdx++;
     }
 
     return groups;
@@ -365,6 +375,7 @@
 
   /** Load more transactions. */
   function loadMore() {
+    renderedCount = visibleCount;
     visibleCount += PAGE_SIZE;
   }
 
@@ -901,7 +912,11 @@
     <div class="txn-list">
       {#each groupedTransactions as group, gi (group.date)}
         <!-- Date Group Header -->
-        <div class="date-header" style="animation-delay: {gi * 0.04}s">
+        <div
+          class="date-header"
+          class:loaded={group.offset >= renderedCount}
+          style="animation-delay: {gi * 0.04}s"
+        >
           <span class="date-header-text">{group.label}</span>
           <span class="date-header-line"></span>
         </div>
@@ -920,6 +935,7 @@
             class:expanded={isExpanded}
             class:pending={isPending}
             class:excluded={txn.is_excluded}
+            class:loaded={group.offset + ti >= renderedCount}
             style="animation-delay: {(gi * 3 + ti) * 0.03}s"
             onclick={() => (selectionMode ? toggleSelect(txn.id) : toggleExpand(txn.id))}
             aria-expanded={isExpanded}
@@ -1864,6 +1880,13 @@
     padding: 0.85rem 0.25rem 0.35rem;
     opacity: 0;
     animation: rowSlideIn 0.35s ease forwards;
+  }
+
+  /* Items loaded via "load more" appear instantly — no stagger. */
+  .date-header.loaded,
+  .txn-row.loaded {
+    opacity: 1;
+    animation: none;
   }
 
   .date-header::before {
