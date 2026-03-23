@@ -127,7 +127,7 @@ export const schema: SchemaDefinition = {
       running_balance: 'string?',
       is_excluded: 'boolean',
       is_recurring: 'boolean',
-      is_auto_categorized: 'boolean',
+      category_source: 'string?',
       notes: 'string?',
       csv_import_hash: 'string?'
     },

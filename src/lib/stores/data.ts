@@ -226,7 +226,7 @@ function createTransactionsStore() {
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
       await engineUpdate('transactions', transactionId, {
         category_id: categoryId,
-        is_auto_categorized: categoryId === null
+        category_source: 'manual'
       });
       await store.load();
       debug('log', '[DATA] transactions — updateCategory complete', { transactionId });
@@ -383,7 +383,7 @@ function createTransactionsStore() {
             running_balance: null,
             is_excluded: false,
             is_recurring: false,
-            is_auto_categorized: false,
+            category_source: null,
             notes: null,
             csv_import_hash: t.csv_import_hash
           }
@@ -443,7 +443,7 @@ function createCategoriesStore() {
       debug('log', '[DATA] categories — remove', { id });
 
       // Uncategorize all transactions that reference this category and reset
-      // is_auto_categorized so ML sync can re-process them with remaining categories
+      // category_source so ML sync can re-process them with remaining categories
       const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
       const affected = allTxns.filter((t) => t.category_id === id && !t.deleted);
       if (affected.length > 0) {
@@ -451,7 +451,7 @@ function createCategoriesStore() {
           type: 'update' as const,
           table: 'transactions',
           id: t.id,
-          fields: { category_id: null, is_auto_categorized: false }
+          fields: { category_id: null, category_source: null }
         }));
         await engineBatchWrite(ops);
         debug('log', '[DATA] categories — uncategorized transactions', { count: affected.length });

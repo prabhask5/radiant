@@ -4,7 +4,7 @@
  *
  * When a user manually sets a category on a transaction, this module finds
  * other transactions with similar descriptions and propagates the category.
- * Overwrites auto-categorized transactions but never manual user assignments.
+ * Overwrites auto-categorized and new transactions but never manual user assignments.
  *
  * Classifier retraining is handled by the caller via `scheduleMLSync()` —
  * this module only handles the propagation write.
@@ -102,7 +102,7 @@ export interface PropagationResult {
  * stale-data bugs. Only updates transactions that are:
  * - Not deleted
  * - Not the source transaction
- * - Uncategorized OR auto-categorized (never overwrites manual assignments)
+ * - Not manually categorized (never overwrites manual assignments)
  * - Not already set to the target category
  * - Above the similarity threshold
  *
@@ -140,12 +140,16 @@ export async function propagateCategory(
   });
 
   // Find similar transactions to propagate to.
-  // Overwrites auto-categorized transactions (ML got it wrong) but never
-  // overwrites manual user categorizations — user intent always wins.
+  // Overwrites auto-categorized and new transactions but never overwrites
+  // manual user categorizations — user intent always wins.
   const matches = allTxns.filter((t) => {
     if (t.deleted || t.id === sourceTransactionId) return false;
-    // Only propagate to never-touched transactions
-    if (t.category_id !== null || t.is_auto_categorized) return false;
+    // Never overwrite manually-set categories (including manual "no category").
+    // Legacy data (category_source null + category_id set) is treated as manual.
+    if (t.category_source === 'manual') return false;
+    if (t.category_source === null && t.category_id !== null) return false;
+    // Skip transactions already set to this exact category
+    if (t.category_id === categoryId) return false;
     return similarity(sourceTokens, tokenize(t.description)) >= SIMILARITY_THRESHOLD;
   });
 
@@ -154,7 +158,7 @@ export async function propagateCategory(
       type: 'update' as const,
       table: 'transactions',
       id: t.id,
-      fields: { category_id: categoryId, is_auto_categorized: true }
+      fields: { category_id: categoryId, category_source: 'auto' }
     }));
     await engineBatchWrite(ops);
     debug('log', '[ML:PROPAGATE] Propagated category to similar transactions', {

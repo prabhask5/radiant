@@ -7,7 +7,7 @@
  *
  * User overrides are permanent — once a user manually sets a category,
  * auto-categorization never touches that transaction again (it already
- * has a non-null category_id, or was marked is_auto_categorized).
+ * has a non-null category_id, or has category_source set).
  */
 
 import { engineGetAll, engineBatchWrite } from 'stellar-drive/data';
@@ -27,20 +27,19 @@ const CONFIDENCE_THRESHOLD = 0.7;
 /**
  * Auto-categorize uncategorized transactions.
  *
- * Each transaction is only auto-categorized **once**. On first run the ML
- * classifier assigns a category and sets `is_auto_categorized = true`. If the
- * user later changes the category, the flag stays true so the transaction
- * is never re-processed. This means manual edits are permanent.
+ * Only processes truly new transactions (`category_source === null`).
+ * Transactions touched by propagation, manual categorization, or a
+ * previous auto-sync run are never re-processed.
  *
  * Includes `category_id === null` transactions in training data (as the
  * `__uncategorized__` class) so the classifier can learn to predict
  * "no category" as a real pattern.
  *
  * 1. Loads all transactions from the database
- * 2. Trains the classifier on all user-categorized transactions (including null = uncategorized)
- * 3. Filters to never-categorized transactions (category_id null AND is_auto_categorized false)
+ * 2. Trains the classifier on all categorized transactions (manual + auto)
+ * 3. Filters to never-categorized transactions (`category_source === null`)
  * 4. Runs the classifier on each
- * 5. Writes category assignments + is_auto_categorized flag for results above threshold
+ * 5. Writes category assignments + `category_source = 'auto'` for results above threshold
  */
 export async function syncCategorizationResults(): Promise<void> {
   const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
@@ -51,11 +50,12 @@ export async function syncCategorizationResults(): Promise<void> {
   const allCategories = (await engineGetAll('categories')) as unknown as { deleted?: boolean }[];
   if (allCategories.filter((c) => !c.deleted).length === 0) return;
 
-  // Train classifier on all transactions that have been through user categorization.
-  // Include manually-categorized (category_id set) and manually-uncategorized
-  // (category_id null but is_auto_categorized true, meaning user explicitly set "no category").
+  // Train classifier on all transactions that have been categorized (manual or auto).
+  // Include manually-uncategorized (category_source set but category_id null,
+  // meaning user explicitly chose "no category") so the classifier can learn that pattern.
+  // Also include legacy data (category_source null but category_id set) for training.
   const trainingData = allTxns.filter(
-    (t) => !t.deleted && (t.category_id !== null || t.is_auto_categorized)
+    (t) => !t.deleted && (t.category_source !== null || t.category_id !== null)
   );
   if (trainingData.length > 0) {
     categorizer.train(
@@ -67,11 +67,12 @@ export async function syncCategorizationResults(): Promise<void> {
     categorizer.save();
   }
 
-  // Find transactions that have never been auto-categorized.
-  // Once is_auto_categorized is set to true, the transaction is never
-  // re-processed — even if the user clears the category back to null.
+  // Find truly new transactions that have never been categorized by anyone.
+  // Once category_source is set (to 'manual' or 'auto'), the transaction is
+  // never re-processed — even if the user clears the category back to null.
+  // Legacy data (category_source null + category_id set) is treated as already processed.
   const uncategorized = allTxns.filter(
-    (t) => t.category_id === null && !t.is_auto_categorized && !t.deleted
+    (t) => t.category_source === null && t.category_id === null && !t.deleted
   );
   if (uncategorized.length === 0) {
     debug('log', '[ML:CATEGORIZE] No uncategorized transactions to process');
@@ -90,7 +91,7 @@ export async function syncCategorizationResults(): Promise<void> {
     }))
   );
 
-  // Build batch update operations — always set is_auto_categorized so the
+  // Build batch update operations — always set category_source so the
   // transaction is never re-processed, even if we couldn't categorize it.
   const ops: BatchOperation[] = [];
   for (const txn of uncategorized) {
@@ -100,7 +101,7 @@ export async function syncCategorizationResults(): Promise<void> {
         type: 'update' as const,
         table: 'transactions',
         id: txn.id,
-        fields: { category_id: result.categoryId, is_auto_categorized: true }
+        fields: { category_id: result.categoryId, category_source: 'auto' }
       });
     } else {
       // Mark as processed even if no category was assigned — prevents re-processing
@@ -108,7 +109,7 @@ export async function syncCategorizationResults(): Promise<void> {
         type: 'update' as const,
         table: 'transactions',
         id: txn.id,
-        fields: { is_auto_categorized: true }
+        fields: { category_source: 'auto' }
       });
     }
   }

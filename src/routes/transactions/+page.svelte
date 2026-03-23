@@ -444,7 +444,7 @@
       const sim = descSimilarity(tokens, tTokens);
       if (sim < SIMILARITY_THRESHOLD) continue;
 
-      const isManual = !t.is_auto_categorized;
+      const isManual = t.category_source === 'manual';
       // Prefer: higher similarity, then manual over auto
       if (sim > bestScore || (sim === bestScore && isManual && !bestIsManual)) {
         bestScore = sim;

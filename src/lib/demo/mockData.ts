@@ -1109,7 +1109,7 @@ function txn(
     running_balance: null,
     is_excluded: isExcluded,
     is_recurring: isRecurring,
-    is_auto_categorized: true,
+    category_source: 'auto',
     notes,
     csv_import_hash: csvHash
   };

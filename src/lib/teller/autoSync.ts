@@ -327,7 +327,7 @@ async function processTellerSyncDataInternal(
           type: (tellerTxn.type as string) ?? null,
           running_balance: (tellerTxn.running_balance as string) ?? null,
           is_excluded: false,
-          is_auto_categorized: false,
+          category_source: null,
           notes: null,
           csv_import_hash: null
         }

@@ -402,7 +402,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
             type: txn.type,
             running_balance: txn.running_balance,
             is_excluded: false,
-            is_auto_categorized: false,
+            category_source: null,
             notes: null,
             created_at: timestamp,
             updated_at: timestamp,
