@@ -24,7 +24,8 @@
     accountsStore,
     transactionsStore,
     categoriesStore,
-    recurringTransactionsStore
+    recurringTransactionsStore,
+    preloadAllStores
   } from '$lib/stores/data';
 
   /* ── Utilities ── */
@@ -314,18 +315,11 @@
   // ==========================================================================
 
   onMount(() => {
-    // Trigger entrance animations
     requestAnimationFrame(() => {
       mounted = true;
     });
 
-    // Load data stores for the dashboard
-    Promise.all([
-      accountsStore.load(),
-      transactionsStore.load(),
-      categoriesStore.load(),
-      recurringTransactionsStore.load()
-    ]).then(() => {
+    preloadAllStores().then(() => {
       dataLoaded = true;
     });
   });

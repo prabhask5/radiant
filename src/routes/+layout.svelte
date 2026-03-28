@@ -41,6 +41,9 @@
   /* ── App Components ── */
   import UpdatePrompt from '$lib/components/UpdatePrompt.svelte';
 
+  /* ── App Data — centralized preload ── */
+  import { preloadAllStores, runBackgroundSync } from '$lib/stores/data';
+
   /* ── Global Toast ── */
   import { toastStore, dismissToast as dismissGlobalToast, addToast } from '$lib/stores/toast';
   import type { ToastGem } from '$lib/stores/toast';
@@ -131,6 +134,21 @@
    */
   $effect(() => {
     hydrateAuthState(data);
+  });
+
+  // Preload all data stores + fire background Teller sync as soon as the
+  // user is authenticated. Both are idempotent — safe to re-trigger on
+  // navigation or revalidation.
+  $effect(() => {
+    if (data.authMode !== 'none') {
+      preloadAllStores();
+      runBackgroundSync((count) => {
+        addToast(
+          `Background sync: ${count} transaction${count !== 1 ? 's' : ''} updated`,
+          'sapphire'
+        );
+      });
+    }
   });
 
   // =============================================================================

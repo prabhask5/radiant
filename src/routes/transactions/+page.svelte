@@ -27,9 +27,9 @@
     transactionsStore,
     accountsStore,
     categoriesStore,
-    enrollmentsStore
+    preloadAllStores
   } from '$lib/stores/data';
-  import type { Account, Category, TellerEnrollment } from '$lib/types';
+  import type { Account, Category } from '$lib/types';
   import {
     formatCurrency,
     formatDateGroup,
@@ -40,7 +40,6 @@
   } from '$lib/utils/currency';
   import { remoteChangeAnimation, truncateTooltip } from 'stellar-drive/actions';
   import { debug } from 'stellar-drive/utils';
-  import { autoSyncStaleEnrollments } from '$lib/teller/autoSync';
   import { categorizeTransaction } from '$lib/ml/categorizer';
   import { categorizer } from '$lib/ml/classifier';
   import { addToast } from '$lib/stores/toast';
@@ -260,39 +259,17 @@
 
   onMount(async () => {
     try {
-      await Promise.all([
-        transactionsStore.refresh(),
-        accountsStore.refresh(),
-        categoriesStore.refresh(),
-        enrollmentsStore.refresh()
-      ]);
+      // Preload is fired by the layout on auth — resolves instantly if
+      // data is already loaded, or waits for the initial load to finish.
+      await preloadAllStores();
     } finally {
       isLoading = false;
       hasLoaded = true;
     }
 
-    // Trigger entrance animation after a tick
     requestAnimationFrame(() => {
       mounted = true;
     });
-
-    // Auto-sync stale Teller enrollments in the background
-    const allEnrollments = ($enrollmentsStore ?? []) as TellerEnrollment[];
-    autoSyncStaleEnrollments(allEnrollments, (id, status) =>
-      enrollmentsStore.updateStatus(id, status)
-    )
-      .then(async (newCount) => {
-        if (newCount > 0) {
-          await Promise.all([transactionsStore.refresh(), accountsStore.refresh()]);
-          addToast(
-            `Background sync: ${newCount} transaction${newCount !== 1 ? 's' : ''} updated`,
-            'sapphire'
-          );
-        }
-      })
-      .catch((err) => {
-        debug('warn', '[TRANSACTIONS] Background auto-sync failed:', err);
-      });
   });
 
   // ===========================================================================

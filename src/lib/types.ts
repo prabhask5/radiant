@@ -67,7 +67,7 @@ export type TransactionStatus = 'posted' | 'pending';
 /**
  * How often a recurring transaction repeats.
  */
-export type RecurringFrequency = 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+export type RecurringFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
 
 /**
  * How a recurring transaction entry was created.
@@ -77,7 +77,7 @@ export type RecurringSource = 'manual' | 'auto-detected';
 /**
  * Lifecycle state of a recurring transaction.
  */
-export type RecurringStatus = 'active' | 'paused' | 'ended';
+export type RecurringStatus = 'active' | 'cancelling' | 'paused' | 'ended';
 
 /**
  * Connection health of a Teller enrollment.

@@ -8,8 +8,8 @@
  * - **Teller Enrollments** — two linked bank institutions (Chase, BofA).
  * - **Accounts** — five accounts across checking, savings, and credit cards.
  * - **Categories** — user-defined budget categories with budget_amount.
- * - **Transactions** — ~45 entries spanning the last 60 days.
- * - **Recurring Transactions** — 4 auto-detected recurring charges.
+ * - **Transactions** — ~60 entries spanning the last 90 days.
+ * - **Recurring Transactions** — 7 auto-detected recurring charges.
  *
  * Sign conventions (matching Teller / currency.ts):
  * - **Depository (bank)**: positive = deposit (money IN), negative = withdrawal (money OUT)
@@ -451,7 +451,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'posted'
     ),
 
-    // ── Housing (negative on depository = money out) ─────────────────────
+    // ── Housing (negative on depository = money out, 3 months) ───────────
     txn(
       '06',
       ACCT_CHASE_CHECKING,
@@ -472,6 +472,21 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       ACCT_CHASE_CHECKING,
       '-2200.00',
       daysAgo(32),
+      'RENT PAYMENT - AVALON APT',
+      'Avalon Apartments',
+      'organization',
+      CAT_RENT,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
+      '65',
+      ACCT_CHASE_CHECKING,
+      '-2200.00',
+      daysAgo(62),
       'RENT PAYMENT - AVALON APT',
       'Avalon Apartments',
       'organization',
@@ -754,7 +769,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Concert tickets'
     ),
 
-    // ── Utilities (negative on depository = money out) ───────────────────
+    // ── Utilities (negative on depository = money out, 3 months) ─────────
     txn(
       '31',
       ACCT_CHASE_CHECKING,
@@ -771,6 +786,37 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       true
     ),
     txn(
+      '33',
+      ACCT_CHASE_CHECKING,
+      '-138.50',
+      daysAgo(40),
+      'PG&E ELECTRIC',
+      'PG&E',
+      'organization',
+      CAT_UTILITIES,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
+      '66',
+      ACCT_CHASE_CHECKING,
+      '-145.20',
+      daysAgo(70),
+      'PG&E ELECTRIC',
+      'PG&E',
+      'organization',
+      CAT_UTILITIES,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    // AT&T Internet — 3 months
+    txn(
       '32',
       ACCT_CHASE_CHECKING,
       '-65.00',
@@ -786,12 +832,27 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       true
     ),
     txn(
-      '33',
+      '67',
       ACCT_CHASE_CHECKING,
-      '-138.50',
-      daysAgo(40),
-      'PG&E ELECTRIC',
-      'PG&E',
+      '-65.00',
+      daysAgo(42),
+      'AT&T INTERNET',
+      'AT&T',
+      'organization',
+      CAT_UTILITIES,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
+      '68',
+      ACCT_CHASE_CHECKING,
+      '-65.00',
+      daysAgo(72),
+      'AT&T INTERNET',
+      'AT&T',
       'organization',
       CAT_UTILITIES,
       'posted',
@@ -826,6 +887,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
     ),
 
     // ── Streaming (recurring subscriptions on credit card) ───────────────
+    // Netflix — 3 months
     txn(
       '36',
       ACCT_CHASE_CREDIT,
@@ -833,36 +895,6 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       daysAgo(5),
       'NETFLIX.COM',
       'Netflix',
-      'organization',
-      CAT_STREAMING,
-      'posted',
-      null,
-      null,
-      false,
-      true
-    ),
-    txn(
-      '37',
-      ACCT_CHASE_CREDIT,
-      '10.99',
-      daysAgo(8),
-      'SPOTIFY USA',
-      'Spotify',
-      'organization',
-      CAT_STREAMING,
-      'posted',
-      null,
-      null,
-      false,
-      true
-    ),
-    txn(
-      '38',
-      ACCT_BOFA_CREDIT,
-      '14.99',
-      daysAgo(9),
-      'OPENAI *CHATGPT PLUS',
-      'OpenAI',
       'organization',
       CAT_STREAMING,
       'posted',
@@ -887,12 +919,104 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       true
     ),
     txn(
+      '60',
+      ACCT_CHASE_CREDIT,
+      '15.99',
+      daysAgo(65),
+      'NETFLIX.COM',
+      'Netflix',
+      'organization',
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    // Spotify — 3 months
+    txn(
+      '37',
+      ACCT_CHASE_CREDIT,
+      '10.99',
+      daysAgo(8),
+      'SPOTIFY USA',
+      'Spotify',
+      'organization',
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
       '40',
       ACCT_CHASE_CREDIT,
       '10.99',
       daysAgo(38),
       'SPOTIFY USA',
       'Spotify',
+      'organization',
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
+      '61',
+      ACCT_CHASE_CREDIT,
+      '10.99',
+      daysAgo(68),
+      'SPOTIFY USA',
+      'Spotify',
+      'organization',
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    // OpenAI ChatGPT — 3 months
+    txn(
+      '38',
+      ACCT_BOFA_CREDIT,
+      '14.99',
+      daysAgo(9),
+      'OPENAI *CHATGPT PLUS',
+      'OpenAI',
+      'organization',
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
+      '62',
+      ACCT_BOFA_CREDIT,
+      '14.99',
+      daysAgo(39),
+      'OPENAI *CHATGPT PLUS',
+      'OpenAI',
+      'organization',
+      CAT_STREAMING,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
+      '63',
+      ACCT_BOFA_CREDIT,
+      '14.99',
+      daysAgo(69),
+      'OPENAI *CHATGPT PLUS',
+      'OpenAI',
       'organization',
       CAT_STREAMING,
       'posted',
@@ -915,7 +1039,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'posted'
     ),
 
-    // ── Gym (recurring) ──────────────────────────────────────────────────
+    // ── Gym (recurring — 3 months) ────────────────────────────────────────
     txn(
       '47',
       ACCT_CHASE_CREDIT,
@@ -936,6 +1060,21 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       ACCT_CHASE_CREDIT,
       '49.99',
       daysAgo(36),
+      'EQUINOX FITNESS',
+      'Equinox',
+      'organization',
+      CAT_GYM_FITNESS,
+      'posted',
+      null,
+      null,
+      false,
+      true
+    ),
+    txn(
+      '64',
+      ACCT_CHASE_CREDIT,
+      '49.99',
+      daysAgo(66),
       'EQUINOX FITNESS',
       'Equinox',
       'organization',
@@ -1051,7 +1190,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       source: 'auto-detected',
       status: 'active',
       account_id: ACCT_CHASE_CHECKING,
-      merchant_pattern: 'avalon',
+      merchant_pattern: 'avalon apartments',
       last_detected_date: daysAgo(2),
       next_date: daysFromNow(28)
     },
@@ -1067,6 +1206,45 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       merchant_pattern: 'equinox',
       last_detected_date: daysAgo(6),
       next_date: daysFromNow(24)
+    },
+    {
+      ...base('demo-rec-chatgpt'),
+      name: 'OpenAI ChatGPT Plus',
+      amount: '14.99',
+      category_id: CAT_STREAMING,
+      frequency: 'monthly',
+      source: 'auto-detected',
+      status: 'active',
+      account_id: ACCT_BOFA_CREDIT,
+      merchant_pattern: 'openai',
+      last_detected_date: daysAgo(9),
+      next_date: daysFromNow(21)
+    },
+    {
+      ...base('demo-rec-pge'),
+      name: 'PG&E Electric',
+      amount: '142.87',
+      category_id: CAT_UTILITIES,
+      frequency: 'monthly',
+      source: 'auto-detected',
+      status: 'active',
+      account_id: ACCT_CHASE_CHECKING,
+      merchant_pattern: 'pge',
+      last_detected_date: daysAgo(10),
+      next_date: daysFromNow(20)
+    },
+    {
+      ...base('demo-rec-att'),
+      name: 'AT&T Internet',
+      amount: '65.00',
+      category_id: CAT_UTILITIES,
+      frequency: 'monthly',
+      source: 'auto-detected',
+      status: 'active',
+      account_id: ACCT_CHASE_CHECKING,
+      merchant_pattern: 'att',
+      last_detected_date: daysAgo(12),
+      next_date: daysFromNow(18)
     }
   ]);
 }

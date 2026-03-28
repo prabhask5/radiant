@@ -17,7 +17,12 @@
 
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { accountsStore, enrollmentsStore, transactionsStore } from '$lib/stores/data';
+  import {
+    accountsStore,
+    enrollmentsStore,
+    transactionsStore,
+    preloadAllStores
+  } from '$lib/stores/data';
   import { isDemoMode } from 'stellar-drive/demo';
   import { remoteChangesStore } from 'stellar-drive/stores';
   import { getConfig } from 'stellar-drive/config';
@@ -34,7 +39,7 @@
     mapCSVToTransactions,
     type CSVColumnMapping
   } from '$lib/utils/csv';
-  import { processTellerSyncData, autoSyncStaleEnrollments } from '$lib/teller/autoSync';
+  import { processTellerSyncData } from '$lib/teller/autoSync';
   import { addToast } from '$lib/stores/toast';
 
   // ==========================================================================
@@ -1125,11 +1130,7 @@
   });
 
   onMount(async () => {
-    await Promise.all([
-      accountsStore.refresh(),
-      enrollmentsStore.refresh(),
-      transactionsStore.refresh()
-    ]);
+    await preloadAllStores();
     loaded = true;
 
     // Pre-load Teller Connect SDK in the background if configured
@@ -1138,21 +1139,6 @@
         // Silent fail — will retry when user clicks Connect
       });
     }
-
-    // Auto-sync stale enrollments in the background
-    autoSyncStaleEnrollments(enrollments, (id, status) => enrollmentsStore.updateStatus(id, status))
-      .then(async (newCount) => {
-        if (newCount > 0) {
-          await Promise.all([
-            accountsStore.refresh(),
-            transactionsStore.refresh(),
-            enrollmentsStore.refresh()
-          ]);
-        }
-      })
-      .catch((err) => {
-        debug('warn', '[ACCOUNTS] Background auto-sync failed:', err);
-      });
   });
 </script>
 

@@ -36,6 +36,8 @@ import type {
 import { syncRecurringDetections } from '$lib/ml/recurringSync';
 import { syncCategorizationResults } from '$lib/ml/categorizationSync';
 import { propagateCategory } from '$lib/ml/propagation';
+import { autoSyncStaleEnrollments } from '$lib/teller/autoSync';
+import { get } from 'svelte/store';
 
 let mlSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -48,12 +50,14 @@ function scheduleMLSync() {
   if (mlSyncTimeout) clearTimeout(mlSyncTimeout);
   mlSyncTimeout = setTimeout(async () => {
     try {
-      await syncCategorizationResults();
-      await syncRecurringDetections();
+      // Categorization sync returns the loaded transactions so recurring
+      // sync can reuse them instead of doing another full IndexedDB scan.
+      const txns = await syncCategorizationResults();
+      await syncRecurringDetections(txns);
     } catch (e) {
       debug('error', '[ML] Sync error:', e);
     }
-  }, 1500);
+  }, 500);
 }
 
 /** System columns managed by stellar-drive — omit these from create payloads. */
@@ -591,3 +595,65 @@ function createRecurringTransactionsStore() {
 
 /** Reactive store of all {@link RecurringTransaction} rows. */
 export const recurringTransactionsStore = createRecurringTransactionsStore();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CENTRALIZED PRELOAD + BACKGROUND SYNC
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let preloadPromise: Promise<void> | null = null;
+
+/**
+ * Preload all data stores from IndexedDB. Idempotent — returns the same
+ * promise on subsequent calls so pages can `await` it cheaply.
+ *
+ * Called from the root layout after auth resolves, so data is ready
+ * before any page mounts. Individual pages should `await preloadAllStores()`
+ * instead of calling individual `store.refresh()` / `store.load()`.
+ */
+export function preloadAllStores(): Promise<void> {
+  if (preloadPromise) return preloadPromise;
+  preloadPromise = Promise.all([
+    accountsStore.load(),
+    transactionsStore.load(),
+    categoriesStore.load(),
+    enrollmentsStore.load(),
+    recurringTransactionsStore.load()
+  ]).then(() => {
+    scheduleMLSync();
+  });
+  return preloadPromise;
+}
+
+let backgroundSyncStarted = false;
+
+/**
+ * Run background Teller sync for stale enrollments. Idempotent — only
+ * runs once per app session. Fires after `preloadAllStores()` so
+ * enrollment data is available for staleness checks.
+ *
+ * @param onNewTransactions — callback when new transactions arrive
+ *   (e.g. to show a toast). Called with the count of new/updated transactions.
+ */
+export async function runBackgroundSync(
+  onNewTransactions?: (count: number) => void
+): Promise<void> {
+  if (backgroundSyncStarted) return;
+  backgroundSyncStarted = true;
+
+  await preloadAllStores();
+
+  const enrollments = (get(enrollmentsStore) ?? []) as TellerEnrollment[];
+  if (enrollments.length === 0) return;
+
+  try {
+    const newCount = await autoSyncStaleEnrollments(enrollments, (id, status) =>
+      enrollmentsStore.updateStatus(id, status)
+    );
+    if (newCount > 0) {
+      await Promise.all([transactionsStore.refresh(), accountsStore.refresh()]);
+      onNewTransactions?.(newCount);
+    }
+  } catch (err) {
+    debug('warn', '[DATA] Background sync failed:', err);
+  }
+}

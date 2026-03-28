@@ -35,7 +35,8 @@
     accountsStore,
     transactionsStore,
     recurringTransactionsStore,
-    categoriesStore
+    categoriesStore,
+    preloadAllStores
   } from '$lib/stores/data';
   import { addToast } from '$lib/stores/toast';
 
@@ -57,6 +58,12 @@
 
   /* ── Emoji Picker ── */
   import { EMOJI_GROUPS, CATEGORY_COLORS } from '$lib/emojiPicker';
+
+  /* ── ML / Detection ── */
+  import { normalizeMerchant, getTransactionMerchantName } from '$lib/ml/recurringDetector';
+
+  /* ── Engine Data ── */
+  import { engineGetAll } from 'stellar-drive/data';
 
   /* ── Types ── */
   import type { Account, Transaction, RecurringTransaction, Category } from '$lib/types';
@@ -108,20 +115,58 @@
     name: '',
     amount: '',
     category_id: '',
-    frequency: 'monthly' as 'weekly' | 'biweekly' | 'monthly' | 'yearly',
+    frequency: 'monthly' as 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly',
     account_id: '',
-    next_date: ''
+    next_date: '',
+    merchant_pattern: ''
   });
   let recurringFormSaving = $state(false);
 
   /** Editing Recurring */
   let editingRecurringId = $state<string | null>(null);
 
-  /** Recurring section collapsed state */
-  let recurringCollapsed = $state(false);
+  /** Recurring Detail Sheet */
+  let showRecurringDetail = $state(false);
+  let detailRecurringId = $state<string | null>(null);
+  let detailTransactions = $state<Transaction[]>([]);
+  let detailLoading = $state(false);
+
+  /** Pattern preview in recurring modal */
+  let patternPreviewTxns = $state<Transaction[]>([]);
+  let patternPreviewLoading = $state(false);
+
+  /** Cancellation deep links for known services */
+  const CANCELLATION_URLS: Record<string, string> = {
+    netflix: 'https://www.netflix.com/cancelplan',
+    spotify: 'https://www.spotify.com/account/subscription/',
+    'youtube premium': 'https://www.youtube.com/paid_memberships',
+    youtubepremium: 'https://www.youtube.com/paid_memberships',
+    'youtube member': 'https://www.youtube.com/paid_memberships',
+    hulu: 'https://secure.hulu.com/account',
+    'disney plus': 'https://www.disneyplus.com/account/subscription',
+    'amazon prime': 'https://www.amazon.com/gp/primecentral',
+    apple: 'https://support.apple.com/en-us/HT202039',
+    'apple one': 'https://support.apple.com/en-us/HT202039',
+    patreon: 'https://www.patreon.com/settings/memberships',
+    openai: 'https://platform.openai.com/account/billing',
+    chatgpt: 'https://chatgpt.com/settings/subscription',
+    claude: 'https://claude.ai/settings/billing',
+    doordash: 'https://www.doordash.com/consumer/account/',
+    'dash pass': 'https://www.doordash.com/consumer/account/',
+    gym: 'https://www.google.com/search?q=cancel+gym+membership',
+    ymca: 'https://www.ymca.org/membership',
+    equinox: 'https://www.equinox.com/account',
+    'planet fitness': 'https://www.planetfitness.com/account',
+    nebula: 'https://nebula.tv/account',
+    xbox: 'https://account.microsoft.com/services/',
+    playstation: 'https://store.playstation.com/subscriptions',
+    adobe: 'https://account.adobe.com/plans',
+    dropbox: 'https://www.dropbox.com/account/plan',
+    linkedin: 'https://www.linkedin.com/mypreferences/d/manage-premium'
+  };
 
   /** Lock body scroll when any modal is open. */
-  const anyModalOpen = $derived(showCategoryModal || showRecurringModal);
+  const anyModalOpen = $derived(showCategoryModal || showRecurringModal || showRecurringDetail);
 
   $effect(() => {
     if (browser && anyModalOpen) {
@@ -215,17 +260,36 @@
     };
   });
 
-  /* ── Recurring ── */
+  /** Monthly multiplier for each frequency so recurring total is always monthly. */
+  const MONTHLY_MULTIPLIER: Record<string, number> = {
+    weekly: 52 / 12,
+    biweekly: 26 / 12,
+    monthly: 1,
+    quarterly: 1 / 3,
+    yearly: 1 / 12
+  };
+
+  /** Compute monthly-equivalent cost for a recurring entry. */
+  function monthlyCost(r: RecurringTransaction): number {
+    return (parseFloat(r.amount) || 0) * (MONTHLY_MULTIPLIER[r.frequency] ?? 1);
+  }
+
+  /* ── Recurring (sorted by monthly cost descending for subscription health ranking) ── */
   const recurringItems = $derived(
-    ($recurringTransactionsStore ?? []).filter(
-      (r: RecurringTransaction) => r.status === 'active' && !r.deleted
-    )
+    ($recurringTransactionsStore ?? [])
+      .filter((r: RecurringTransaction) => r.status !== 'ended' && !r.deleted)
+      .sort((a: RecurringTransaction, b: RecurringTransaction) => {
+        // Cancelling items float to top as a reminder
+        if (a.status === 'cancelling' && b.status !== 'cancelling') return -1;
+        if (b.status === 'cancelling' && a.status !== 'cancelling') return 1;
+        // Then sort by monthly cost (highest first — biggest savings opportunity)
+        return monthlyCost(b) - monthlyCost(a);
+      })
   );
   const recurringTotal = $derived(
-    recurringItems.reduce(
-      (s: number, r: RecurringTransaction) => s + (parseFloat(r.amount) || 0),
-      0
-    )
+    ($recurringTransactionsStore ?? [])
+      .filter((r: RecurringTransaction) => r.status === 'active' && !r.deleted)
+      .reduce((s: number, r: RecurringTransaction) => s + monthlyCost(r), 0)
   );
 
   /* ── Pie segments ── */
@@ -389,17 +453,25 @@
   /** Open the add recurring modal. */
   function openRecurringModal(editId?: string) {
     if (editId) {
-      const item = recurringItems.find((r: RecurringTransaction) => r.id === editId);
+      const allRecurring = ($recurringTransactionsStore ?? []).filter(
+        (r: RecurringTransaction) => !r.deleted
+      );
+      const item = allRecurring.find((r: RecurringTransaction) => r.id === editId);
       if (item) {
         editingRecurringId = editId;
         recurringForm = {
           name: item.name,
           amount: item.amount,
           category_id: item.category_id ?? '',
-          frequency: item.frequency as 'weekly' | 'biweekly' | 'monthly' | 'yearly',
+          frequency: item.frequency as typeof recurringForm.frequency,
           account_id: item.account_id ?? '',
-          next_date: item.next_date ?? ''
+          next_date: item.next_date ?? '',
+          merchant_pattern: item.merchant_pattern ?? ''
         };
+        // Load preview for existing pattern
+        if (item.merchant_pattern) {
+          loadPatternPreview(item.merchant_pattern);
+        }
       }
     } else {
       editingRecurringId = null;
@@ -409,8 +481,10 @@
         category_id: '',
         frequency: 'monthly',
         account_id: '',
-        next_date: ''
+        next_date: '',
+        merchant_pattern: ''
       };
+      patternPreviewTxns = [];
     }
     showRecurringModal = true;
   }
@@ -420,16 +494,30 @@
     if (!recurringForm.name.trim() || !recurringForm.amount.trim()) return;
     recurringFormSaving = true;
     try {
+      const rawPattern = recurringForm.merchant_pattern.trim();
+      const pattern = rawPattern ? normalizeMerchant(rawPattern) || null : null;
       const data = {
         name: recurringForm.name.trim(),
         amount: recurringForm.amount.trim(),
         category_id: recurringForm.category_id || null,
         frequency: recurringForm.frequency,
-        source: 'manual' as const,
-        status: 'active' as const,
+        source: editingRecurringId
+          ? (($recurringTransactionsStore ?? []).find(
+              (r: RecurringTransaction) => r.id === editingRecurringId
+            )?.source ?? 'manual')
+          : ('manual' as const),
+        status: editingRecurringId
+          ? (($recurringTransactionsStore ?? []).find(
+              (r: RecurringTransaction) => r.id === editingRecurringId
+            )?.status ?? 'active')
+          : ('active' as const),
         account_id: recurringForm.account_id || null,
-        merchant_pattern: null,
-        last_detected_date: null,
+        merchant_pattern: pattern,
+        last_detected_date: editingRecurringId
+          ? (($recurringTransactionsStore ?? []).find(
+              (r: RecurringTransaction) => r.id === editingRecurringId
+            )?.last_detected_date ?? null)
+          : null,
         next_date: recurringForm.next_date || null
       };
 
@@ -469,6 +557,8 @@
         return '/2wk';
       case 'monthly':
         return '/mo';
+      case 'quarterly':
+        return '/qtr';
       case 'yearly':
         return '/yr';
       default:
@@ -483,18 +573,151 @@
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  /** Load transactions matching a merchant pattern for preview. */
+  async function loadPatternPreview(pattern: string) {
+    if (!pattern.trim()) {
+      patternPreviewTxns = [];
+      return;
+    }
+    patternPreviewLoading = true;
+    try {
+      const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
+      // Strip sub-pattern suffix (:dXaY) before normalizing
+      const cleaned = pattern.replace(/:d\d+a\d+$/, '');
+      const normalized = normalizeMerchant(cleaned);
+      if (!normalized) {
+        patternPreviewTxns = [];
+        return;
+      }
+      patternPreviewTxns = allTxns
+        .filter((t) => {
+          if (t.deleted || t.is_excluded) return false;
+          const name = getTransactionMerchantName(t);
+          if (!name) return false;
+          return normalizeMerchant(name) === normalized;
+        })
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 50);
+    } catch {
+      patternPreviewTxns = [];
+    } finally {
+      patternPreviewLoading = false;
+    }
+  }
+
+  /** Open recurring detail sheet. */
+  async function openRecurringDetail(id: string) {
+    detailRecurringId = id;
+    detailLoading = true;
+    detailTransactions = [];
+    showRecurringDetail = true;
+
+    const allRecurring = ($recurringTransactionsStore ?? []).filter(
+      (r: RecurringTransaction) => !r.deleted
+    );
+    const item = allRecurring.find((r: RecurringTransaction) => r.id === id);
+    if (!item) {
+      detailLoading = false;
+      return;
+    }
+
+    try {
+      const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
+      // Strip sub-pattern suffix (:dXaY) for matching — it's only used for
+      // disambiguating recurring entries, not for normalizing transaction names
+      const basePattern = item.merchant_pattern
+        ? item.merchant_pattern.replace(/:d\d+a\d+$/, '')
+        : normalizeMerchant(item.name);
+      if (!basePattern) {
+        detailTransactions = [];
+        detailLoading = false;
+        return;
+      }
+      detailTransactions = allTxns
+        .filter((t) => {
+          if (t.deleted) return false;
+          const name = getTransactionMerchantName(t);
+          if (!name) return false;
+          return normalizeMerchant(name) === basePattern;
+        })
+        .sort((a, b) => b.date.localeCompare(a.date));
+    } catch {
+      detailTransactions = [];
+    } finally {
+      detailLoading = false;
+    }
+  }
+
+  /** Get cancellation URL for a recurring item. */
+  function getCancellationUrl(item: RecurringTransaction): string | null {
+    const pattern = (item.merchant_pattern ?? normalizeMerchant(item.name)).toLowerCase();
+    for (const [key, url] of Object.entries(CANCELLATION_URLS)) {
+      if (pattern.includes(key)) return url;
+    }
+    return null;
+  }
+
+  /** Mark a recurring item as cancelling. */
+  async function markCancelling(id: string) {
+    try {
+      await recurringTransactionsStore.update(id, { status: 'cancelling' });
+      addToast('Marked as cancelling — watch for zombie charges', 'ruby');
+    } catch {
+      addToast('Failed to update status', 'ruby');
+    }
+  }
+
+  /** Mark a recurring item as ended (cancelled). */
+  async function markEnded(id: string) {
+    try {
+      await recurringTransactionsStore.update(id, { status: 'ended' });
+      addToast('Subscription cancelled', 'emerald');
+    } catch {
+      addToast('Failed to update status', 'ruby');
+    }
+  }
+
+  /** Reactivate a cancelling item. */
+  async function reactivate(id: string) {
+    try {
+      await recurringTransactionsStore.update(id, { status: 'active' });
+      addToast('Subscription reactivated', 'emerald');
+    } catch {
+      addToast('Failed to update status', 'ruby');
+    }
+  }
+
+  /** Group transactions by month for the detail view. */
+  function groupByMonth(
+    txns: Transaction[]
+  ): { month: string; label: string; txns: Transaction[]; total: number }[] {
+    const groups = new Map<string, Transaction[]>();
+    for (const t of txns) {
+      const key = t.date.slice(0, 7);
+      const arr = groups.get(key);
+      if (arr) arr.push(t);
+      else groups.set(key, [t]);
+    }
+    return Array.from(groups.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([month, txns]) => {
+        const [y, m] = month.split('-').map(Number);
+        const label = new Date(y, m - 1).toLocaleDateString('en-US', {
+          month: 'long',
+          year: 'numeric'
+        });
+        const total = txns.reduce((s, t) => s + Math.abs(parseFloat(t.amount) || 0), 0);
+        return { month, label, txns, total };
+      });
+  }
+
   // ==========================================================================
   //                           LIFECYCLE
   // ==========================================================================
 
   onMount(async () => {
     try {
-      await Promise.all([
-        accountsStore.load(),
-        transactionsStore.load(),
-        recurringTransactionsStore.load(),
-        categoriesStore.load()
-      ]);
+      await preloadAllStores();
     } finally {
       dataLoaded = true;
     }
@@ -721,11 +944,7 @@
 
     <!-- ── Recurring Transactions ── -->
     <div class="recurring-section anim-item" style="--delay: 4">
-      <button
-        class="section-header-btn"
-        onclick={() => (recurringCollapsed = !recurringCollapsed)}
-        aria-expanded={!recurringCollapsed}
-      >
+      <div class="section-header-static">
         <div class="section-header-left">
           <h2 class="section-title">Recurring</h2>
           {#if recurringItems.length > 0}
@@ -736,103 +955,71 @@
           {#if recurringTotal > 0}
             <span class="recurring-total">{formatCurrency(recurringTotal)}/mo</span>
           {/if}
-          <svg
-            class="chevron-icon"
-            class:collapsed={recurringCollapsed}
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-          >
+        </div>
+      </div>
+
+      <div class="recurring-content">
+        {#if recurringItems.length === 0}
+          <p class="recurring-empty">No active recurring transactions detected yet.</p>
+        {:else}
+          <div class="recurring-list">
+            {#each recurringItems as item (item.id)}
+              {@const cat = categoryMap.get(item.category_id ?? '')}
+              <button
+                class="recurring-row"
+                class:cancelling={item.status === 'cancelling'}
+                onclick={() => openRecurringDetail(item.id)}
+              >
+                <div class="cat-icon-circle small" style="--cat-color: {cat?.color ?? '#706450'}">
+                  <span class="cat-icon-emoji">{cat?.icon ?? '?'}</span>
+                </div>
+                <div class="recurring-info">
+                  <div class="recurring-name-row">
+                    <span class="recurring-name">{item.name}</span>
+                    {#if item.source === 'auto-detected'}
+                      <span class="auto-badge">auto</span>
+                    {/if}
+                    {#if item.status === 'cancelling'}
+                      <span class="cancelling-badge">cancelling</span>
+                    {/if}
+                  </div>
+                  <span class="recurring-meta">
+                    {formatCurrency(item.amount)}{formatFrequency(item.frequency)}
+                    {#if item.next_date}
+                      <span class="recurring-next">
+                        Next: {formatShortDate(item.next_date)}
+                      </span>
+                    {/if}
+                  </span>
+                </div>
+                <div class="recurring-row-chevron">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path
+                      d="M6 4L10 8L6 12"
+                      stroke="currentColor"
+                      stroke-width="1.3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+              </button>
+            {/each}
+          </div>
+        {/if}
+
+        <button class="add-recurring-btn" onclick={() => openRecurringModal()}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path
-              d="M4 6L8 10L12 6"
+              d="M8 3v10M3 8h10"
               stroke="currentColor"
-              stroke-width="1.3"
+              stroke-width="1.4"
               stroke-linecap="round"
-              stroke-linejoin="round"
             />
           </svg>
-        </div>
-      </button>
-
-      {#if !recurringCollapsed}
-        <div class="recurring-content">
-          {#if recurringItems.length === 0}
-            <p class="recurring-empty">No active recurring transactions.</p>
-          {:else}
-            <div class="recurring-list">
-              {#each recurringItems as item (item.id)}
-                {@const cat = categoryMap.get(item.category_id ?? '')}
-                <div class="recurring-row">
-                  <div class="cat-icon-circle small" style="--cat-color: {cat?.color ?? '#706450'}">
-                    <span class="cat-icon-emoji">{cat?.icon ?? '?'}</span>
-                  </div>
-                  <div class="recurring-info">
-                    <div class="recurring-name-row">
-                      <span class="recurring-name">{item.name}</span>
-                      {#if item.source === 'auto-detected'}
-                        <span class="auto-badge">(auto)</span>
-                      {/if}
-                    </div>
-                    <span class="recurring-meta">
-                      {formatCurrency(item.amount)}{formatFrequency(item.frequency)}
-                      {#if item.next_date}
-                        <span class="recurring-next">
-                          Next: {formatShortDate(item.next_date)}
-                        </span>
-                      {/if}
-                    </span>
-                  </div>
-                  <div class="recurring-actions">
-                    <button
-                      class="recurring-edit-btn"
-                      onclick={() => openRecurringModal(item.id)}
-                      aria-label="Edit {item.name}"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path
-                          d="M11.333 2a1.886 1.886 0 012.667 2.667L5.333 13.333 2 14l.667-3.333L11.333 2z"
-                          stroke="currentColor"
-                          stroke-width="1.2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      class="recurring-delete-btn"
-                      onclick={() => removeRecurring(item.id)}
-                      aria-label="Remove {item.name}"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path
-                          d="M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z"
-                          stroke="currentColor"
-                          stroke-width="1.2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-
-          <button class="add-recurring-btn" onclick={() => openRecurringModal()}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M8 3v10M3 8h10"
-                stroke="currentColor"
-                stroke-width="1.4"
-                stroke-linecap="round"
-              />
-            </svg>
-            Add Recurring
-          </button>
-        </div>
-      {/if}
+          Add Recurring
+        </button>
+      </div>
     </div>
 
     <!-- ── Historical Bar Chart ── -->
@@ -1133,7 +1320,7 @@
 
       <div class="sheet-body">
         <div class="form-group">
-          <label class="form-label" for="rec-name">Name</label>
+          <label class="form-label" for="rec-name">Display Name</label>
           <input
             id="rec-name"
             type="text"
@@ -1141,53 +1328,104 @@
             bind:value={recurringForm.name}
             placeholder="e.g. Netflix, Rent"
           />
+          <span class="form-hint">How this subscription appears in your list</span>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="rec-amount">Amount</label>
-          <div class="form-input-wrap">
-            <span class="form-dollar">$</span>
-            <input
-              id="rec-amount"
-              type="number"
-              class="form-input with-prefix"
-              bind:value={recurringForm.amount}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              inputmode="decimal"
-            />
+          <label class="form-label" for="rec-pattern">Transaction Name Match</label>
+          <input
+            id="rec-pattern"
+            type="text"
+            class="form-input"
+            bind:value={recurringForm.merchant_pattern}
+            placeholder="e.g. NETFLIX, PAYPAL *SPOTIFY"
+            oninput={(e) => {
+              const target = e.currentTarget as HTMLInputElement;
+              loadPatternPreview(target.value);
+            }}
+          />
+          <span class="form-hint">Enter the transaction description to match against</span>
+          {#if patternPreviewLoading}
+            <div class="pattern-preview-loading">Searching...</div>
+          {:else if recurringForm.merchant_pattern.trim() && patternPreviewTxns.length > 0}
+            <div class="pattern-preview">
+              <div class="pattern-preview-header">
+                <span class="pattern-preview-count"
+                  >{patternPreviewTxns.length} matching transaction{patternPreviewTxns.length === 1
+                    ? ''
+                    : 's'}</span
+                >
+              </div>
+              <div class="pattern-preview-list">
+                {#each patternPreviewTxns.slice(0, 8) as t (t.id)}
+                  <div class="pattern-preview-row">
+                    <span class="pattern-preview-date">{formatShortDate(t.date)}</span>
+                    <span class="pattern-preview-desc">{t.description}</span>
+                    <span class="pattern-preview-amt"
+                      >{formatCurrency(Math.abs(parseFloat(t.amount)))}</span
+                    >
+                  </div>
+                {/each}
+                {#if patternPreviewTxns.length > 8}
+                  <div class="pattern-preview-more">+{patternPreviewTxns.length - 8} more</div>
+                {/if}
+              </div>
+            </div>
+          {:else if recurringForm.merchant_pattern.trim()}
+            <div class="pattern-preview-empty">No matching transactions found</div>
+          {/if}
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="rec-amount">Amount</label>
+            <div class="form-input-wrap">
+              <span class="form-dollar">$</span>
+              <input
+                id="rec-amount"
+                type="number"
+                class="form-input with-prefix"
+                bind:value={recurringForm.amount}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="rec-freq">Frequency</label>
+            <select id="rec-freq" class="form-select" bind:value={recurringForm.frequency}>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Biweekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="yearly">Yearly</option>
+            </select>
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="rec-freq">Frequency</label>
-          <select id="rec-freq" class="form-select" bind:value={recurringForm.frequency}>
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Biweekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="rec-category">Category</label>
+            <select id="rec-category" class="form-select" bind:value={recurringForm.category_id}>
+              <option value="">None</option>
+              {#each categories as cat (cat.id)}
+                <option value={cat.id}>{cat.icon} {cat.name}</option>
+              {/each}
+            </select>
+          </div>
 
-        <div class="form-group">
-          <label class="form-label" for="rec-category">Category</label>
-          <select id="rec-category" class="form-select" bind:value={recurringForm.category_id}>
-            <option value="">None</option>
-            {#each categories as cat (cat.id)}
-              <option value={cat.id}>{cat.icon} {cat.name}</option>
-            {/each}
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="rec-account">Account</label>
-          <select id="rec-account" class="form-select" bind:value={recurringForm.account_id}>
-            <option value="">None</option>
-            {#each accounts as acct (acct.id)}
-              <option value={acct.id}>{acct.name}</option>
-            {/each}
-          </select>
+          <div class="form-group">
+            <label class="form-label" for="rec-account">Account</label>
+            <select id="rec-account" class="form-select" bind:value={recurringForm.account_id}>
+              <option value="">None</option>
+              {#each accounts as acct (acct.id)}
+                <option value={acct.id}>{acct.name}</option>
+              {/each}
+            </select>
+          </div>
         </div>
 
         <div class="form-group">
@@ -1227,6 +1465,206 @@
           {/if}
         </button>
       </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     RECURRING DETAIL SHEET
+     ═══════════════════════════════════════════════════════════════════════════ -->
+{#if showRecurringDetail}
+  {@const allRecurring = ($recurringTransactionsStore ?? []).filter(
+    (r: RecurringTransaction) => !r.deleted
+  )}
+  {@const detailItem = allRecurring.find((r: RecurringTransaction) => r.id === detailRecurringId)}
+  {@const detailCat = detailItem ? categoryMap.get(detailItem.category_id ?? '') : null}
+  {@const cancelUrl = detailItem ? getCancellationUrl(detailItem) : null}
+  {@const monthGroups = groupByMonth(detailTransactions)}
+  {@const totalSpentAll = detailTransactions.reduce(
+    (s, t) => s + Math.abs(parseFloat(t.amount) || 0),
+    0
+  )}
+  {@const avgPerMonth = monthGroups.length > 0 ? totalSpentAll / monthGroups.length : 0}
+  {@const firstDate =
+    detailTransactions.length > 0 ? detailTransactions[detailTransactions.length - 1].date : null}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    onclick={() => (showRecurringDetail = false)}
+    onkeydown={(e) => e.key === 'Escape' && (showRecurringDetail = false)}
+  >
+    <div
+      class="modal-sheet detail-sheet"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.key === 'Escape' && (showRecurringDetail = false)}
+      role="dialog"
+      tabindex="-1"
+      aria-label="Recurring Transaction Details"
+    >
+      <div class="sheet-handle-bar">
+        <div class="sheet-handle"></div>
+      </div>
+
+      {#if detailItem}
+        <div class="detail-hero">
+          <div class="detail-hero-icon">
+            <div class="cat-icon-circle" style="--cat-color: {detailCat?.color ?? '#706450'}">
+              <span class="cat-icon-emoji">{detailCat?.icon ?? '?'}</span>
+            </div>
+          </div>
+          <div class="detail-hero-info">
+            <h2 class="detail-hero-name">{detailItem.name}</h2>
+            <div class="detail-hero-meta">
+              <span class="detail-hero-amount"
+                >{formatCurrency(detailItem.amount)}{formatFrequency(detailItem.frequency)}</span
+              >
+              {#if detailItem.source === 'auto-detected'}
+                <span class="auto-badge">auto-detected</span>
+              {:else}
+                <span class="manual-badge">manual</span>
+              {/if}
+              {#if detailItem.status === 'cancelling'}
+                <span class="cancelling-badge">cancelling</span>
+              {/if}
+            </div>
+          </div>
+          <button
+            class="sheet-close"
+            onclick={() => (showRecurringDetail = false)}
+            aria-label="Close"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M5 5L15 15M15 5L5 15"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Stats row -->
+        <div class="detail-stats">
+          <div class="detail-stat">
+            <span class="detail-stat-value">{formatCurrency(totalSpentAll)}</span>
+            <span class="detail-stat-label">Total Spent</span>
+          </div>
+          <div class="detail-stat-divider"></div>
+          <div class="detail-stat">
+            <span class="detail-stat-value">{formatCurrency(avgPerMonth)}</span>
+            <span class="detail-stat-label">Avg / Month</span>
+          </div>
+          <div class="detail-stat-divider"></div>
+          <div class="detail-stat">
+            <span class="detail-stat-value">{monthGroups.length}</span>
+            <span class="detail-stat-label">Months</span>
+          </div>
+          {#if firstDate}
+            <div class="detail-stat-divider"></div>
+            <div class="detail-stat">
+              <span class="detail-stat-value">{formatShortDate(firstDate)}</span>
+              <span class="detail-stat-label">Since</span>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Action buttons -->
+        <div class="detail-actions">
+          <button
+            class="detail-action-btn edit"
+            onclick={() => {
+              showRecurringDetail = false;
+              openRecurringModal(detailItem.id);
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M11.333 2a1.886 1.886 0 012.667 2.667L5.333 13.333 2 14l.667-3.333L11.333 2z"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            Edit
+          </button>
+          {#if cancelUrl}
+            <a
+              class="detail-action-btn cancel-link"
+              href={cancelUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onclick={(e) => e.stopPropagation()}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M6 2H3a1 1 0 00-1 1v3m12-4h-3m3 0v3m0 2v3a1 1 0 01-1 1h-3m-4 0H3a1 1 0 01-1-1v-3"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Cancel Page
+            </a>
+          {/if}
+          {#if detailItem.status === 'active'}
+            <button class="detail-action-btn warn" onclick={() => markCancelling(detailItem.id)}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" />
+                <path
+                  d="M5.5 5.5l5 5M10.5 5.5l-5 5"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linecap="round"
+                />
+              </svg>
+              Mark Cancelling
+            </button>
+          {:else if detailItem.status === 'cancelling'}
+            <button class="detail-action-btn danger" onclick={() => markEnded(detailItem.id)}>
+              Confirm Cancelled
+            </button>
+            <button class="detail-action-btn subtle" onclick={() => reactivate(detailItem.id)}>
+              Reactivate
+            </button>
+          {/if}
+        </div>
+
+        <!-- Transaction History -->
+        <div class="detail-history">
+          <h3 class="detail-history-title">Transaction History</h3>
+          {#if detailLoading}
+            <div class="detail-loading">
+              <div class="detail-loading-spinner"></div>
+              Loading transactions...
+            </div>
+          {:else if monthGroups.length === 0}
+            <p class="detail-empty">No matching transactions found.</p>
+          {:else}
+            {#each monthGroups as group (group.month)}
+              <div class="detail-month-group">
+                <div class="detail-month-header">
+                  <span class="detail-month-label">{group.label}</span>
+                  <span class="detail-month-total">{formatCurrency(group.total)}</span>
+                </div>
+                {#each group.txns as t (t.id)}
+                  <div class="detail-txn-row">
+                    <span class="detail-txn-date">{formatShortDate(t.date)}</span>
+                    <span class="detail-txn-desc">{t.description}</span>
+                    <span class="detail-txn-amount"
+                      >{formatCurrency(Math.abs(parseFloat(t.amount)))}</span
+                    >
+                  </div>
+                {/each}
+              </div>
+            {/each}
+          {/if}
+        </div>
+      {:else}
+        <div class="detail-empty">Recurring transaction not found.</div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -1950,18 +2388,6 @@
     overflow: hidden;
   }
 
-  .section-header-btn {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 14px 16px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-
   .section-header-left {
     display: flex;
     align-items: center;
@@ -1988,15 +2414,6 @@
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--text-muted);
-  }
-
-  .chevron-icon {
-    color: var(--text-dim);
-    transition: transform 0.25s ease;
-  }
-
-  .chevron-icon.collapsed {
-    transform: rotate(-90deg);
   }
 
   .recurring-content {
@@ -2075,13 +2492,6 @@
 
   .recurring-next {
     color: var(--text-dim);
-  }
-
-  .recurring-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
   }
 
   .recurring-edit-btn,
