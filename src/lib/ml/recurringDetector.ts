@@ -449,28 +449,49 @@ export function detectRecurringTransactions(
         intervals.push(days);
       }
 
-      // Check periodicity: CV of intervals must be < 0.45
+      // Check periodicity: CV of intervals must be < 0.40 (tighter)
       const intervalCV = computeCV(intervals);
-      if (intervalCV >= 0.45) continue;
+      if (intervalCV >= 0.4) continue;
 
       // Classify frequency from mean interval
       const meanInterval = intervals.reduce((s, v) => s + v, 0) / intervals.length;
       const frequency = classifyFrequency(meanInterval);
       if (!frequency) continue;
 
-      // Check amount consistency: CV of absolute amounts must be < 0.30
-      // (0.30 accommodates real-world price changes, e.g. Spotify raising rates)
+      // Require 3+ transactions for high-frequency patterns (weekly/biweekly/monthly)
+      // to avoid false positives from coincidental timing. Quarterly/yearly can use 2.
+      const minTxns = frequency === 'quarterly' || frequency === 'yearly' ? 2 : 3;
+      if (subGroup.length < minTxns) continue;
+
+      // Recency check: last transaction must be within 2x the expected period
+      // (stale patterns with no recent activity are not truly "recurring")
+      const expectedPeriodDays =
+        frequency === 'weekly'
+          ? 7
+          : frequency === 'biweekly'
+            ? 14
+            : frequency === 'monthly'
+              ? 30
+              : frequency === 'quarterly'
+                ? 90
+                : 365;
+      const lastTxnDate = new Date(subGroup[subGroup.length - 1].date).getTime();
+      const daysSinceLast = (Date.now() - lastTxnDate) / MS_PER_DAY;
+      if (daysSinceLast > expectedPeriodDays * 2.5) continue;
+
+      // Check amount consistency: CV of absolute amounts must be < 0.25
+      // (tighter threshold; true subscriptions have very consistent amounts)
       const amounts = subGroup.map((t) => Math.abs(parseFloat(t.amount)));
       const amountCV = computeCV(amounts);
-      if (amountCV >= 0.3) continue;
+      if (amountCV >= 0.25) continue;
 
-      // ── Step 4: Compute confidence with sample-size penalty ──────────
+      // ── Step 4: Compute confidence with stricter sample-size penalty ──
 
       const rawConfidence = 1 - (intervalCV * 0.5 + amountCV * 0.5);
-      // Penalty: 2 txns = 0.6x, 3 = 0.8x, 4 = 0.9x, 5+ = 1.0x
-      const samplePenalty = Math.min(1, 0.4 + subGroup.length * 0.15);
+      // Penalty: 2 txns = 0.5x, 3 = 0.7x, 4 = 0.85x, 5+ = 1.0x
+      const samplePenalty = Math.min(1, 0.2 + subGroup.length * 0.2);
       const confidence = rawConfidence * samplePenalty;
-      if (confidence <= 0.4) continue;
+      if (confidence <= 0.55) continue;
 
       // Use the most recent transaction for display values
       const mostRecent = subGroup[subGroup.length - 1];

@@ -48,12 +48,13 @@ let mlSyncTimeout: ReturnType<typeof setTimeout> | null = null;
  */
 function scheduleMLSync() {
   if (mlSyncTimeout) clearTimeout(mlSyncTimeout);
+  debug('log', '[ML] Sync scheduled (500ms debounce)');
   mlSyncTimeout = setTimeout(async () => {
     try {
-      // Categorization sync returns the loaded transactions so recurring
-      // sync can reuse them instead of doing another full IndexedDB scan.
+      debug('log', '[ML] Sync starting — auto-categorization then recurring detection');
       const txns = await syncCategorizationResults();
       await syncRecurringDetections(txns);
+      debug('log', '[ML] Sync complete');
     } catch (e) {
       debug('error', '[ML] Sync error:', e);
     }
@@ -226,27 +227,36 @@ function createTransactionsStore() {
       debug('log', '[DATA] transactions — updateDate complete', { transactionId });
     },
     async updateCategory(transactionId: string, categoryId: string | null) {
-      debug('log', '[DATA] transactions — updateCategory', { transactionId, categoryId });
+      debug(
+        'log',
+        '[DATA] transactions — updateCategory START',
+        { transactionId, categoryId },
+        '(1 sync op queued: manual category write)'
+      );
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
       await engineUpdate('transactions', transactionId, {
         category_id: categoryId,
         category_source: 'manual'
       });
       await store.load();
-      debug('log', '[DATA] transactions — updateCategory complete', { transactionId });
 
       // Propagate to similar transactions + retrain classifier, then run remaining ML sync
       if (categoryId) {
+        debug('log', '[DATA] transactions — starting propagation...');
         const result = await propagateCategory(transactionId, categoryId);
         if (result.propagatedCount > 0) {
           await store.load();
           debug(
             'log',
-            '[DATA] transactions — propagated category to',
-            result.propagatedCount,
-            'similar'
+            `[DATA] transactions — propagated to ${result.propagatedCount} similar (${result.propagatedCount} more sync ops queued)`
           );
+        } else {
+          debug('log', '[DATA] transactions — no similar transactions to propagate to');
         }
+        debug(
+          'log',
+          '[DATA] transactions — scheduling ML sync in 500ms (will queue more sync ops for auto-categorization + recurring updates)'
+        );
         scheduleMLSync();
         return result.propagatedCount;
       }

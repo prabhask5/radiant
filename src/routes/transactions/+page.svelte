@@ -64,8 +64,11 @@
   /* ── Pagination ── */
   const PAGE_SIZE = 50;
   let visibleCount = $state(PAGE_SIZE);
-  /** Number of items already rendered — items beyond this skip stagger animation. */
-  let renderedCount = $state(0);
+  /**
+   * Threshold below which items skip stagger animation (already rendered).
+   * Only increases — "load more" raises it so previously-visible items stay stable.
+   */
+  let animateFromIndex = $state(0);
 
   /* ── Expanded transaction detail ── */
   let expandedId = $state<string | null>(null);
@@ -352,7 +355,7 @@
 
   /** Load more transactions. */
   function loadMore() {
-    renderedCount = visibleCount;
+    animateFromIndex = visibleCount;
     visibleCount += PAGE_SIZE;
   }
 
@@ -891,8 +894,8 @@
         <!-- Date Group Header -->
         <div
           class="date-header"
-          class:loaded={group.offset >= renderedCount}
-          style="animation-delay: {gi * 0.04}s"
+          class:loaded={group.offset < animateFromIndex}
+          style="animation-delay: {group.offset - animateFromIndex >= 0 ? gi * 0.04 : 0}s"
         >
           <span class="date-header-text">{group.label}</span>
           <span class="date-header-line"></span>
@@ -912,8 +915,10 @@
             class:expanded={isExpanded}
             class:pending={isPending}
             class:excluded={txn.is_excluded}
-            class:loaded={group.offset + ti >= renderedCount}
-            style="animation-delay: {(gi * 3 + ti) * 0.03}s"
+            class:loaded={group.offset + ti < animateFromIndex}
+            style="animation-delay: {group.offset + ti >= animateFromIndex
+              ? (group.offset + ti - animateFromIndex) * 0.03
+              : 0}s"
             onclick={() => (selectionMode ? toggleSelect(txn.id) : toggleExpand(txn.id))}
             aria-expanded={isExpanded}
             use:remoteChangeAnimation={{ entityId: txn.id, entityType: 'transactions' }}
