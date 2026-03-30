@@ -42,7 +42,7 @@
   import UpdatePrompt from '$lib/components/UpdatePrompt.svelte';
 
   /* ── App Data — centralized preload ── */
-  import { preloadAllStores, runBackgroundSync } from '$lib/stores/data';
+  import { initializeApp } from '$lib/stores/data';
 
   /* ── Global Toast ── */
   import { toastStore, dismissToast as dismissGlobalToast, addToast } from '$lib/stores/toast';
@@ -101,7 +101,15 @@
       r === '/' ? $page.url.pathname === '/' : $page.url.pathname.startsWith(r)
     )
   );
+  /** Whether all app data (stores + ML + Teller) is fully initialized. */
+  let dataReady = $state(false);
+
   const isAuthenticated = $derived(data.authMode !== 'none' && isNavPage && !$authState.isLoading);
+
+  /** Show the crystal loader while auth is resolving OR data is still loading. */
+  const showLoader = $derived(
+    $authState.isLoading || (data.authMode !== 'none' && isNavPage && !dataReady)
+  );
 
   /** User's first name for the greeting. */
   const greeting = $derived(resolveFirstName(data.session, data.offlineProfile, 'there'));
@@ -136,17 +144,15 @@
     hydrateAuthState(data);
   });
 
-  // Preload all data stores + fire background Teller sync as soon as the
-  // user is authenticated. Both are idempotent — safe to re-trigger on
-  // navigation or revalidation.
+  // Initialize all app data (stores + ML sync + Teller sync) before showing
+  // pages. The crystal loader stays visible until this resolves, so no
+  // background state changes leak through to the user.
   $effect(() => {
     if (data.authMode !== 'none') {
-      preloadAllStores();
-      runBackgroundSync((count) => {
-        addToast(
-          `Background sync: ${count} transaction${count !== 1 ? 's' : ''} updated`,
-          'sapphire'
-        );
+      initializeApp((count) => {
+        addToast(`Synced ${count} new transaction${count !== 1 ? 's' : ''}`, 'sapphire');
+      }).then(() => {
+        dataReady = true;
       });
     }
   });
@@ -310,9 +316,9 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      App Shell Container
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div class="app" class:authenticated={isAuthenticated} class:loading={$authState.isLoading}>
-  <!-- ── Auth Loading Overlay — crystal-cutting spinner ── -->
-  {#if $authState.isLoading}
+<div class="app" class:authenticated={isAuthenticated} class:loading={showLoader}>
+  <!-- ── Data Loading Overlay — crystal-cutting spinner ── -->
+  {#if showLoader}
     <div class="auth-loading-overlay">
       <div class="crystal-loader">
         <div class="crystal-facet facet-1"></div>

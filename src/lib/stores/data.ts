@@ -42,23 +42,34 @@ import { get } from 'svelte/store';
 let mlSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
 /**
+ * Run ML sync directly (non-debounced). Awaitable — resolves when
+ * categorization + recurring detection are complete.
+ */
+async function runMLSyncNow(): Promise<void> {
+  // Cancel any pending debounced sync — we're running immediately
+  if (mlSyncTimeout) {
+    clearTimeout(mlSyncTimeout);
+    mlSyncTimeout = null;
+  }
+  try {
+    debug('log', '[ML] Sync starting — auto-categorization then recurring detection');
+    const txns = await syncCategorizationResults();
+    await syncRecurringDetections(txns);
+    debug('log', '[ML] Sync complete');
+  } catch (e) {
+    debug('error', '[ML] Sync error:', e);
+  }
+}
+
+/**
  * Schedule ML sync operations (recurring detection + auto-categorization)
- * after a debounced delay. Safe to call repeatedly — only the last call
- * within the delay window triggers the actual sync.
+ * after a debounced delay. Used for user-initiated changes (category edits,
+ * category deletion) where multiple rapid changes should be batched.
  */
 function scheduleMLSync() {
   if (mlSyncTimeout) clearTimeout(mlSyncTimeout);
   debug('log', '[ML] Sync scheduled (500ms debounce)');
-  mlSyncTimeout = setTimeout(async () => {
-    try {
-      debug('log', '[ML] Sync starting — auto-categorization then recurring detection');
-      const txns = await syncCategorizationResults();
-      await syncRecurringDetections(txns);
-      debug('log', '[ML] Sync complete');
-    } catch (e) {
-      debug('error', '[ML] Sync error:', e);
-    }
-  }, 500);
+  mlSyncTimeout = setTimeout(() => runMLSyncNow(), 500);
 }
 
 /** System columns managed by stellar-drive — omit these from create payloads. */
@@ -207,7 +218,6 @@ function createTransactionsStore() {
       debug('log', '[DATA] transactions — refreshing');
       await store.load();
       debug('log', '[DATA] transactions — refresh complete');
-      scheduleMLSync();
     },
 
     /* ── User-editable field updates ── */
@@ -616,9 +626,8 @@ let preloadPromise: Promise<void> | null = null;
  * Preload all data stores from IndexedDB. Idempotent — returns the same
  * promise on subsequent calls so pages can `await` it cheaply.
  *
- * Called from the root layout after auth resolves, so data is ready
- * before any page mounts. Individual pages should `await preloadAllStores()`
- * instead of calling individual `store.refresh()` / `store.load()`.
+ * Does NOT trigger ML sync or Teller sync — those are handled by
+ * `initializeApp()` which should be awaited before rendering pages.
  */
 export function preloadAllStores(): Promise<void> {
   if (preloadPromise) return preloadPromise;
@@ -628,42 +637,68 @@ export function preloadAllStores(): Promise<void> {
     categoriesStore.load(),
     enrollmentsStore.load(),
     recurringTransactionsStore.load()
-  ]).then(() => {
-    scheduleMLSync();
-  });
+  ]).then(() => {});
   return preloadPromise;
 }
 
-let backgroundSyncStarted = false;
+let initPromise: Promise<void> | null = null;
 
 /**
- * Run background Teller sync for stale enrollments. Idempotent — only
- * runs once per app session. Fires after `preloadAllStores()` so
- * enrollment data is available for staleness checks.
+ * Initialize all app data — loads stores, runs ML sync, and fetches
+ * new transactions from Teller. Idempotent and awaitable — the crystal
+ * loader in the layout stays visible until this resolves, so NO
+ * background state changes leak through to the user.
  *
- * @param onNewTransactions — callback when new transactions arrive
- *   (e.g. to show a toast). Called with the count of new/updated transactions.
+ * Sequence:
+ * 1. Load all stores from IndexedDB (instant local data)
+ * 2. Run ML sync (auto-categorization + recurring detection)
+ * 3. Reload stores so ML-written data is reflected
+ * 4. Teller sync for stale enrollments (network)
+ * 5. If new data arrived, reload stores + re-run ML sync
+ * 6. Final store reload so everything is consistent
+ *
+ * @param onNewTransactions — optional callback with count of new Teller transactions
+ * @returns Promise that resolves when ALL data is ready to display
  */
-export async function runBackgroundSync(
-  onNewTransactions?: (count: number) => void
-): Promise<void> {
-  if (backgroundSyncStarted) return;
-  backgroundSyncStarted = true;
+export function initializeApp(onNewTransactions?: (count: number) => void): Promise<void> {
+  if (initPromise) return initPromise;
+  initPromise = (async () => {
+    // 1. Load all stores from IndexedDB
+    await preloadAllStores();
+    debug('log', '[INIT] Stores loaded from IndexedDB');
 
-  await preloadAllStores();
-
-  const enrollments = (get(enrollmentsStore) ?? []) as TellerEnrollment[];
-  if (enrollments.length === 0) return;
-
-  try {
-    const newCount = await autoSyncStaleEnrollments(enrollments, (id, status) =>
-      enrollmentsStore.updateStatus(id, status)
-    );
-    if (newCount > 0) {
-      await Promise.all([transactionsStore.refresh(), accountsStore.refresh()]);
-      onNewTransactions?.(newCount);
+    // 2. Teller sync for stale enrollments (fetch new data before ML runs)
+    let newTellerCount = 0;
+    const enrollments = (get(enrollmentsStore) ?? []) as TellerEnrollment[];
+    if (enrollments.length > 0) {
+      try {
+        newTellerCount = await autoSyncStaleEnrollments(enrollments, (id, status) =>
+          enrollmentsStore.updateStatus(id, status)
+        );
+        if (newTellerCount > 0) {
+          // Reload stores so ML sees the new Teller transactions
+          await Promise.all([transactionsStore.load(), accountsStore.load()]);
+          debug('log', `[INIT] Teller sync: ${newTellerCount} new transactions loaded`);
+        } else {
+          debug('log', '[INIT] Teller sync: no new transactions');
+        }
+      } catch (err) {
+        debug('warn', '[INIT] Teller sync failed:', err);
+      }
     }
-  } catch (err) {
-    debug('warn', '[DATA] Background sync failed:', err);
-  }
+
+    // 3. Run ML sync once on all data (including any new Teller transactions)
+    await runMLSyncNow();
+
+    // 4. Reload stores so ML-written data (categories, recurring) is visible
+    await Promise.all([transactionsStore.load(), recurringTransactionsStore.load()]);
+    debug('log', '[INIT] ML sync complete, stores refreshed');
+
+    if (newTellerCount > 0) {
+      onNewTransactions?.(newTellerCount);
+    }
+
+    debug('log', '[INIT] App initialization complete — all data ready');
+  })();
+  return initPromise;
 }
