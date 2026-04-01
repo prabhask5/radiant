@@ -98,6 +98,15 @@ export async function syncRecurringDetections(
 ): Promise<void> {
   debug('log', '[ML:RECURRING] Starting recurring sync...');
 
+  // ── Step 0: Gate on budget setup ──────────────────────────────────────
+  // Don't generate recurring entries if the user hasn't set up any budget
+  // categories yet — the budget page isn't configured.
+  const allCategories = (await engineGetAll('categories')) as unknown as { deleted?: boolean }[];
+  if (allCategories.filter((c) => !c.deleted).length === 0) {
+    debug('log', '[ML:RECURRING] No categories — skipping recurring detection (budget not set up)');
+    return;
+  }
+
   // ── Step 1: Load data ─────────────────────────────────────────────────
 
   const transactions =
@@ -210,6 +219,19 @@ export async function syncRecurringDetections(
         updateFields.next_date = computeNextDate(detection.lastDate, detection.frequency);
       }
 
+      // Re-activate ended entries when the detector finds them again.
+      // The detector's recency check guarantees the pattern has recent data,
+      // so this only fires for subscriptions that are truly active again.
+      if (existing.status === 'ended' && existing.source !== 'manual') {
+        updateFields.status = 'active';
+        debug(
+          'log',
+          '[ML:RECURRING] Re-activating ended entry:',
+          existing.name,
+          '(detector found recent data)'
+        );
+      }
+
       // Sync category from matched transactions (most common category).
       // Only update auto-detected entries — manual entries have user-set categories.
       if (existing.source !== 'manual' && detection.categoryId !== existing.category_id) {
@@ -242,42 +264,25 @@ export async function syncRecurringDetections(
     }
   }
 
-  // ── Step 4: Auto-end stale entries ──────────────────────────────────────
-  // If next_date + grace period has passed and the detector didn't refresh
-  // the entry, the subscription likely stopped — mark it as ended.
+  // ── Step 4: Auto-end unrefreshed auto-detected entries ──────────────────
+  // If the detector no longer finds an auto-detected entry, end it immediately.
+  // The detector's exact-interval matching is the source of truth — if it can't
+  // find a valid recurring pattern, the entry should not remain active.
 
   for (const rec of existingRecurring) {
-    // Only auto-end auto-detected, active/cancelling entries that weren't
-    // refreshed this run. Manual entries are user-managed — never auto-end them.
     if (rec.status !== 'active' && rec.status !== 'cancelling') continue;
     if (rec.deleted) continue;
     if (rec.source === 'manual') continue;
     if (refreshedIds.has(rec.id)) continue;
-    if (!rec.next_date) continue;
 
-    const grace = GRACE_DAYS[rec.frequency] ?? 10;
-    const deadline = new Date(rec.next_date + 'T00:00:00');
-    deadline.setDate(deadline.getDate() + grace);
+    batchOps.push({
+      type: 'update',
+      table: 'recurring_transactions',
+      id: rec.id,
+      fields: { status: 'ended' }
+    });
 
-    if (today > toLocalDateStr(deadline)) {
-      batchOps.push({
-        type: 'update',
-        table: 'recurring_transactions',
-        id: rec.id,
-        fields: { status: 'ended' }
-      });
-
-      debug(
-        'log',
-        '[ML:RECURRING] Auto-ended stale entry:',
-        rec.name,
-        '(next_date was',
-        rec.next_date,
-        '+ grace',
-        grace,
-        'days)'
-      );
-    }
+    debug('log', '[ML:RECURRING] Auto-ended entry (not detected this run):', rec.name);
   }
 
   // ── Step 5: Write recurring entry changes ─────────────────────────────
@@ -311,6 +316,26 @@ export async function syncRecurringDetections(
     debug('log', '[ML:RECURRING] Marked', toMark.length, 'transactions as is_recurring');
   }
 
+  // ── Step 6b: Clear is_recurring on stale transactions ─────────────────
+  // Transactions previously marked is_recurring that are NOT in the current
+  // detection set must be cleared — zero stale data.
+  const matchedIdSet = new Set(uniqueTxnIds);
+  const toClear = transactions.filter(
+    (t) => t.is_recurring && !t.deleted && !matchedIdSet.has(t.id)
+  );
+
+  if (toClear.length > 0) {
+    const clearOps: BatchOperation[] = toClear.map((t) => ({
+      type: 'update' as const,
+      table: 'transactions' as const,
+      id: t.id,
+      fields: { is_recurring: false }
+    }));
+
+    await engineBatchWrite(clearOps);
+    debug('log', '[ML:RECURRING] Cleared is_recurring on', toClear.length, 'stale transactions');
+  }
+
   debug(
     'log',
     '[ML:RECURRING] Sync complete:',
@@ -319,6 +344,8 @@ export async function syncRecurringDetections(
     batchOps.length,
     'writes,',
     toMark.length,
-    'transactions marked'
+    'marked,',
+    toClear.length,
+    'cleared'
   );
 }

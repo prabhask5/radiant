@@ -2,8 +2,8 @@
  * @fileoverview Recurring transaction detection algorithm.
  *
  * Analyzes transaction history to identify recurring charges (subscriptions,
- * rent, utilities, etc.) based on merchant name similarity, payment interval
- * periodicity, and amount consistency.
+ * rent, utilities, etc.) based on merchant name similarity, exact payment
+ * interval matching, and amount consistency.
  *
  * Algorithm:
  * 1. Filter to charges only (no credits/deposits)
@@ -11,9 +11,10 @@
  * 3. Split each merchant group into billing-cycle sub-groups using temporal
  *    alignment (handles multiple subscriptions from the same merchant, e.g.
  *    two Patreon tiers billing on different days, separate Apple subs)
- * 4. For each sub-group with 2+ transactions, compute interval periodicity
- *    and amount consistency via coefficient of variation (CV)
- * 5. Return detections above confidence threshold (with sample-size penalty)
+ * 4. For each sub-group with 3+ transactions, check that EVERY interval
+ *    between successive transactions matches a known frequency within a
+ *    strict tolerance (no statistical averaging — exact match required)
+ * 5. Return detections sorted by confidence descending
  */
 
 // =============================================================================
@@ -142,25 +143,51 @@ function computeCV(values: number[]): number {
 }
 
 /**
- * Map a mean inter-transaction interval (in days) to a recurrence frequency.
+ * Known recurring frequencies with their expected period and strict tolerance.
  *
- * Uses range-based classification with no gaps:
- * - 5–9 days → weekly
- * - 10–19 days → biweekly
- * - 20–45 days → monthly
- * - 80–100 days → quarterly
- * - 340–400 days → yearly
- *
- * @param meanInterval - Average number of days between consecutive transactions
- * @returns The classified frequency, or null if no range matches
+ * Each interval between successive transactions must fall within ±tolerance
+ * of the expected period (or a small multiple for skipped billing cycles).
  */
-function classifyFrequency(meanInterval: number): RecurringFrequency | null {
-  if (meanInterval >= 5 && meanInterval <= 9) return 'weekly';
-  if (meanInterval >= 10 && meanInterval <= 19) return 'biweekly';
-  if (meanInterval >= 20 && meanInterval <= 45) return 'monthly';
-  if (meanInterval >= 80 && meanInterval <= 100) return 'quarterly';
-  if (meanInterval >= 340 && meanInterval <= 400) return 'yearly';
-  return null;
+const FREQUENCY_SPECS: Array<{
+  name: RecurringFrequency;
+  period: number;
+  tolerance: number;
+}> = [
+  { name: 'weekly', period: 7, tolerance: 2 },
+  { name: 'biweekly', period: 14, tolerance: 3 },
+  { name: 'monthly', period: 30, tolerance: 5 },
+  { name: 'quarterly', period: 90, tolerance: 10 },
+  { name: 'yearly', period: 365, tolerance: 15 }
+];
+
+/**
+ * Check whether EVERY interval in a group matches a given frequency.
+ *
+ * Each interval must be within a strict tolerance of N × period (N ≥ 1).
+ * Tolerance scales with √N so that skipped billing cycles (e.g. a 2-month
+ * gap for a monthly subscription) are slightly more forgiving than a
+ * single-period gap — accumulated billing jitter is expected.
+ *
+ * @returns `{ matches, maxDeviation }` — maxDeviation is the worst-case
+ *   deviation across all intervals (lower = tighter fit).
+ */
+function allIntervalsMatch(
+  intervals: number[],
+  period: number,
+  baseTolerance: number
+): { matches: boolean; maxDeviation: number } {
+  let maxDev = 0;
+  for (const interval of intervals) {
+    const n = Math.round(interval / period);
+    if (n < 1) return { matches: false, maxDeviation: Infinity };
+    const expected = n * period;
+    // Scale tolerance with √N: 1 period = base, 2 periods = base×1.41, 3 = base×1.73
+    const tolerance = baseTolerance * Math.sqrt(n);
+    const dev = Math.abs(interval - expected);
+    if (dev > tolerance) return { matches: false, maxDeviation: Infinity };
+    maxDev = Math.max(maxDev, dev);
+  }
+  return { matches: true, maxDeviation: maxDev };
 }
 
 /**
@@ -449,49 +476,46 @@ export function detectRecurringTransactions(
         intervals.push(days);
       }
 
-      // Check periodicity: CV of intervals must be < 0.40 (tighter)
-      const intervalCV = computeCV(intervals);
-      if (intervalCV >= 0.4) continue;
+      // Require 3+ transactions to avoid false positives from coincidental timing
+      if (subGroup.length < 3) continue;
 
-      // Classify frequency from mean interval
-      const meanInterval = intervals.reduce((s, v) => s + v, 0) / intervals.length;
-      const frequency = classifyFrequency(meanInterval);
-      if (!frequency) continue;
+      // ── Exact interval matching ───────────────────────────────────────
+      // Try each known frequency: EVERY interval must be within the strict
+      // tolerance of N × period (where N ≥ 1). Pick the best-fitting frequency.
+      let bestFrequency: RecurringFrequency | null = null;
+      let bestMaxDev = Infinity;
 
-      // Require 3+ transactions for high-frequency patterns (weekly/biweekly/monthly)
-      // to avoid false positives from coincidental timing. Quarterly/yearly can use 2.
-      const minTxns = frequency === 'quarterly' || frequency === 'yearly' ? 2 : 3;
-      if (subGroup.length < minTxns) continue;
+      for (const spec of FREQUENCY_SPECS) {
+        const result = allIntervalsMatch(intervals, spec.period, spec.tolerance);
+        if (result.matches && result.maxDeviation < bestMaxDev) {
+          bestFrequency = spec.name;
+          bestMaxDev = result.maxDeviation;
+        }
+      }
+      if (!bestFrequency) continue;
 
-      // Recency check: last transaction must be within 2x the expected period
+      const frequency = bestFrequency;
+      const expectedPeriodDays = FREQUENCY_SPECS.find((s) => s.name === frequency)!.period;
+
+      // Recency check: last transaction must be within 2.5× the expected period
       // (stale patterns with no recent activity are not truly "recurring")
-      const expectedPeriodDays =
-        frequency === 'weekly'
-          ? 7
-          : frequency === 'biweekly'
-            ? 14
-            : frequency === 'monthly'
-              ? 30
-              : frequency === 'quarterly'
-                ? 90
-                : 365;
       const lastTxnDate = new Date(subGroup[subGroup.length - 1].date).getTime();
       const daysSinceLast = (Date.now() - lastTxnDate) / MS_PER_DAY;
       if (daysSinceLast > expectedPeriodDays * 2.5) continue;
 
       // Check amount consistency: CV of absolute amounts must be < 0.25
-      // (tighter threshold; true subscriptions have very consistent amounts)
       const amounts = subGroup.map((t) => Math.abs(parseFloat(t.amount)));
       const amountCV = computeCV(amounts);
       if (amountCV >= 0.25) continue;
 
-      // ── Step 4: Compute confidence with stricter sample-size penalty ──
-
-      const rawConfidence = 1 - (intervalCV * 0.5 + amountCV * 0.5);
-      // Penalty: 2 txns = 0.5x, 3 = 0.7x, 4 = 0.85x, 5+ = 1.0x
-      const samplePenalty = Math.min(1, 0.2 + subGroup.length * 0.2);
+      // ── Confidence: based on interval tightness + amount consistency + sample size ──
+      const tolerance = FREQUENCY_SPECS.find((s) => s.name === frequency)!.tolerance;
+      const intervalTightness = 1 - bestMaxDev / tolerance; // 1.0 = perfect, 0.0 = at tolerance edge
+      const amountTightness = 1 - amountCV / 0.25;
+      const rawConfidence = intervalTightness * 0.5 + amountTightness * 0.5;
+      const samplePenalty = Math.min(1, 0.4 + subGroup.length * 0.15);
       const confidence = rawConfidence * samplePenalty;
-      if (confidence <= 0.55) continue;
+      if (confidence <= 0.3) continue;
 
       // Use the most recent transaction for display values
       const mostRecent = subGroup[subGroup.length - 1];

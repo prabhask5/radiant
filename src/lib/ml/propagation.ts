@@ -106,16 +106,20 @@ export interface PropagationResult {
  * - Not already set to the target category
  * - Above the similarity threshold
  *
+ * Supports propagating `null` (uncategorized) — when a user explicitly
+ * removes a category, similar auto/propagation-categorized transactions
+ * should also be uncategorized.
+ *
  * Does NOT retrain the classifier — the caller's `scheduleMLSync()` handles
  * that, avoiding redundant retraining.
  *
  * @param sourceTransactionId - The transaction the user just categorized
- * @param categoryId - The category the user assigned
+ * @param categoryId - The category the user assigned (null = uncategorized)
  * @returns Number of transactions that were propagated to
  */
 export async function propagateCategory(
   sourceTransactionId: string,
-  categoryId: string
+  categoryId: string | null
 ): Promise<PropagationResult> {
   const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
   const source = allTxns.find((t) => t.id === sourceTransactionId);
@@ -148,8 +152,10 @@ export async function propagateCategory(
     // Legacy data (category_source null + category_id set) is treated as manual.
     if (t.category_source === 'manual') return false;
     if (t.category_source === null && t.category_id !== null) return false;
-    // Skip transactions already set to this exact category
+    // Skip transactions already set to this exact category (or both null)
     if (t.category_id === categoryId) return false;
+    // When propagating null (uncategorized), only clear auto/propagation-set categories
+    if (categoryId === null && t.category_id === null) return false;
     return similarity(sourceTokens, tokenize(t.description)) >= SIMILARITY_THRESHOLD;
   });
 

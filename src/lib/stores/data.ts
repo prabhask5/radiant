@@ -250,28 +250,24 @@ function createTransactionsStore() {
       });
       await store.load();
 
-      // Propagate to similar transactions + retrain classifier, then run remaining ML sync
-      if (categoryId) {
-        debug('log', '[DATA] transactions — starting propagation...');
-        const result = await propagateCategory(transactionId, categoryId);
-        if (result.propagatedCount > 0) {
-          await store.load();
-          debug(
-            'log',
-            `[DATA] transactions — propagated to ${result.propagatedCount} similar (${result.propagatedCount} more sync ops queued)`
-          );
-        } else {
-          debug('log', '[DATA] transactions — no similar transactions to propagate to');
-        }
+      // Propagate to similar transactions (works for both assigning and un-assigning)
+      debug('log', '[DATA] transactions — starting propagation...');
+      const result = await propagateCategory(transactionId, categoryId);
+      if (result.propagatedCount > 0) {
+        await store.load();
         debug(
           'log',
-          '[DATA] transactions — scheduling ML sync in 500ms (will queue more sync ops for auto-categorization + recurring updates)'
+          `[DATA] transactions — propagated to ${result.propagatedCount} similar (${result.propagatedCount} more sync ops queued)`
         );
-        scheduleMLSync();
-        return result.propagatedCount;
+      } else {
+        debug('log', '[DATA] transactions — no similar transactions to propagate to');
       }
+      debug(
+        'log',
+        '[DATA] transactions — scheduling ML sync in 500ms (will queue more sync ops for auto-categorization + recurring updates)'
+      );
       scheduleMLSync();
-      return 0;
+      return result.propagatedCount;
     },
     async toggleExcluded(transactionId: string, excluded: boolean) {
       debug('log', '[DATA] transactions — toggleExcluded', { transactionId, excluded });
@@ -605,9 +601,17 @@ function createRecurringTransactionsStore() {
     },
     async remove(id: string) {
       debug('log', '[DATA] recurring_transactions — remove', { id });
+
+      // Clear is_recurring on all transactions that were matched by this entry.
+      // Re-run full recurring sync to recompute is_recurring flags correctly.
       await remoteChangesStore.markPendingDelete(id, 'recurring_transactions');
       await engineDelete('recurring_transactions', id);
       await store.load();
+
+      // Schedule ML sync to re-sync is_recurring flags immediately
+      // (the sync will clear stale flags and re-mark valid ones)
+      scheduleMLSync();
+
       debug('log', '[DATA] recurring_transactions — remove complete', { id });
     }
   };
@@ -644,61 +648,76 @@ export function preloadAllStores(): Promise<void> {
 let initPromise: Promise<void> | null = null;
 
 /**
- * Initialize all app data — loads stores, runs ML sync, and fetches
- * new transactions from Teller. Idempotent and awaitable — the crystal
- * loader in the layout stays visible until this resolves, so NO
- * background state changes leak through to the user.
+ * Initialize app data from IndexedDB. Fast and local-only — loads all
+ * stores so the page can render immediately with cached data.
+ * Teller sync + ML sync run separately via `startBackgroundSync()`.
  *
- * Sequence:
- * 1. Load all stores from IndexedDB (instant local data)
- * 2. Run ML sync (auto-categorization + recurring detection)
- * 3. Reload stores so ML-written data is reflected
- * 4. Teller sync for stale enrollments (network)
- * 5. If new data arrived, reload stores + re-run ML sync
- * 6. Final store reload so everything is consistent
- *
- * @param onNewTransactions — optional callback with count of new Teller transactions
- * @returns Promise that resolves when ALL data is ready to display
+ * @returns Promise that resolves when local data is ready to display
  */
-export function initializeApp(onNewTransactions?: (count: number) => void): Promise<void> {
+export function initializeApp(): Promise<void> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
-    // 1. Load all stores from IndexedDB
     await preloadAllStores();
-    debug('log', '[INIT] Stores loaded from IndexedDB');
-
-    // 2. Teller sync for stale enrollments (fetch new data before ML runs)
-    let newTellerCount = 0;
-    const enrollments = (get(enrollmentsStore) ?? []) as TellerEnrollment[];
-    if (enrollments.length > 0) {
-      try {
-        newTellerCount = await autoSyncStaleEnrollments(enrollments, (id, status) =>
-          enrollmentsStore.updateStatus(id, status)
-        );
-        if (newTellerCount > 0) {
-          // Reload stores so ML sees the new Teller transactions
-          await Promise.all([transactionsStore.load(), accountsStore.load()]);
-          debug('log', `[INIT] Teller sync: ${newTellerCount} new transactions loaded`);
-        } else {
-          debug('log', '[INIT] Teller sync: no new transactions');
-        }
-      } catch (err) {
-        debug('warn', '[INIT] Teller sync failed:', err);
-      }
-    }
-
-    // 3. Run ML sync once on all data (including any new Teller transactions)
-    await runMLSyncNow();
-
-    // 4. Reload stores so ML-written data (categories, recurring) is visible
-    await Promise.all([transactionsStore.load(), recurringTransactionsStore.load()]);
-    debug('log', '[INIT] ML sync complete, stores refreshed');
-
-    if (newTellerCount > 0) {
-      onNewTransactions?.(newTellerCount);
-    }
-
-    debug('log', '[INIT] App initialization complete — all data ready');
+    debug('log', '[INIT] Stores loaded from IndexedDB — page ready');
   })();
   return initPromise;
+}
+
+let backgroundSyncStarted = false;
+
+/**
+ * Start Teller sync + ML processing in the background. Fires immediately
+ * after `initializeApp()` resolves (no artificial delay) but does NOT
+ * block page rendering. When complete, stores are silently updated and
+ * the callback fires so the UI can show a toast.
+ *
+ * Sequence:
+ * 1. Teller sync — fetch new transactions from bank APIs
+ * 2. Reload transaction/account stores with new data
+ * 3. ML sync — auto-categorize + detect recurring (runs on ALL data)
+ * 4. Reload stores so ML-written data is visible
+ *
+ * @param onNewTransactions — callback with count of new Teller transactions
+ */
+export async function startBackgroundSync(
+  onNewTransactions?: (count: number) => void
+): Promise<void> {
+  if (backgroundSyncStarted) return;
+  backgroundSyncStarted = true;
+
+  // Wait for local data to be loaded first
+  await initializeApp();
+
+  // 1. Teller sync for stale enrollments
+  let newTellerCount = 0;
+  const enrollments = (get(enrollmentsStore) ?? []) as TellerEnrollment[];
+  if (enrollments.length > 0) {
+    try {
+      newTellerCount = await autoSyncStaleEnrollments(enrollments, (id, status) =>
+        enrollmentsStore.updateStatus(id, status)
+      );
+      if (newTellerCount > 0) {
+        // 2. Reload stores so ML sees the new Teller transactions
+        await Promise.all([transactionsStore.load(), accountsStore.load()]);
+        debug('log', `[SYNC] Teller: ${newTellerCount} new transactions loaded`);
+      } else {
+        debug('log', '[SYNC] Teller: no new transactions');
+      }
+    } catch (err) {
+      debug('warn', '[SYNC] Teller sync failed:', err);
+    }
+  }
+
+  // 3. ML sync — runs on all data (existing + any new Teller transactions)
+  await runMLSyncNow();
+
+  // 4. Reload stores so ML-written data (categories, recurring) is visible
+  await Promise.all([transactionsStore.load(), recurringTransactionsStore.load()]);
+  debug('log', '[SYNC] ML sync complete, stores refreshed');
+
+  if (newTellerCount > 0) {
+    onNewTransactions?.(newTellerCount);
+  }
+
+  debug('log', '[SYNC] Background sync complete');
 }

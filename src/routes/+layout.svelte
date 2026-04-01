@@ -42,7 +42,7 @@
   import UpdatePrompt from '$lib/components/UpdatePrompt.svelte';
 
   /* ── App Data — centralized preload ── */
-  import { initializeApp } from '$lib/stores/data';
+  import { initializeApp, startBackgroundSync } from '$lib/stores/data';
 
   /* ── Global Toast ── */
   import { toastStore, dismissToast as dismissGlobalToast, addToast } from '$lib/stores/toast';
@@ -144,15 +144,16 @@
     hydrateAuthState(data);
   });
 
-  // Initialize all app data (stores + ML sync + Teller sync) before showing
-  // pages. The crystal loader stays visible until this resolves, so no
-  // background state changes leak through to the user.
+  // Load local data (IndexedDB) before showing pages — fast, no network.
+  // Then immediately kick off Teller + ML sync in the background.
   $effect(() => {
     if (data.authMode !== 'none') {
-      initializeApp((count) => {
-        addToast(`Synced ${count} new transaction${count !== 1 ? 's' : ''}`, 'sapphire');
-      }).then(() => {
+      initializeApp().then(() => {
         dataReady = true;
+        // Fire background sync immediately — doesn't block page render
+        startBackgroundSync((count) => {
+          addToast(`Synced ${count} new transaction${count !== 1 ? 's' : ''}`, 'sapphire');
+        });
       });
     }
   });
