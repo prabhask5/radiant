@@ -428,16 +428,29 @@ async function autoSyncStaleEnrollmentsInternal(
       });
 
       if (!response.ok) {
+        // Map the response to an enrollment status the UI can act on.
+        // 401 → access token expired (user must reconnect the bank).
+        // Anything else → generic error state. The detailed reason stays
+        // in the debug log; the UI only needs the status to prompt reconnect.
+        let errorBody = '';
+        try {
+          errorBody = await response.text();
+        } catch {
+          /* non-fatal */
+        }
+        const nextStatus = response.status === 401 ? 'disconnected' : 'error';
         debug(
           'warn',
-          `[TELLER-SYNC] Auto-sync failed for ${enrollment.institution_name}: HTTP ${response.status}`
+          `[TELLER-SYNC] Auto-sync failed for ${enrollment.institution_name}: HTTP ${response.status}${errorBody ? ` — ${errorBody.slice(0, 200)}` : ''}`
         );
+        await updateStatus(enrollment.id, nextStatus);
         continue;
       }
 
       const rawData = await response.json();
       const result = await processTellerSyncData(rawData, enrollment.id);
       totalNew += result.newTransactions + result.updatedTransactions;
+      // Clear any prior error state on success
       await updateStatus(enrollment.id, 'connected');
       debug(
         'log',
@@ -445,6 +458,7 @@ async function autoSyncStaleEnrollmentsInternal(
       );
     } catch (err) {
       debug('warn', `[TELLER-SYNC] Auto-sync error for ${enrollment.institution_name}:`, err);
+      await updateStatus(enrollment.id, 'error');
     }
   }
 

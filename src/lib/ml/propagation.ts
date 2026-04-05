@@ -144,18 +144,15 @@ export async function propagateCategory(
   });
 
   // Find similar transactions to propagate to.
-  // Overwrites auto-ML, previous propagation, and new transactions but
-  // never overwrites manual user categorizations — user intent always wins.
+  // Per the strict category hierarchy, propagation overrides every other
+  // source EXCEPT manual — so it overwrites auto, prior propagation, and
+  // never-categorized transactions, but never touches manual assignments.
   const matches = allTxns.filter((t) => {
     if (t.deleted || t.id === sourceTransactionId) return false;
-    // Never overwrite manually-set categories (including manual "no category").
-    // Legacy data (category_source null + category_id set) is treated as manual.
+    // Only manual user categorization is protected from propagation.
     if (t.category_source === 'manual') return false;
-    if (t.category_source === null && t.category_id !== null) return false;
-    // Skip transactions already set to this exact category (or both null)
+    // Skip no-op writes (already set to this exact category, or both null)
     if (t.category_id === categoryId) return false;
-    // When propagating null (uncategorized), only clear auto/propagation-set categories
-    if (categoryId === null && t.category_id === null) return false;
     return similarity(sourceTokens, tokenize(t.description)) >= SIMILARITY_THRESHOLD;
   });
 

@@ -74,16 +74,20 @@ export async function syncCategorizationResults(): Promise<Transaction[]> {
     categorizer.save();
   }
 
-  // ── Candidates: transactions with no category ───────────────────────────
-  // Process any transaction where category_id is null AND the user hasn't
-  // explicitly chosen "no category" (category_source !== 'manual').
-  // This includes:
-  //  - Brand-new transactions (category_source === null)
-  //  - Previously failed auto-attempts (category_source === null, retried)
-  //  - Transactions uncategorized by category deletion (category_source may
-  //    be 'auto' or 'propagation' but category_id was cleared)
+  // ── Candidates: ONLY transactions that have never been categorized ──────
+  // Strict rule: auto-categorization only touches transactions that have
+  // NEVER been categorized before (category_source === null AND
+  // category_id === null). Any other state represents prior user intent
+  // (manual, propagation) or a prior auto-decision that was cleared by
+  // category deletion — none of which the classifier should overwrite.
+  //
+  // Hierarchy (strongest → weakest):
+  //   1. manual       — user's explicit choice, never overwritten
+  //   2. propagation  — user's choice fuzzy-matched onto similar txns
+  //   3. auto         — classifier's prior assignment (stays until user acts)
+  //   4. null         — never categorized; the only candidates for auto
   const uncategorized = allTxns.filter(
-    (t) => t.category_id === null && t.category_source !== 'manual' && !t.deleted
+    (t) => t.category_id === null && t.category_source === null && !t.deleted
   );
   if (uncategorized.length === 0) {
     debug('log', '[ML:CATEGORIZE] No uncategorized transactions to process');

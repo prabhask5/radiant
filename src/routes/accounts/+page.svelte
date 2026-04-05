@@ -239,7 +239,7 @@
       .filter((a) => a.type === 'credit' && !a.is_hidden)
       .reduce((sum, a) => {
         const balance = parseFloat(a.balance_ledger ?? a.balance_available ?? '0.00');
-        return sum + (isNaN(balance) ? 0 : Math.abs(balance));
+        return sum + (isNaN(balance) ? 0 : balance);
       }, 0);
   });
 
@@ -409,7 +409,9 @@
         if (snapshot !== undefined) lastKnown[a] = snapshot;
 
         if (accountTimelines[a].isDebt) {
-          debtSum += Math.abs(lastKnown[a]);
+          // Trust the stored sign. An overpaid credit card has a negative
+          // balance, which correctly *reduces* debtSum (user is owed money).
+          debtSum += lastKnown[a];
         } else {
           assetSum += lastKnown[a];
         }
@@ -462,10 +464,15 @@
   }
 
   /**
-   * Open the Teller Connect widget for linking a new financial institution.
-   * On success, triggers a sync with the received access token.
+   * Open the Teller Connect widget for linking a new financial institution,
+   * or re-authenticating an existing enrollment whose access token has
+   * expired. When `reconnectEnrollmentId` is supplied, the Teller Connect
+   * modal opens in re-auth mode against that enrollment's Teller `enr_xxx`
+   * id — the user re-enters bank credentials, Teller mints a fresh access
+   * token, and we update the existing local enrollment in place (no data
+   * loss, no duplicate accounts or transactions).
    */
-  async function openTellerConnect() {
+  async function openTellerConnect(reconnectEnrollmentId?: string) {
     if (isDemoMode()) {
       showFeedback('error', 'Connecting bank accounts is not available in demo mode.');
       return;
@@ -473,6 +480,18 @@
     if (!tellerAppId) {
       showFeedback('error', 'Teller app ID not configured. Deploy with PUBLIC_TELLER_APP_ID set.');
       return;
+    }
+
+    // For reconnects: look up the remote Teller enrollment id (enr_xxx) off
+    // the local enrollment so Teller Connect knows which enrollment to reauth.
+    let tellerEnrollmentId: string | undefined;
+    if (reconnectEnrollmentId) {
+      const localEnrollment = enrollments.find((e) => e.id === reconnectEnrollmentId);
+      if (!localEnrollment) {
+        showFeedback('error', 'Enrollment not found.');
+        return;
+      }
+      tellerEnrollmentId = localEnrollment.enrollment_id;
     }
 
     tellerLoading = true;
@@ -491,9 +510,14 @@
         applicationId: tellerAppId,
         products: ['balance', 'transactions'],
         environment: tellerEnvironment,
+        ...(tellerEnrollmentId ? { enrollmentId: tellerEnrollmentId } : {}),
         onSuccess: async (enrollment: TellerConnectEnrollment) => {
           tellerOpen = false;
-          await handleEnrollmentSuccess(enrollment);
+          if (reconnectEnrollmentId) {
+            await handleReconnectSuccess(reconnectEnrollmentId, enrollment);
+          } else {
+            await handleEnrollmentSuccess(enrollment);
+          }
         },
         onInit: () => {
           tellerLoading = false;
@@ -514,6 +538,68 @@
       tellerLoading = false;
       tellerOpen = false;
       showFeedback('error', err instanceof Error ? err.message : 'Failed to open Teller Connect');
+    }
+  }
+
+  /**
+   * Handle successful re-authentication of an existing enrollment.
+   * Updates the stored access token in place and kicks off a fresh sync —
+   * no enrollment is created and no accounts or transactions are touched
+   * beyond the normal sync upsert path.
+   */
+  async function handleReconnectSuccess(
+    localEnrollmentId: string,
+    enrollment: TellerConnectEnrollment
+  ) {
+    debug('log', '[ACCOUNTS] handleReconnectSuccess — enrollmentId:', localEnrollmentId);
+    syncing = true;
+    showFeedback('success', `Reconnected to ${enrollment.enrollment.institution.name}. Syncing...`);
+
+    try {
+      // Swap in the fresh access token (status cleared to 'connected' after sync)
+      await enrollmentsStore.updateAccessToken(localEnrollmentId, enrollment.accessToken);
+
+      // Fetch fresh data with the new token
+      const response = await fetch('/api/teller/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: enrollment.accessToken })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Sync failed with status ${response.status}`);
+      }
+
+      const rawData = await response.json();
+      const syncResult = await processTellerSyncData(rawData, localEnrollmentId);
+
+      // Flip status back to 'connected' now that sync succeeded
+      await enrollmentsStore.updateStatus(localEnrollmentId, 'connected');
+
+      await Promise.all([
+        accountsStore.refresh(),
+        transactionsStore.refresh(),
+        enrollmentsStore.refresh()
+      ]);
+
+      const parts: string[] = [];
+      if (syncResult.newTransactions > 0)
+        parts.push(
+          `${syncResult.newTransactions} new transaction${syncResult.newTransactions !== 1 ? 's' : ''}`
+        );
+      if (syncResult.updatedTransactions > 0)
+        parts.push(`${syncResult.updatedTransactions} updated`);
+      const detail = parts.length > 0 ? ` — ${parts.join(', ')}` : '';
+      showFeedback('success', `${enrollment.enrollment.institution.name} reconnected${detail}.`);
+    } catch (err) {
+      debug('error', '[ACCOUNTS] Reconnect sync error:', err);
+      showFeedback(
+        'error',
+        err instanceof Error ? err.message : 'Reconnect sync failed. Please try again.'
+      );
+    } finally {
+      syncing = false;
     }
   }
 
@@ -1170,7 +1256,11 @@
       </p>
     </div>
     <div class="header-actions">
-      <button class="connect-btn" onclick={openTellerConnect} disabled={tellerLoading || syncing}>
+      <button
+        class="connect-btn"
+        onclick={() => openTellerConnect()}
+        disabled={tellerLoading || syncing}
+      >
         {#if tellerLoading || syncing}
           <div class="btn-spinner"></div>
           {syncing ? 'Syncing...' : 'Connecting...'}
@@ -1308,7 +1398,7 @@
       {/if}
       <button
         class="connect-btn empty-cta"
-        onclick={openTellerConnect}
+        onclick={() => openTellerConnect()}
         disabled={tellerLoading || syncing}
       >
         <svg
@@ -1347,7 +1437,7 @@
           class:positive={netPosition >= 0}
           class:negative={netPosition < 0}
         >
-          {formatCurrency(Math.abs(netPosition))}
+          {formatCurrency(netPosition)}
         </span>
       </div>
     </div>
@@ -1457,26 +1547,28 @@
                   </button>
                 </div>
               {:else}
-                <button
-                  class="sync-btn"
-                  onclick={() => retrySyncEnrollment(group.enrollmentId)}
-                  disabled={syncing}
-                  aria-label="Re-sync {group.institutionName}"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    ><polyline points="23 4 23 10 17 10" /><path
-                      d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
-                    /></svg
+                {#if group.enrollmentStatus === 'connected'}
+                  <button
+                    class="sync-btn"
+                    onclick={() => retrySyncEnrollment(group.enrollmentId)}
+                    disabled={syncing}
+                    aria-label="Re-sync {group.institutionName}"
                   >
-                </button>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><polyline points="23 4 23 10 17 10" /><path
+                        d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
+                      /></svg
+                    >
+                  </button>
+                {/if}
                 <button
                   class="disconnect-btn"
                   onclick={() => (confirmDisconnectId = group.enrollmentId)}
@@ -1502,6 +1594,87 @@
               {/if}
             </div>
           </div>
+
+          {#if group.enrollmentStatus === 'disconnected' || group.enrollmentStatus === 'error'}
+            {@const isAuth = group.enrollmentStatus === 'disconnected'}
+            <div
+              class="reconnect-banner"
+              class:reconnect-banner-auth={isAuth}
+              class:reconnect-banner-error={!isAuth}
+              role="alert"
+            >
+              <div class="reconnect-aura" aria-hidden="true"></div>
+              <div class="reconnect-content">
+                <div class="reconnect-icon" aria-hidden="true">
+                  {#if isAuth}
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                    </svg>
+                  {:else}
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path
+                        d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                      />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  {/if}
+                </div>
+                <div class="reconnect-text">
+                  <div class="reconnect-title">
+                    {isAuth ? 'Connection needs re-authorization' : 'Sync temporarily unavailable'}
+                  </div>
+                  <div class="reconnect-desc">
+                    {isAuth
+                      ? 'Your bank expired this link — new transactions won\u2019t appear until you sign in again.'
+                      : 'We hit an error reaching your bank. Your data is safe; reconnect to resume syncing.'}
+                  </div>
+                </div>
+                <button
+                  class="reconnect-btn"
+                  onclick={() => openTellerConnect(group.enrollmentId)}
+                  disabled={tellerLoading || syncing}
+                  aria-label="Reconnect {group.institutionName}"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M21 2v6h-6" />
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                    <path d="M3 22v-6h6" />
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                  </svg>
+                  <span>Reconnect</span>
+                </button>
+              </div>
+            </div>
+          {/if}
 
           <!-- Account Cards -->
           <div class="accounts-list">
@@ -2723,6 +2896,249 @@
     border-color: rgba(92, 140, 232, 0.2);
     font-size: 0.68rem;
     padding: 0.25rem 0.6rem;
+  }
+
+  /* ── Reconnect Banner ───────────────────────────────────────────────────── */
+  /* Cinematic alert surface that appears beneath the institution header when
+     an enrollment is in a 'disconnected' (auth expired) or 'error' state.
+     Design language: obsidian card + colored aura glow, prismatic shimmer
+     edge, and a single high-conviction reconnect CTA. Colors lean gold for
+     the auth-expired case (actionable, warm) and ruby for errors (urgent).  */
+
+  .reconnect-banner {
+    position: relative;
+    margin: 0 0 0.75rem;
+    padding: 0.95rem 1.1rem;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(26, 22, 16, 0.9) 0%, rgba(20, 16, 10, 0.92) 100%);
+    border: 1px solid var(--banner-border);
+    overflow: hidden;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.03) inset,
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      0 0 24px var(--banner-glow);
+    animation: reconnect-banner-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .reconnect-banner-auth {
+    --banner-accent: var(--gold);
+    --banner-accent-glow: rgba(251, 191, 36, 0.32);
+    --banner-accent-dim: rgba(251, 191, 36, 0.08);
+    --banner-border: rgba(251, 191, 36, 0.22);
+    --banner-glow: rgba(251, 191, 36, 0.1);
+  }
+
+  .reconnect-banner-error {
+    --banner-accent: var(--ruby);
+    --banner-accent-glow: rgba(248, 113, 113, 0.34);
+    --banner-accent-dim: rgba(248, 113, 113, 0.08);
+    --banner-border: rgba(248, 113, 113, 0.24);
+    --banner-glow: rgba(248, 113, 113, 0.12);
+  }
+
+  /* Layered aura — prismatic gradient sweeping behind the content */
+  .reconnect-aura {
+    position: absolute;
+    inset: -40%;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 60% 80% at 0% 50%, var(--banner-accent-glow) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 70% at 100% 50%, var(--banner-accent-dim) 0%, transparent 60%);
+    opacity: 0.7;
+    animation: reconnect-aura-drift 9s ease-in-out infinite alternate;
+  }
+
+  /* Shimmering top edge — subtle prism-like highlight */
+  .reconnect-banner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--banner-accent-glow), transparent);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .reconnect-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    z-index: 1;
+  }
+
+  .reconnect-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--banner-accent-dim);
+    border: 1px solid var(--banner-border);
+    color: var(--banner-accent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 0 16px var(--banner-glow);
+    animation: reconnect-icon-pulse 2.8s ease-in-out infinite;
+  }
+
+  .reconnect-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .reconnect-title {
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    line-height: 1.3;
+  }
+
+  .reconnect-desc {
+    margin-top: 0.2rem;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+
+  .reconnect-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.95rem;
+    border-radius: 10px;
+    background: linear-gradient(
+      135deg,
+      var(--banner-accent-dim) 0%,
+      var(--banner-accent-glow) 100%
+    );
+    border: 1px solid var(--banner-border);
+    color: var(--banner-accent);
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition:
+      transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.25s ease,
+      background 0.25s ease,
+      border-color 0.25s ease;
+    white-space: nowrap;
+  }
+
+  .reconnect-btn svg {
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .reconnect-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: var(--banner-accent);
+    background: linear-gradient(
+      135deg,
+      var(--banner-accent-glow) 0%,
+      var(--banner-accent-dim) 100%
+    );
+    box-shadow:
+      0 6px 20px var(--banner-glow),
+      0 0 24px var(--banner-accent-glow);
+  }
+
+  .reconnect-btn:hover:not(:disabled) svg {
+    transform: rotate(-120deg);
+  }
+
+  .reconnect-btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .reconnect-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  @keyframes reconnect-banner-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.995);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes reconnect-aura-drift {
+    0% {
+      transform: translate(-2%, 0) scale(1);
+      opacity: 0.6;
+    }
+    100% {
+      transform: translate(2%, -1%) scale(1.08);
+      opacity: 0.9;
+    }
+  }
+
+  @keyframes reconnect-icon-pulse {
+    0%,
+    100% {
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 0 16px var(--banner-glow);
+    }
+    50% {
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 0 22px var(--banner-accent-glow);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reconnect-banner,
+    .reconnect-aura,
+    .reconnect-icon,
+    .reconnect-btn svg {
+      animation: none;
+      transition: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .reconnect-banner {
+      padding: 0.85rem 0.9rem;
+    }
+
+    .reconnect-content {
+      flex-wrap: wrap;
+      gap: 0.7rem;
+    }
+
+    .reconnect-text {
+      flex: 1 1 calc(100% - 48px);
+    }
+
+    .reconnect-btn {
+      flex: 1 1 100%;
+      justify-content: center;
+      padding: 0.65rem 1rem;
+    }
   }
 
   /* ── Disconnect Button ──────────────────────────────────────────────────── */

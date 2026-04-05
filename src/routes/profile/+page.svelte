@@ -213,7 +213,8 @@
           deviceId: 'demo-device',
           recentlyProcessedCount: 0,
           operationInProgress: false,
-          reconnectScheduled: false
+          reconnectScheduled: false,
+          batchSuspended: false
         },
         network: { online: true },
         engine: {
@@ -1228,23 +1229,44 @@
 
         <!-- 3. Realtime -->
         <div class="diag-section-title">Realtime</div>
+        {#if diagnostics.realtime.batchSuspended}
+          <div class="diag-suspension-banner" role="status">
+            <span class="diag-suspension-pulse"></span>
+            <div class="diag-suspension-copy">
+              <span class="diag-suspension-title">Suspended for batch push</span>
+              <span class="diag-suspension-sub"
+                >Channel intentionally torn down to prevent CDC egress flood. Auto-resumes when the
+                push completes.</span
+              >
+            </div>
+          </div>
+        {/if}
         <div class="diag-row">
           <span class="diag-row-label">Connection</span>
           <span class="diag-row-value">
             <span
-              class="diag-inline-dot diag-inline-dot--{diagnostics.realtime.connectionState ===
-              'connected'
-                ? 'green'
-                : diagnostics.realtime.connectionState === 'connecting'
-                  ? 'yellow'
-                  : 'red'}"
+              class="diag-inline-dot diag-inline-dot--{diagnostics.realtime.batchSuspended
+                ? 'gold'
+                : diagnostics.realtime.connectionState === 'connected'
+                  ? 'green'
+                  : diagnostics.realtime.connectionState === 'connecting'
+                    ? 'yellow'
+                    : 'red'}"
             ></span>
-            {diagnostics.realtime.connectionState}
+            {diagnostics.realtime.batchSuspended
+              ? 'suspended (batch)'
+              : diagnostics.realtime.connectionState}
           </span>
         </div>
         <div class="diag-row">
           <span class="diag-row-label">Healthy</span>
-          <span class="diag-row-value">{diagnostics.realtime.healthy ? 'Yes' : 'No'}</span>
+          <span class="diag-row-value"
+            >{diagnostics.realtime.batchSuspended
+              ? 'Paused'
+              : diagnostics.realtime.healthy
+                ? 'Yes'
+                : 'No'}</span
+          >
         </div>
         <div class="diag-row">
           <span class="diag-row-label">Reconnects</span>
@@ -3307,6 +3329,76 @@
   .diag-inline-dot--red {
     background: #ff6b6b;
     box-shadow: 0 0 6px rgba(255, 107, 107, 0.4);
+  }
+
+  .diag-inline-dot--gold {
+    background: #d4af37;
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.55);
+  }
+
+  /* ── Realtime Suspension Banner ── */
+  .diag-suspension-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    margin: 0.5rem 0 0.75rem;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(212, 175, 55, 0.03) 100%);
+    border: 1px solid rgba(212, 175, 55, 0.28);
+    border-radius: 0.625rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .diag-suspension-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top left, rgba(212, 175, 55, 0.12), transparent 60%);
+    pointer-events: none;
+  }
+
+  .diag-suspension-pulse {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: #d4af37;
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.7);
+    flex-shrink: 0;
+    margin-top: 0.375rem;
+    animation: diag-suspension-pulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes diag-suspension-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(0.85);
+    }
+  }
+
+  .diag-suspension-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    position: relative;
+  }
+
+  .diag-suspension-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #d4af37;
+    letter-spacing: 0.01em;
+  }
+
+  .diag-suspension-sub {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.4;
   }
 
   /* ── Progress Bars ── */

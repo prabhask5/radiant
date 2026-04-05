@@ -236,8 +236,10 @@
       for (let a = 0; a < timelines.length; a++) {
         const snapshot = timelines[a].snapshots.get(date);
         if (snapshot !== undefined) lastKnown[a] = snapshot;
-        // Assets add, debts subtract
-        netWorth += timelines[a].isDebt ? -Math.abs(lastKnown[a]) : lastKnown[a];
+        // Assets add, debts subtract. Trust the stored sign — an overpaid
+        // credit card stores a negative balance, which correctly *adds* to
+        // net worth when negated (user is owed money).
+        netWorth += timelines[a].isDebt ? -lastKnown[a] : lastKnown[a];
       }
       data.push({ date, value: netWorth });
     }

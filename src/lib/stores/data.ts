@@ -539,6 +539,13 @@ function createEnrollmentsStore() {
       await store.load();
       debug('log', '[DATA] teller_enrollments — updateStatus complete', { id, status });
     },
+    async updateAccessToken(id: string, accessToken: string) {
+      debug('log', '[DATA] teller_enrollments — updateAccessToken', { id });
+      remoteChangesStore.recordLocalChange(id, 'teller_enrollments', 'update');
+      await engineUpdate('teller_enrollments', id, { access_token: accessToken });
+      await store.load();
+      debug('log', '[DATA] teller_enrollments — updateAccessToken complete', { id });
+    },
     async remove(id: string) {
       debug('log', '[DATA] teller_enrollments — remove', { id });
       await remoteChangesStore.markPendingDelete(id, 'teller_enrollments');
