@@ -1,6 +1,8 @@
-# Radiant Finance: Backend Architecture & System Design
+# Radiant Finance: System Architecture & Design
 
-This document provides a comprehensive deep dive into Radiant's system architecture -- from the local-first data model to the sync engine, authentication layers, bank integration, and deployment infrastructure.
+This document provides a comprehensive deep dive into every layer of Radiant's system architecture -- from the local-first data model and sync engine internals to the ML automation pipeline, bank integration, conflict resolution algorithms, and deployment infrastructure.
+
+---
 
 ## Table of Contents
 
@@ -8,15 +10,19 @@ This document provides a comprehensive deep dive into Radiant's system architect
 2. [Local-First Architecture](#2-local-first-architecture)
 3. [Data Flow Pipeline](#3-data-flow-pipeline)
 4. [Sync Engine Deep Dive](#4-sync-engine-deep-dive)
-5. [Database Architecture](#5-database-architecture)
-6. [Authentication Architecture](#6-authentication-architecture)
-7. [Teller.io Integration Architecture](#7-tellerio-integration-architecture)
-8. [PWA Architecture](#8-pwa-architecture)
-9. [Real-Time Sync](#9-real-time-sync)
-10. [Security Architecture](#10-security-architecture)
-11. [Performance Architecture](#11-performance-architecture)
-12. [Deployment Architecture](#12-deployment-architecture)
-13. [Summary of Design Complexities](#13-summary-of-design-complexities)
+5. [Conflict Resolution](#5-conflict-resolution)
+6. [Database Architecture](#6-database-architecture)
+7. [Authentication Architecture](#7-authentication-architecture)
+8. [Teller.io Integration Architecture](#8-tellerio-integration-architecture)
+9. [ML Pipeline Architecture](#9-ml-pipeline-architecture)
+10. [CSV Import Architecture](#10-csv-import-architecture)
+11. [PWA Architecture](#11-pwa-architecture)
+12. [Real-Time Sync](#12-real-time-sync)
+13. [Security Architecture](#13-security-architecture)
+14. [Performance Architecture](#14-performance-architecture)
+15. [Deployment Architecture](#15-deployment-architecture)
+16. [Demo Mode Architecture](#16-demo-mode-architecture)
+17. [Summary of Design Complexities](#17-summary-of-design-complexities)
 
 ---
 
@@ -24,7 +30,7 @@ This document provides a comprehensive deep dive into Radiant's system architect
 
 ```
 +-----------------------------------------------------------------------+
-|                        CLIENT (Browser/PWA)                            |
+|                        CLIENT (Browser / PWA)                          |
 |                                                                        |
 |  +--------------+  +--------------+  +--------------------------+     |
 |  |  Svelte 5    |  |  Reactive    |  |  Service Worker          |     |
@@ -32,34 +38,42 @@ This document provides a comprehensive deep dive into Radiant's system architect
 |  |              |  |  (collection |  |  | Cache-first assets |  |     |
 |  |  Dashboard   |  |   + detail)  |  |  | Network-first nav  |  |     |
 |  |  Transactions|  |              |  |  | Background precache|  |     |
-|  |  Accounts    |  +------+-------+  |  +--------------------+  |     |
-|  |              |         |          |                           |     |
+|  |  Budget      |  +------+-------+  |  +--------------------+  |     |
+|  |  Accounts    |         |          |                           |     |
 |  +--------------+         |          +--------------------------+     |
 |                           |                                           |
 |  +------------------------v--------------------------------------+    |
 |  |                    stellar-drive Engine                        |    |
 |  |  +----------+  +----------+  +----------+  +------------+    |    |
-|  |  | IndexedDB|  |  Sync    |  |  Auth    |  |  Real-time |    |    |
+|  |  | IndexedDB|  |  Sync    |  |  Auth    |  |  Realtime  |    |    |
 |  |  |  (Dexie) |  |  Queue   |  |  Manager |  |  Listener  |    |    |
-|  |  |          |  |          |  |          |  |            |    |    |
-|  |  | 5 tables|  | Pending  |  | PIN gate |  | WebSocket  |    |    |
-|  |  | + indexes|  | changes  |  | + device |  | subscript. |    |    |
+|  |  |          |  |  (outbox)|  |          |  |            |    |    |
+|  |  | 5 app   |  | Intent-  |  | PIN gate |  | WebSocket  |    |    |
+|  |  | tables  |  | based ops|  | + device |  | subscript. |    |    |
+|  |  | + system|  | + coalesce|  | + email  |  | + echo sup.|    |    |
 |  |  +----------+  +----+-----+  +----+-----+  +-----+------+    |    |
-|  +-----------------------|------------|---------------|------------+    |
-|                          |            |               |               |
-+--------------------------|------------|---------------|---------------+
-                           |            |               |
-                     HTTPS |     HTTPS  |        WSS    |
-                           |            |               |
-+--------------------------|------------|---------------|---------------+
-|                    SUPABASE CLOUD                     |               |
-|  +-------------------v------------v---------------v-----------+      |
-|  |                    PostgreSQL                               |      |
-|  |  +----------+  +----------+  +----------+  +-----------+   |      |
-|  |  |  Tables  |  |  RLS     |  |  Auth    |  |  Realtime |   |      |
-|  |  | 5 + sys |  | Policies |  | (GoTrue) |  | (WebSocket|   |      |
-|  |  +----------+  +----------+  +----------+  +-----------+   |      |
-|  +-------------------------------------------------------------+      |
+|  +---+-------------------|-----------|--------------|-----------+    |
+|      |                   |           |              |                 |
+|  +---v------------------+|           |              |                 |
+|  |  ML Pipeline         ||           |              |                 |
+|  |  +Categorizer (NB)   ||           |              |                 |
+|  |  +Propagation (fuzzy)||           |              |                 |
+|  |  +Recurring (exact)  ||           |              |                 |
+|  +-----------------------+           |              |                 |
++--------------------------------------|--------------|--+--------------+
+                                       |              |
+                                 HTTPS |       WSS    |
+                                       |              |
++--------------------------------------|--------------|--+--------------+
+|                    SUPABASE CLOUD                                     |
+|  +-------------------------------------------------------------------+
+|  |                    PostgreSQL                                      |
+|  |  +----------+  +----------+  +----------+  +-----------+         |
+|  |  | 5 Tables |  |  RLS     |  |  Auth    |  |  Realtime |         |
+|  |  | + system |  | Policies |  | (GoTrue) |  | (CDC +    |         |
+|  |  | tables   |  | per-user |  | JWT/PIN  |  |  WebSocket)|        |
+|  |  +----------+  +----------+  +----------+  +-----------+         |
+|  +-------------------------------------------------------------------+
 +-----------------------------------------------------------------------+
 
 +-----------------------------------------------------------------------+
@@ -70,7 +84,7 @@ This document provides a comprehensive deep dive into Radiant's system architect
 |  | webhook      |  | deploy       |  |                          |     |
 |  +------+-------+  +--------------+  +--------------------------+     |
 +---------|-----------------------------------------------------------------+
-          | mTLS
+          | mTLS (client certificate)
 +---------v-----------------------------------------------------------------+
 |                    TELLER.IO                                               |
 |  +--------------+  +--------------+  +--------------------------+         |
@@ -84,14 +98,25 @@ This document provides a comprehensive deep dive into Radiant's system architect
 
 | Path | Purpose |
 |------|---------|
-| `src/lib/schema.ts` | Single source of truth for all 5 tables, indexes, and types |
+| `src/lib/schema.ts` | Single source of truth for all 5 tables, indexes, types, constraints |
 | `src/lib/types.generated.ts` | Auto-generated TypeScript types from schema |
-| `src/lib/stores/` | Reactive Svelte 5 stores backed by IndexedDB |
-| `src/routes/` | SvelteKit routes (dashboard, transactions, accounts, login, setup) |
-| `src/routes/api/teller/` | Server-side mTLS proxy for Teller.io API |
-| `src/routes/api/setup/` | Setup wizard endpoints (validate, deploy) |
-| `src/routes/api/config/` | Public config endpoint for client-side env vars |
-| `src/service-worker.ts` | PWA service worker (generated by stellarPWA plugin) |
+| `src/lib/types.ts` | App-specific type narrowings and composites |
+| `src/lib/stores/data.ts` | 5 reactive Svelte stores wrapping IndexedDB |
+| `src/lib/stores/toast.ts` | Toast notification store |
+| `src/lib/ml/classifier.ts` | Naive Bayes classification engine |
+| `src/lib/ml/categorizer.ts` | Categorization orchestrator |
+| `src/lib/ml/categorizationSync.ts` | Auto-categorization sync layer |
+| `src/lib/ml/propagation.ts` | Fuzzy-match category propagation |
+| `src/lib/ml/recurringDetector.ts` | Exact-interval recurring detection algorithm |
+| `src/lib/ml/recurringSync.ts` | Recurring transaction sync layer |
+| `src/lib/teller/client.ts` | mTLS Teller API client |
+| `src/lib/teller/autoSync.ts` | Background bank sync orchestration |
+| `src/lib/utils/csv.ts` | CSV parsing, column detection, import mapping |
+| `src/lib/utils/currency.ts` | Currency formatting, date utilities |
+| `src/routes/api/teller/sync/` | Server-side Teller sync proxy |
+| `src/routes/api/teller/webhook/` | Webhook handler with HMAC verification |
+| `src/routes/api/setup/` | Setup wizard API (validate, deploy) |
+| `src/routes/api/config/` | Public config endpoint |
 
 ### Key Design Principles
 
@@ -100,6 +125,8 @@ This document provides a comprehensive deep dive into Radiant's system architect
 - **Schema-driven**: One schema file generates types, SQL, and IndexedDB structure
 - **Zero-trust sync**: Every sync operation is idempotent and conflict-safe
 - **Defense in depth**: RLS + PIN gate + device verification + mTLS
+- **Intent-based operations**: Sync queue stores operation intents, not state snapshots
+- **ML automation**: Three-layer pipeline that learns from user behavior without overwriting manual choices
 
 ---
 
@@ -126,9 +153,9 @@ Local-first:    Client reads/writes IndexedDB --async--> Server (eventually)
 
 4. **Remote changes merge seamlessly**. Supabase real-time subscriptions deliver changes from other devices. stellar-drive applies them to IndexedDB using field-level conflict resolution.
 
-### Conflict Resolution Strategy
+### Conflict Resolution Overview
 
-Radiant uses a **last-writer-wins** strategy with field-level granularity:
+Radiant uses **last-writer-wins** with field-level granularity:
 
 ```
 Device A:  { description: "Coffee", amount: 4.50, category: "food" }
@@ -155,54 +182,51 @@ User taps "Categorize as Groceries"
   v
 +-----------------------------+
 | 1. OPTIMISTIC UI UPDATE     |
-|    Component calls:         |
-|    update('transactions',   |
-|      id, { category_id })   |
+|    Store calls engineUpdate  |
 |    UI re-renders instantly   |
 +-------------+---------------+
               |
               v
 +-----------------------------+
 | 2. INDEXEDDB WRITE          |
-|    Dexie.table('transactions|
-|      ').update(id, {        |
-|        category_id,         |
-|        updated_at: now(),   |
-|        _version: v + 1,     |
-|        device_id: thisDevice|
-|      })                     |
+|    Dexie table.update()     |
+|    updated_at: now()        |
+|    _version: v + 1          |
+|    device_id: thisDevice    |
 +-------------+---------------+
               |
               v
 +-----------------------------+
 | 3. SYNC QUEUE ENTRY         |
-|    Queue record created:    |
-|    { table, id, operation,  |
-|      payload, timestamp,    |
-|      status: 'pending' }    |
+|    Intent-based operation:  |
+|    { type: 'set',           |
+|      table, entityId,       |
+|      field, value,          |
+|      timestamp }            |
 +-------------+---------------+
               |
               v
 +-----------------------------+
-| 4. BACKGROUND SYNC          |
-|    Queue processor picks up |
-|    pending entries in FIFO  |
-|    order                    |
+| 4. COALESCE + PUSH          |
+|    6-step pipeline reduces  |
+|    redundant operations     |
+|    Batch upsert to Supabase |
+|    (500 items per request)  |
 +-------------+---------------+
               |
               v
 +-----------------------------+
-| 5. SUPABASE UPSERT          |
-|    supabase.from('transac-  |
-|      tions').upsert(payload) |
-|    On conflict: merge fields|
-|    Status --> 'synced'       |
+| 5. SUPABASE CONFIRMS        |
+|    Queue entry removed      |
+|    on success               |
+|    Retry with backoff       |
+|    on failure               |
 +-------------+---------------+
               |
               v
 +-----------------------------+
 | 6. REAL-TIME BROADCAST      |
-|    Supabase Realtime emits  |
+|    Supabase CDC emits       |
 |    postgres_changes event   |
 |    to all subscribed clients|
 +-------------+---------------+
@@ -211,10 +235,12 @@ User taps "Categorize as Groceries"
 +-----------------------------+
 | 7. OTHER DEVICES UPDATE     |
 |    stellar-drive receives   |
-|    WebSocket event -->       |
-|    writes to local IndexedDB|
-|    --> reactive stores emit  |
-|    --> UI updates            |
+|    WebSocket event -->      |
+|    echo suppression check   |
+|    --> conflict resolution  |
+|    --> IndexedDB write      |
+|    --> reactive store emit  |
+|    --> UI updates           |
 +-----------------------------+
 ```
 
@@ -225,147 +251,325 @@ User taps "Categorize as Groceries"
 | Optimistic UI update | < 5ms | No |
 | IndexedDB write | 5-20ms | No (async) |
 | Sync queue entry | < 1ms | No |
-| Background sync | 100-500ms | No (background) |
+| Coalesce + push | 100-500ms | No (background) |
 | Supabase upsert | 50-200ms | No (background) |
 | Real-time broadcast | 50-150ms | No (push) |
 | Remote device update | 5-20ms | No (reactive) |
 
-**Total perceived latency for the user: < 5ms**. Everything else happens asynchronously.
+**Total perceived latency for the user: < 5ms.** Everything else happens asynchronously.
 
 ---
 
 ## 4. Sync Engine Deep Dive
 
-The sync engine is implemented by stellar-drive. See the [stellar-drive repository](https://github.com/prabhask5/stellar-drive) for engine internals including queue processing, conflict resolution algorithms, and the reactive store layer.
+The sync engine is implemented by stellar-drive. It uses an **outbox pattern** with **intent-based operations** and a **six-step coalescing pipeline** to minimize network usage while preserving user intent.
 
-### Queue Processing
+### 4.1 Intent-Based Operations
 
-The sync queue is an IndexedDB table managed by stellar-drive. Each entry represents a pending change:
+The sync queue stores **four operation types** that preserve user intent rather than capturing state snapshots:
+
+| Type | Purpose | Coalesceable? |
+|------|---------|---------------|
+| `create` | Insert new entity | Subsequent sets merge into payload |
+| `set` | Overwrite field(s) | Later sets win (field-level) |
+| `increment` | Add numeric delta | Deltas sum algebraically |
+| `delete` | Soft-delete entity | CREATE + DELETE cancel entirely |
+
+**SyncOperationItem structure:**
 
 ```ts
-interface SyncQueueEntry {
-  id: string;           // Queue entry ID
-  table: string;        // Target table name
-  record_id: string;    // Record being modified
-  operation: 'INSERT' | 'UPDATE' | 'DELETE';
-  payload: Record<string, unknown>;
-  timestamp: string;    // ISO 8601 timestamp
-  status: 'pending' | 'processing' | 'failed';
-  retry_count: number;
-  device_id: string;    // Originating device
+{
+  id?: number;              // Auto-increment PK from IndexedDB
+  table: string;            // Supabase table name
+  entityId: string;         // UUID of target entity
+  operationType: 'create' | 'set' | 'increment' | 'delete';
+  field?: string;           // For increment/single-field set
+  value?: unknown;          // Delta, new value, or full payload
+  timestamp: string;        // ISO 8601 (immutable, preserves order)
+  retries: number;          // Failed push attempt counter
+  lastRetryAt?: string;     // ISO 8601 of last retry
 }
 ```
 
-Queue processing rules:
-- **FIFO order** -- entries processed in chronological order
-- **Per-record deduplication** -- multiple updates to the same record within the sync interval are coalesced
-- **Retry with backoff** -- failed entries retry with exponential backoff (1s, 2s, 4s, 8s, max 60s)
-- **Offline accumulation** -- when offline, entries accumulate without processing
-- **Online flush** -- when connectivity returns, the entire queue processes in batch
+**Why intent-based?**
 
-### Conflict Resolution
+- **Algebraic reduction**: 50 increment operations sum to a single delta
+- **Smarter conflict resolution**: Can inspect intent ("increment by 3") vs just final value
+- **Aggressive coalescing**: Redundant operations collapse before server transmission
 
-When two devices edit the same record concurrently, stellar-drive resolves conflicts at the field level:
+### 4.2 Six-Step Coalescing Pipeline
 
-```
-+---------------------------------------------------+
-|              CONFLICT RESOLUTION                   |
-|                                                    |
-|  Local:  { a: 1, b: 2, c: 3 }  updated_at: T1   |
-|  Remote: { a: 1, b: 5, c: 6 }  updated_at: T2   |
-|                                                    |
-|  Step 1: Compare updated_at                        |
-|    T2 > T1 --> remote is newer overall             |
-|                                                    |
-|  Step 2: Field-level merge                         |
-|    a: 1 (same) --> keep                            |
-|    b: local=2, remote=5 --> remote wins (newer)    |
-|    c: local=3, remote=6 --> remote wins (newer)    |
-|                                                    |
-|  Step 3: Grace period check                        |
-|    If |T2 - T1| < grace_period:                    |
-|      Use device_id as tiebreaker                   |
-|      (deterministic ordering)                      |
-|                                                    |
-|  Result: { a: 1, b: 5, c: 6 }                     |
-+---------------------------------------------------+
-```
-
-### Grace Period & Device Tiebreaking
-
-When two devices make changes within a short time window (the "grace period"), timestamp comparison alone is unreliable due to clock skew. stellar-drive uses **device-ID tiebreaking**:
-
-1. Both devices' timestamps fall within the grace period
-2. Device IDs are compared lexicographically
-3. The "higher" device ID wins consistently
-4. This ensures deterministic resolution regardless of which device processes the conflict
-
-### Tombstone Cleanup
-
-Soft deletes (`deleted: true`) create tombstones that persist for a configurable period:
-
-1. `remove()` sets `deleted: true` and `updated_at` to now
-2. Reactive stores filter out `deleted` records automatically
-3. Tombstones sync to Supabase (so other devices learn about the deletion)
-4. After the retention period, tombstones are hard-deleted from both IndexedDB and Supabase
-
-### Version Tracking
-
-Every record carries a `_version` field:
+Before pushing to Supabase, `coalescePendingOps()` aggressively reduces redundant operations:
 
 ```
-_version: 1  -->  Created
-_version: 2  -->  Updated (category changed)
-_version: 3  -->  Updated (amount corrected)
-_version: 4  -->  Deleted (soft delete)
+Raw queue: 50 operations across 12 entities
+                    |
+                    v
++-------------------------------------------+
+| Step 1: GROUP BY ENTITY                   |
+| Composite key: table:entityId             |
+| Prevents cross-table collisions           |
++-------------------------------------------+
+                    |
+                    v
++-------------------------------------------+
+| Step 2: ENTITY-LEVEL REDUCTION            |
+| 4 mutually exclusive cases:               |
+|   CREATE + DELETE → cancel (net zero)     |
+|   DELETE only → drop preceding ops        |
+|   CREATE only → fold sets into payload    |
+|   Updates only → delegate to field-level  |
++-------------------------------------------+
+                    |
+                    v
++-------------------------------------------+
+| Step 3: INCREMENT COALESCING              |
+| Same field, same entity → sum deltas      |
+| Example: +1, +1, +1 → +3                 |
++-------------------------------------------+
+                    |
+                    v
++-------------------------------------------+
+| Step 4: SET COALESCING                    |
+| Same entity → merge partial updates       |
+| into single combined set                  |
++-------------------------------------------+
+                    |
+                    v
++-------------------------------------------+
+| Step 5: NO-OP PRUNING                     |
+| Remove: zero-delta increments,            |
+| empty sets, updated_at-only sets          |
++-------------------------------------------+
+                    |
+                    v
++-------------------------------------------+
+| Step 6: BATCH PERSIST                     |
+| Flush all deletions and updates to        |
+| IndexedDB in a single transaction         |
++-------------------------------------------+
+                    |
+                    v
+Coalesced result: 8 operations (84% reduction)
 ```
 
-The version increments on every local write. During sync, if the remote version is higher than expected, a conflict resolution pass runs before the write is applied.
+**Performance**: O(n) memory, O(1) IndexedDB reads (single fetch), O(k) writes (k changed rows).
+
+### 4.3 Push Phase (Upload)
+
+**Auth validation (pre-flight):**
+- Check active Supabase session exists and is not expired
+- Attempt token refresh if expired
+- Cache `getUser()` result for 1 hour (egress optimization -- avoids repeated network calls)
+
+**Operation processing:**
+1. Coalesce pending operations in memory
+2. Batch by table (group creates for bulk insert)
+3. Respect parent→child ordering (satisfy FK constraints: enrollments before accounts before transactions)
+4. Upsert in batches of 500 (Supabase limit)
+
+**Error handling:**
+- **Duplicate key (Postgres 23505)**: Query which IDs exist, filter them out, retry with only new items
+- **RLS error**: Fall back to individual processing to identify the problem row
+- **Network failure**: Return items to queue, retry on next cycle
+
+### 4.4 Pull Phase (Download)
+
+**Cursor-based change tracking:**
+```ts
+// Per-user localStorage key prevents cross-user sync issues
+const cursor = localStorage.getItem(`lastSyncCursor_${userId}`)
+  || '1970-01-01T00:00:00.000Z';
+```
+
+**Paginated fetching (1000 rows per page):**
+```
+For each table:
+  Fetch WHERE updated_at > cursor
+  ORDER BY updated_at ASC
+  LIMIT 1000, paginate until exhausted
+  Apply conflict resolution on each row
+  Advance cursor to max(updated_at)
+```
+
+**Egress optimizations:**
+- **Selective column fetching**: `SELECT id,title,updated_at` not `SELECT *`
+- **Push-only mode**: When realtime WebSocket is healthy, skip pull phase entirely (remote changes arrive via WebSocket)
+- **Visibility-aware sync**: Skip sync if tab was only hidden briefly (reconnect cooldown)
+
+### 4.5 Sync Lock & Watchdog
+
+A mutex prevents concurrent sync cycles from corrupting state:
+
+```
+acquireSyncLock()
+  ├─ Lock free? → acquire, return true
+  ├─ Lock held < 60s? → return false (sync in progress)
+  └─ Lock held > 60s? → force-release (stale lock), acquire
+
+Watchdog timer (every 15 seconds):
+  └─ If lock held > 60s → force-release
+     (prevents permanent stalls from unhandled rejections)
+```
+
+### 4.6 Retry & Backoff
+
+- **Exponential backoff**: 2^(retries-1) seconds between attempts
+- **Max retries**: 5 attempts (~15 seconds cumulative wait)
+- **Failed items**: Permanently removed from queue and reported via `cleanupFailedItems()`
 
 ---
 
-## 5. Database Architecture
+## 5. Conflict Resolution
+
+stellar-drive implements a **three-tier** conflict resolution system with progressively finer granularity.
+
+### Tier 1: Non-Overlapping Entities (Auto-Merge)
+
+Different entities changed on different devices → no conflict. Each side's changes accepted wholesale. This is the common case -- most sync cycles have zero conflicts.
+
+### Tier 2: Different Fields on Same Entity (Auto-Merge Fields)
+
+Device A edited `title`, Device B edited `description` → merge both changes. Only emit a conflict resolution entry when field values actually differ from local state.
+
+### Tier 3: Same Field on Same Entity (Strategy-Based)
+
+When both sides modified the exact same field, apply resolution strategies in priority order:
+
+```
++------------------------------------------------------+
+| Priority 1: LOCAL_PENDING                             |
+|   Field has unsynced local operations                |
+|   → Local value wins (preserve user intent)          |
+|   → Never silently discard user changes              |
++------------------------------------------------------+
+| Priority 2: NUMERIC_MERGE                             |
+|   Declared numericMergeFields                        |
+|   → Reserved for delta-merge (currently last-write)  |
++------------------------------------------------------+
+| Priority 3: DELETE_WINS                               |
+|   Delete on either side trumps edits                 |
+|   → Prevents accidental entity resurrection          |
+|   → Critical for tombstone semantics                 |
++------------------------------------------------------+
+| Priority 4: LAST_WRITE (default fallback)             |
+|   Newer updated_at timestamp wins                    |
+|   → Deterministic device-ID tiebreaker for ties      |
+|   → Lexicographic comparison ensures all devices     |
+|     converge on the same winner                      |
++------------------------------------------------------+
+```
+
+### Version Bumping
+
+After conflict resolution, the merged entity's `_version` is set to `max(local, remote) + 1`. This ensures downstream systems recognize the merged result as strictly newer than either input.
+
+### Audit Trail
+
+Every field-level conflict is recorded in the `conflictHistory` IndexedDB table:
+
+```ts
+{
+  entityId: string;
+  entityType: string;       // Table name
+  field: string;
+  localValue: unknown;
+  remoteValue: unknown;
+  resolvedValue: unknown;
+  winner: 'local' | 'remote' | 'merged';
+  strategy: 'last_write' | 'numeric_merge' | 'delete_wins' | 'local_pending';
+  timestamp: string;
+}
+```
+
+**Retention**: 30-day auto-cleanup via `cleanupConflictHistory()`.
+
+### Recently-Modified Entity Protection
+
+During pull, if a remote change arrives for an entity modified within the last **2 seconds** (`RECENTLY_MODIFIED_TTL_MS`), the pull update is skipped. This prevents the pull from reverting fresh local changes before they reach the server via push.
+
+---
+
+## 6. Database Architecture
 
 ### Entity Relationship Model
 
 ```
-+------------------+       +------------------+
-| teller_enrollments|       |  user_settings   |
-|------------------|       |------------------|
-| institution_name |       | currency         |
-| access_token     |       | teller_config    |
-| status           |       | sync_settings    |
-| enrolled_at      |       | (singleton)      |
-+--------+---------+       +------------------+
-         |
-         | 1:N
-         v
-+------------------+       +------------------+
-|    accounts      |       |   categories     |
-|------------------|       |------------------|
-| name             |       | name             |
-| institution      |       | color            |
-| type (enum)      |       | icon             |
-| balance          |       +------------------+
-| currency         |                |
-| teller_account_id|                |
-+--------+---------+                |
-         |                          |
-         | 1:N                      |
-         v                          |
-+------------------+                |
-|  transactions    |                |
-|------------------|                |
-| description      |                |
-| amount           |                |
-| date             |                |
-| account_id   ----+----> accounts  |
-| category_id  ----+----> categories
-| teller_txn_id    |
-| is_recurring     |
-| notes            |
-+------------------+
++---------------------+       +-------------------+
+| teller_enrollments  |       |   categories      |
+|---------------------|       |-------------------|
+| enrollment_id       |       | name              |
+| institution_name    |       | icon (emoji)      |
+| access_token        |       | color             |
+| status              |       | budget_amount     |
+| last_synced_at      |       | order             |
++--------+------------+       +--------+----------+
+         |                              |
+         | 1:N                          | 1:N
+         v                              |
++---------------------+                |
+|    accounts         |                |
+|---------------------|                |
+| enrollment_id (FK)  |                |
+| name                |                |
+| institution_name    |                |
+| type (enum)         |                |
+| subtype (enum)      |                |
+| balance_available   |                |
+| balance_ledger      |                |
+| source (teller/manual)|              |
+| is_hidden           |                |
++--------+------------+                |
+         |                              |
+         | 1:N (ownership FK)           |
+         v                              |
++---------------------+                |
+|  transactions       |                |
+|---------------------|                |
+| account_id (FK) ----+----> accounts  |
+| category_id (FK) ---+----> categories
+| teller_transaction_id|
+| amount (string)     |
+| date                |
+| description         |
+| counterparty_name   |
+| status (posted/pending)
+| is_recurring        |
+| is_excluded         |
+| category_source     |
+| csv_import_hash     |
+| notes               |
++---------------------+
+
++---------------------+
+| recurring_transactions|
+|---------------------|
+| name                |
+| amount              |
+| category_id (FK) ---+----> categories
+| account_id (FK) ----+----> accounts
+| frequency           |
+| source (auto/manual)|
+| status (active/ended)|
+| merchant_pattern    |
+| last_detected_date  |
+| next_date           |
++---------------------+
 ```
+
+### System Columns (Every Table)
+
+Every row in every table carries these system-managed columns:
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | `uuid` | Primary key (generated offline, no coordination needed) |
+| `user_id` | `uuid` | Owner (set by Supabase trigger, used in RLS) |
+| `created_at` | `timestamptz` | Row creation time |
+| `updated_at` | `timestamptz` | Last modification (drives conflict resolution) |
+| `deleted` | `boolean` | Tombstone flag (soft delete) |
+| `_version` | `integer` | Monotonic counter (stale write detection) |
+| `device_id` | `text` | Originating device (echo suppression, tiebreaking) |
 
 ### Schema Design Decisions
 
@@ -374,24 +578,46 @@ The version increments on every local write. During sync, if the remote version 
 | **Soft deletes everywhere** | Required for sync -- tombstones propagate deletions to other devices |
 | **UUID primary keys** | Offline-safe -- devices generate IDs without coordination |
 | **`updated_at` on all records** | Field-level conflict resolution relies on timestamps |
-| **`device_id` on all records** | Tiebreaking for concurrent edits within grace period |
+| **`device_id` on all records** | Tiebreaking for concurrent edits; echo suppression for realtime |
 | **`_version` counter** | Detects stale writes and triggers conflict resolution |
-| **Denormalized `balance` on accounts** | Avoids summing all transactions for display; updated on sync |
-| **`user_settings` as singleton** | Single-user app -- one row, always present, no joins needed |
-| **JSON fields for flexible data** | `teller_config` in settings -- avoids schema rigidity for nested data |
+| **Amounts as strings** | Avoids floating-point precision issues with financial data |
+| **Denormalized balances** | Avoids SUM(transactions) on every dashboard render |
+| **`category_source` tracking** | Distinguishes manual/auto/propagation assignments so ML never overwrites user intent |
+| **`csv_import_hash`** | Deterministic dedup key for idempotent CSV re-imports |
+
+### Unique Constraints
+
+```sql
+-- Prevent duplicate Teller transactions
+UNIQUE (teller_transaction_id) WHERE teller_transaction_id IS NOT NULL
+
+-- Prevent duplicate CSV imports per account
+UNIQUE (account_id, csv_import_hash) WHERE csv_import_hash IS NOT NULL
+```
 
 ### Indexing Strategy
 
-Indexes are declared in `schema.ts` and auto-created in both IndexedDB and PostgreSQL:
-
 | Table | Indexed Fields | Query Pattern |
 |-------|---------------|---------------|
-| `transactions` | `account_id`, `category_id`, `date` | Filter by account, category; sort by date |
-| `accounts` | `type`, `enrollment_id` | Filter by account type; join to enrollments |
+| `teller_enrollments` | `institution_name`, `status` | Filter by bank, connection health |
+| `accounts` | `enrollment_id`, `type`, `subtype`, `status`, `institution_name`, `source` | Filter by type, group by institution |
+| `transactions` | `account_id`, `date`, `category_id`, `status`, `[account_id+date]`, `csv_import_hash`, `teller_transaction_id` | Per-account date queries, dedup lookups |
+| `categories` | `order` | Maintain display order |
+| `recurring_transactions` | `category_id`, `status` | Filter active, aggregate per category |
+
+### System Tables (managed by stellar-drive)
+
+| Table | Purpose |
+|-------|---------|
+| `syncQueue` | Pending sync operations (outbox) |
+| `conflictHistory` | Audit trail of resolved conflicts |
+| `offlineCredentials` | Cached PIN hash for offline auth |
+| `offlineSession` | Cached session for offline access |
+| `singleUserConfig` | PIN configuration, gate type |
 
 ---
 
-## 6. Authentication Architecture
+## 7. Authentication Architecture
 
 ### Multi-Layer Authentication
 
@@ -401,26 +627,25 @@ Radiant implements defense-in-depth authentication with four distinct layers:
 +-----------------------------------------------------+
 |  Layer 1: SUPABASE SESSION                           |
 |  +------------------------------------------------+  |
-|  | Email + password --> JWT token                  |  |
-|  | Token stored in httpOnly cookie                 |  |
+|  | Email-based auth --> JWT token                  |  |
 |  | Auto-refresh via Supabase client                |  |
 |  | Required for: cloud sync, real-time             |  |
 |  +------------------------------------------------+  |
 |                                                       |
 |  Layer 2: PIN GATE                                    |
 |  +------------------------------------------------+  |
-|  | 4-8 digit PIN --> bcrypt hash comparison         |  |
-|  | Stored locally (works offline)                  |  |
+|  | 6-digit PIN --> bcrypt hash (cost factor 10)    |  |
+|  | Stored locally in IndexedDB (works offline)     |  |
 |  | Required for: accessing any app route           |  |
-|  | Modes: setup (first time), unlock, link         |  |
+|  | Modes: setup (first time), unlock, link device  |  |
 |  +------------------------------------------------+  |
 |                                                       |
 |  Layer 3: DEVICE VERIFICATION                         |
 |  +------------------------------------------------+  |
 |  | Unique device_id generated per browser          |  |
-|  | Trusted device list stored in user_settings     |  |
+|  | Trusted device list stored in user metadata     |  |
 |  | New devices require email verification          |  |
-|  | Required for: first access on new device        |  |
+|  | Cross-tab sync via BroadcastChannel             |  |
 |  +------------------------------------------------+  |
 |                                                       |
 |  Layer 4: RATE LIMITING                               |
@@ -432,63 +657,71 @@ Radiant implements defense-in-depth authentication with four distinct layers:
 +-----------------------------------------------------+
 ```
 
-### Auth Flow: First-Time Setup
+### Auth Flows
 
+**First-Time Setup:**
 ```
 User visits / (no PIN configured)
-  --> Redirect to /login?mode=setup
-  --> User creates PIN
-  --> PIN hashed (bcrypt) and stored in IndexedDB
-  --> User enters email for Supabase auth
-  --> Supabase sends confirmation email
-  --> User confirms --> Supabase session created
-  --> Device ID generated and added to trusted list
-  --> Redirect to / (dashboard)
+  → Redirect to /login?mode=setup
+  → User enters email
+  → User creates 6-digit PIN
+  → PIN hashed (bcrypt) and stored in IndexedDB
+  → Supabase sends confirmation email
+  → User confirms → Supabase session created
+  → Device ID generated and added to trusted list
+  → Redirect to / (dashboard)
 ```
 
-### Auth Flow: Returning User
-
+**Returning User:**
 ```
 User visits / (PIN configured, locked)
-  --> Redirect to /login?mode=unlock
-  --> User enters PIN
-  --> bcrypt.compare(input, storedHash)
-  --> Match --> Check Supabase session
-    --> Session valid --> Redirect to /
-    --> Session expired --> Auto-refresh token
-    --> Offline --> Allow access with offline auth mode
-  --> No match --> Increment failed attempts
-    --> Under limit --> "Incorrect PIN" message
-    --> Over limit --> Lockout with countdown timer
+  → Redirect to /login?mode=unlock
+  → User enters PIN
+  → bcrypt.compare(input, storedHash)
+  → Match → Check Supabase session
+    → Session valid → Redirect to /
+    → Session expired → Auto-refresh token
+    → Offline → Allow access with offline auth mode
+  → No match → Increment failed attempts
+    → Under limit → "Incorrect PIN" message
+    → Over limit → Lockout with countdown timer
 ```
 
-### Auth Flow: New Device
-
+**New Device:**
 ```
 User visits / on new device
-  --> Redirect to /login?mode=link
-  --> User enters PIN
-  --> PIN verified against Supabase-synced hash
-  --> New device_id generated
-  --> Email verification sent
-  --> User confirms --> Device added to trusted list
-  --> Full access granted
+  → Redirect to /login?mode=linkDevice
+  → User enters email
+  → Server sends verification email
+  → User clicks link → /confirm page verifies token
+  → BroadcastChannel relays confirmation to original tab
+  → Device added to trusted list, PIN synced
+  → Full access granted
 ```
 
 ### Offline Authentication
 
 When offline, Radiant authenticates using locally stored credentials:
-
-- PIN hash stored in IndexedDB (encrypted)
+- PIN hash stored in IndexedDB (`offlineCredentials` table)
 - Device ID stored in localStorage
 - Auth state set to `authMode: 'offline'`
 - Full read/write access to local data
 - Sync queue accumulates changes for when connectivity returns
 - Supabase session refreshed automatically when back online
 
+### Cross-Tab Communication
+
+Email verification uses `BroadcastChannel('auth-channel')` for instant feedback:
+1. Login tab starts polling for verification
+2. User clicks email link, which opens `/confirm` in a new tab
+3. `/confirm` verifies the token with Supabase
+4. `/confirm` broadcasts `radiant:email-confirmed` via BroadcastChannel
+5. Login tab receives the message and completes authentication
+6. No polling delay -- instant cross-tab coordination
+
 ---
 
-## 7. Teller.io Integration Architecture
+## 8. Teller.io Integration Architecture
 
 ### mTLS Proxy Pattern
 
@@ -511,90 +744,35 @@ Teller requires mutual TLS authentication -- every API request must present a cl
                             +--------------+
 ```
 
-The server-side handler:
-1. Reads the mTLS certificate and private key from environment variables
-2. Creates an HTTPS agent with the client certificate
-3. Authenticates with Teller using the enrollment's access token
-4. Fetches accounts, transactions, and balances
-5. Writes data directly to Supabase using `createServerAdminClient('radiant')` from `stellar-drive/kit` (service_role key, bypasses RLS)
-6. Returns the data to the client for immediate IndexedDB write
+### Three Data Paths
 
-### Data Flow Architecture
-
-Radiant uses a **server-writes-to-Supabase** model for all Teller data. There are three paths by which bank data enters the system:
-
-#### 1. Initial Enrollment
-
-When a user connects a bank via Teller Connect:
+#### Path 1: Initial Enrollment + Manual Refresh
 
 ```
-+-----------+    +-----------------+    +--------------+
-| User      |    | Teller Connect  |    | Teller API   |
-|           |    | (Client Widget) |    |              |
-+-----+-----+    +--------+--------+    +------+-------+
-      |                   |                     |
-      |  Click "Connect"  |                     |
-      +------------------>|                     |
-      |                   |                     |
-      |    Widget opens   |                     |
-      |<------------------+                     |
-      |                   |                     |
-      |  Select bank +    |                     |
-      |  authenticate     |                     |
-      +------------------>|                     |
-      |                   |   Create enrollment |
-      |                   +------------------->|
-      |                   |                     |
-      |                   |   access_token      |
-      |                   |<-------------------+
-      |   enrollment +    |                     |
-      |   access_token    |                     |
-      |<------------------+                     |
-      |                   |                     |
-      |  POST /api/teller/sync                  |
-      +--------------------------------------->|
-      |                   |    Fetch accounts,  |
-      |                   |    transactions,    |
-      |                   |    balances via mTLS|
-      |              +----+----+                |
-      |              | Server  |<---------------+
-      |              | writes  |
-      |              | to      |
-      |              | Supabase|  (createServerAdminClient,
-      |              | directly|   service_role key)
-      |              +----+----+
-      |                   |
-      |   JSON response   |
-      |<------------------+
-      |                   |
-      |  Client writes to |
-      |  IndexedDB via    |
-      |  getDb().table()  |
-      |  .bulkPut()       |
-      |  (immediate UI)   |
-      |                   |
-      |  Other devices    |
-      |  receive data via |
-      |  stellar-drive    |
-      |  realtime WS      |
+User clicks "Connect Bank" → Teller Connect widget opens
+  → User selects bank, authenticates with credentials
+  → Widget returns access_token + enrollment metadata
+  → Client sends POST /api/teller/sync
+  → Server: fetch accounts + transactions via mTLS
+  → Server: write to Supabase (service_role, bypasses RLS)
+  → Server: return JSON to client
+  → Client: write to IndexedDB for immediate UI
+  → Other devices: receive via stellar-drive realtime WebSocket
 ```
 
-#### 2. Webhook-Driven Updates
-
-The `/api/teller/webhook` endpoint processes two event types:
+#### Path 2: Webhook-Driven Updates
 
 ```
 Teller sends POST /api/teller/webhook
   |
   v
 +-----------------------------+
-| 1. HMAC VERIFICATION        |
-|    Compute HMAC-SHA256 of   |
-|    request body using       |
-|    TELLER_WEBHOOK_SECRET    |
-|    Compare to Teller-       |
-|    Signature header         |
-|    Mismatch --> 401          |
+| 1. HMAC-SHA256 VERIFICATION |
+|    Header: t=<ts>,v1=<sig>  |
+|    Signed: <timestamp>.<body>|
+|    Replay protection: 3 min  |
+|    Supports secret rotation  |
+|    Mismatch → 401            |
 +-------------+---------------+
               | Valid
               v
@@ -608,89 +786,301 @@ Teller sends POST /api/teller/webhook
        |             |
        v             v
 +----------------+ +---------------------+
-| Look up enroll-| | Update enrollment   |
-| ment in Supa-  | | status to           |
-| base by Teller | | 'disconnected' in   |
-| enrollment_id  | | Supabase            |
-+-------+--------+ +----------+----------+
-        |                      |
-        v                      |
-+----------------+             |
-| Fetch new data |             |
-| from Teller    |             |
-| via mTLS       |             |
-+-------+--------+             |
-        |                      |
-        v                      |
-+----------------+             |
-| Upsert accounts|             |
-| + transactions |             |
-| + balances to  |             |
-| Supabase       |             |
-| (service_role) |             |
-+-------+--------+             |
-        |                      |
-        v                      v
-+-----------------------------+
-| REAL-TIME PROPAGATION       |
-| Supabase Realtime emits     |
-| changes to all connected    |
-| clients automatically via   |
-| stellar-drive WebSocket     |
-+-----------------------------+
+| Fetch from     | | Update enrollment   |
+| Teller via mTLS| | status →            |
+| (7-day buffer) | | 'disconnected'      |
++-------+--------+ +---------------------+
+        |
+        v
++------------------------------+
+| Upsert to Supabase           |
+| (200-txn batches)            |
+| Preserve user-editable fields|
+| (category, notes, excluded)  |
++------------------------------+
+        |
+        v
++------------------------------+
+| REALTIME PROPAGATION         |
+| All connected clients see    |
+| changes via WebSocket        |
++------------------------------+
 ```
 
-**Expired access tokens**: If the Teller API returns a 401 during webhook processing, the server automatically marks the enrollment as `disconnected` in Supabase, and all clients see the status change via realtime.
+#### Path 3: Auto-Sync (Background)
 
-#### 3. Manual Refresh
+- **Stale threshold**: 4 hours since last sync
+- **Sync window**: 3-day buffer before `last_synced_at` (catches pending→posted transitions)
+- **Module mutex**: Only one auto-sync runs at a time
+- **Silent failure**: Logs errors but does not show UI notifications
 
-The retry/refresh button on the accounts page calls `POST /api/teller/sync` -- the same endpoint and flow as initial enrollment. This lets users manually re-fetch data without waiting for a webhook.
+### Multi-Layer Deduplication
 
-### No Polling
+1. **Pre-sync**: Check IndexedDB for existing `teller_transaction_id`
+2. **Change detection**: Only write if Teller-managed fields actually changed (status, amount, description, counterparty, etc.)
+3. **Freshness recheck**: Right before batch write, re-read IndexedDB to catch transactions that arrived via webhook during the fetch
+4. **User deletion respect**: Never re-create transactions marked as `deleted`
+5. **Database constraints**: Unique index on `teller_transaction_id` prevents server-level duplicates
 
-Radiant does **not** auto-sync Teller data on page load or on a timer. Data stays fresh via webhooks. Balances update whenever a `transactions.processed` webhook fires. The only client-initiated fetch is the explicit manual refresh.
+### Local Enrichment Preservation
 
-### Cross-Device Sync
-
-All Teller data is written server-side to Supabase (via service_role key). stellar-drive's realtime WebSocket propagates those changes to every connected client automatically. No device needs to independently fetch from Teller -- the server is the single writer.
-
-### Key Technical Details
-
-| Detail | Implementation |
-|--------|---------------|
-| **Server Supabase client** | `createServerAdminClient('radiant')` from `stellar-drive/kit` (service_role key, bypasses RLS) |
-| **Stable IDs** | Server looks up existing records by `teller_account_id` / `teller_transaction_id` to reuse UUIDs, ensuring idempotent upserts |
-| **Batch size** | Transactions upserted in batches of 200 (Supabase payload limits) |
-| **Client-side write** | Client writes to IndexedDB via `getDb().table().bulkPut()` for immediate UI, bypassing the sync queue |
-| **Local enrichments preserved** | Category assignments, notes, and other user edits are not overwritten by Teller data |
-
-### Transaction Sync Strategy
-
-Teller provides transactions as a paginated list. Radiant uses **date-range reconciliation** to efficiently sync:
-
-1. **Determine sync window** -- find the last sync timestamp for the enrollment
-2. **Fetch from Teller** -- request transactions from `last_sync_date` to now
-3. **Match by `teller_transaction_id`** -- find existing local records by looking up the `teller_transaction_id` in Supabase to reuse the existing UUID
-4. **Upsert new/changed** -- insert new transactions, update changed ones (batched in groups of 200)
-5. **Preserve local enrichments** -- category assignments, notes, and other user edits are not overwritten by Teller data
-6. **Update sync timestamp** -- record the new high-water mark
-
-```
-Local DB:     [--------------------------|------]
-              ^                          ^      ^
-              oldest                  last_sync  now
-                                         |
-Teller fetch: ---------------------------[------]
-              Only fetch this window  --->
-```
+When Teller data refreshes, user-editable fields are **never overwritten**:
+- `category_id` (user-assigned or ML-assigned category)
+- `category_source` (manual/auto/propagation)
+- `notes` (user annotations)
+- `is_excluded` (budget exclusion flag)
+- `is_recurring` (recurring badge)
 
 ---
 
-## 8. PWA Architecture
+## 9. ML Pipeline Architecture
+
+Radiant implements a three-layer ML automation system that learns from user behavior. Every layer respects a strict hierarchy: **manual assignments are never overwritten**.
+
+```
++-----------------------------------------------------------+
+|                    ML PIPELINE                              |
+|                                                             |
+|  Layer 1: AUTO-CATEGORIZATION (Naive Bayes)                |
+|  Trained on user's categorization history                  |
+|  Assigns categories to uncategorized transactions          |
+|  Threshold: 70% confidence                                 |
+|                        |                                    |
+|                        v                                    |
+|  Layer 2: CATEGORY PROPAGATION (Fuzzy Matching)            |
+|  Triggered on manual category assignment                   |
+|  Propagates to similar transactions (50% token overlap)    |
+|  Feeds training data back to Layer 1                       |
+|                        |                                    |
+|                        v                                    |
+|  Layer 3: RECURRING DETECTION (Exact Interval Matching)    |
+|  Identifies subscriptions from transaction patterns        |
+|  Creates/updates/ends recurring_transactions entries       |
+|  Marks matched transactions with is_recurring flag         |
++-----------------------------------------------------------+
+```
+
+### 9.1 Layer 1: Auto-Categorization (Naive Bayes Classifier)
+
+**Engine**: `FrequencyCategorizer` class implementing Naive Bayes with word-frequency features.
+
+**Tokenizer pipeline:**
+1. Lowercase the description
+2. Strip non-alphanumeric characters
+3. Filter stop words: "the", "and", "for", "with", "from", "com", "www", "inc", "llc", "ltd", "corp", "pos", "debit", "credit"
+4. Filter tokens shorter than 2 characters
+5. Deduplicate remaining tokens
+
+**Training data:**
+- All non-deleted transactions with `category_id !== null` OR `category_source === 'manual'`
+- Includes propagated categories (so similar assignments teach the model)
+- Special `'__uncategorized__'` class trains the "no category" concept
+
+**Prediction:**
+- Log-space Naive Bayes with Laplace smoothing
+- Softmax normalization for confidence scores
+- **Threshold: 0.7** -- only auto-assign if confidence >= 70%
+- Below threshold: transaction left untouched (will retry on next sync with more data)
+
+**Persistence**: Model serialized to `localStorage` (key: `radiant_nb_model`). Survives page reloads without retraining.
+
+**Category source tracking:**
+- Auto-assigned: `category_source = 'auto'`
+- Manual assignments (`category_source = 'manual'`): **never overwritten** by the classifier
+
+### 9.2 Layer 2: Category Propagation
+
+**Trigger**: Whenever a user manually categorizes a transaction.
+
+**Algorithm:**
+1. Tokenize the source transaction's description (same tokenizer as classifier)
+2. For each candidate transaction (not manually categorized):
+   - Tokenize its description
+   - Compute overlap coefficient: `|intersection| / min(|A|, |B|)`
+   - If overlap >= 0.5 (`SIMILARITY_THRESHOLD`): propagate the category
+3. Set `category_source = 'propagation'` on matched transactions
+
+**Example:**
+```
+Source:    "STARBUCKS SEATTLE WA"     tokens: [starbucks, seattle, wa]
+Candidate: "STARBUCKS BELLEVUE WA"   tokens: [starbucks, bellevue, wa]
+Overlap: |{starbucks, wa}| / min(3, 3) = 2/3 = 0.67 ≥ 0.5 → MATCH
+```
+
+**Rules:**
+- Never overwrites `category_source = 'manual'` (user intent always wins)
+- Legacy data (`category_source = null && category_id !== null`): treated as manual
+- **Supports null propagation**: When uncategorizing, clears auto/propagation-set categories on similar transactions
+- Propagated categories feed back into the classifier's training data (virtuous cycle)
+
+### 9.3 Layer 3: Recurring Detection (Exact Interval Matching)
+
+This is the most algorithmically complex layer. It identifies subscription-like patterns from raw transaction data.
+
+**Step 1: Filter to charges only**
+- Depository accounts: `amount < 0` (withdrawals)
+- Credit card accounts: `amount > 0` (purchases)
+- Exclude: `deleted`, `is_excluded` transactions
+
+**Step 2: Group by normalized merchant name**
+
+`normalizeMerchant()` strips noise from transaction descriptions:
+```
+"PAYPAL *NETFLIX.COM"                 → "netflix"
+"AMAZON PRIME*VY7FF9KK3 Amzn.com"    → "amazon prime"
+"GOOGLE *YouTubePremium g.co/helppay" → "youtubepremium"
+"SQ *COFFEE SHOP #1234"              → "coffee shop"
+```
+
+Strips: processor prefixes (PAYPAL, GOOGLE, APPLE, SQ), phone numbers, trailing digits, domains, transaction IDs.
+
+**Step 3: Split by billing cycle (temporal alignment)**
+
+Handles multiple subscriptions from the same merchant (e.g., $5 Patreon on the 10th, $15 Patreon on the 4th):
+- Primary signal: temporal fit -- each transaction assigned to cycle matching its frequency best
+- Secondary signal: amount similarity (tiebreaker, hard cap >50% difference)
+- Established cycles (2+ transactions) preferred over nascent (1 transaction)
+- Skip < 3-day intervals (near-duplicates)
+
+**Step 4: Exact interval matching**
+
+Requires **3+ transactions** per sub-group. Every interval between successive transactions must match a known frequency:
+
+| Frequency | Expected Period | Tolerance | Scaled Tolerance (2× period) |
+|-----------|----------------|-----------|------------------------------|
+| Weekly | 7 days | ± 2 days | ± 2.8 days |
+| Biweekly | 14 days | ± 3 days | ± 4.2 days |
+| Monthly | 30 days | ± 5 days | ± 7.1 days |
+| Quarterly | 90 days | ± 10 days | ± 14.1 days |
+| Yearly | 365 days | ± 15 days | ± 21.2 days |
+
+Tolerance scales with `√N` for skipped billing cycles (e.g., a 2-month gap uses 1.41× base tolerance). This handles occasional billing variations without false positives.
+
+**Step 5: Validation**
+- **Recency**: Last transaction within 2.5× expected period (stale patterns excluded)
+- **Amount consistency**: Coefficient of variation < 0.25 (stddev/mean)
+
+**Step 6: Confidence scoring**
+```
+intervalTightness = 1 - (maxDeviation / tolerance)
+amountTightness   = 1 - (amountCV / 0.25)
+rawConfidence     = intervalTightness × 0.5 + amountTightness × 0.5
+samplePenalty     = min(1, 0.4 + count × 0.15)
+finalConfidence   = rawConfidence × samplePenalty
+
+Threshold: finalConfidence > 0.3
+```
+
+### 9.4 Recurring Sync Layer
+
+Connects the detection algorithm to the database:
+
+**Gate**: Requires 1+ non-deleted categories (skips if budget not set up).
+
+**Create new entries:**
+- For unmatched detections (no existing entry with same `merchant_pattern`)
+- Skip if already stale (next_date + grace period in the past)
+- Grace periods: weekly/biweekly = 7d, monthly = 10d, quarterly = 20d, yearly = 30d
+
+**Update existing entries:**
+- If detection has newer `last_detected_date`, update `next_date`
+- Re-activate `ended` auto-detected entries when detector finds recent data
+- Sync category from matched transactions (auto-detected entries only)
+
+**Auto-end unrefreshed entries:**
+- Auto-detected entries NOT found by detector this run → `status = 'ended'`
+- Manual entries: never auto-ended
+- The detector's exact-interval matching is the source of truth
+
+**Transaction flag sync:**
+- Set `is_recurring = true` on all matched transaction IDs
+- Clear `is_recurring = false` on transactions previously marked but not in current detection set
+- **Zero stale flags** -- sync runs on both create and delete of recurring entries
+
+### 9.5 ML Sync Orchestration
+
+```
+Data sync completes (Teller sync, store load, etc.)
+  → scheduleMLSync() called (500ms debounce)
+  → categorizationSync() runs:
+      Train classifier on all categorized transactions
+      Batch-predict uncategorized transactions
+      Write auto-assignments (confidence ≥ 0.7)
+  → recurringSync() runs:
+      Detect recurring patterns
+      Create/update/end recurring entries
+      Sync is_recurring flags on transactions
+```
+
+Also triggered by:
+- Category deletion (clears assignments, re-syncs ML)
+- Recurring transaction deletion (re-syncs is_recurring flags)
+- Manual category assignment (triggers propagation, then schedules ML sync)
+
+---
+
+## 10. CSV Import Architecture
+
+### Parsing Pipeline
+
+```
+Raw CSV text
+  → parseCSV(): handle quoted fields, commas/newlines in quotes, CRLF
+  → autoDetectMapping(): match headers to semantic roles
+  → User reviews/adjusts mapping in UI
+  → mapCSVToTransactions(): apply sign conventions, generate hashes
+  → bulkCreateFromCSV(): dedup + insert
+```
+
+### Column Auto-Detection
+
+Pattern matching against common header names:
+- **Date**: "date", "transaction date", "posting date", "post date", "trans date"
+- **Description**: "description", "memo", "narrative", "details", "payee"
+- **Amount**: "amount", "transaction amount", "total"
+- **Credit**: "credit", "credits", "deposit", "deposits"
+- **Debit**: "debit", "debits", "withdrawal", "charge"
+
+Detects **split mode** (separate credit/debit columns) vs **single amount column**.
+
+### Date Parsing
+
+Supports multiple formats:
+- `MM/DD/YYYY`, `MM-DD-YYYY`, `YYYY-MM-DD`
+- `M/D/YYYY`, `M/D/YY` (2-digit year)
+- `Jan 15, 2026`, `January 15, 2026`
+- Normalizes all to `YYYY-MM-DD`
+
+### Amount Parsing
+
+- Strips currency symbols (`$`, `€`, `£`), commas, spaces
+- Accounting notation: `(123.45)` → `-123.45`
+
+### Sign Convention by Account Type
+
+| Account Type | Credit Column | Debit Column | Single Amount |
+|-------------|---------------|-------------|---------------|
+| Depository | Positive (money in) | Negative (money out) | As-is |
+| Credit Card | Negative (payment/refund) | Positive (charge) | Inverted |
+
+### Idempotent Deduplication
+
+```ts
+csv_import_hash = djb2(accountId + '|' + date + '|' + amount + '|' + description)
+```
+
+**Three-layer dedup:**
+1. **Unique constraint**: `UNIQUE (account_id, csv_import_hash) WHERE csv_import_hash IS NOT NULL`
+2. **Pre-check IndexedDB**: Query existing hashes before insert
+3. **Pre-check Supabase**: Paginated query for accounts with 1000+ transactions
+
+Returns `{ inserted, skipped }` counts for user feedback.
+
+---
+
+## 11. PWA Architecture
 
 ### Service Worker Lifecycle
-
-The service worker is generated by the `stellarPWA` Vite plugin during build. It manages offline capability and caching:
 
 ```
 +--------------------------------------------------------+
@@ -698,30 +1088,31 @@ The service worker is generated by the `stellarPWA` Vite plugin during build. It
 |                                                         |
 |  INSTALL                                                |
 |  +-- Precache all assets from build manifest            |
-|  +-- Content-hashed files --> immutable cache            |
-|  +-- Shell files (HTML, manifest) --> versioned cache    |
-|  +-- skipWaiting() --> activate immediately              |
+|  +-- Content-hashed files → immutable cache             |
+|  +-- Shell files (HTML, manifest) → versioned cache     |
+|  +-- skipWaiting() → activate immediately               |
 |                                                         |
 |  ACTIVATE                                               |
 |  +-- Delete old cache versions                          |
-|  +-- clients.claim() --> control all open tabs           |
-|  +-- Ready to intercept fetch events                    |
+|  +-- clients.claim() → control all open tabs            |
 |                                                         |
 |  FETCH INTERCEPTION                                     |
-|  +-- /_app/immutable/* --> Cache-first                   |
+|  +-- /_app/immutable/* → Cache-first                    |
 |  |   (content-hashed, never changes)                    |
-|  +-- Navigation requests --> Network-first               |
-|  |   (try network, fall back to cached shell)           |
-|  +-- Static assets --> Stale-while-revalidate            |
+|  +-- Navigation requests → Network-first                |
+|  |   (try network with 1.5s timeout, fall back to cache)|
+|  +-- Static assets → Stale-while-revalidate             |
 |  |   (serve cached, update in background)               |
-|  +-- API requests --> Network-only                       |
+|  +-- API requests → Network-only                        |
 |      (dynamic data, never cached)                       |
 |                                                         |
-|  UPDATE DETECTION                                       |
-|  +-- Browser checks for new SW on navigation            |
-|  +-- Byte-for-byte comparison with current SW           |
-|  +-- New SW found --> install event fires                |
-|  +-- skipWaiting --> immediate activation                |
+|  UPDATE DETECTION (6 signals)                           |
+|  +-- statechange on installing service worker           |
+|  +-- updatefound on registration                        |
+|  +-- visibilitychange (tab becomes visible)             |
+|  +-- online event (connectivity restored)               |
+|  +-- Periodic interval check                            |
+|  +-- Initial check on app load                          |
 +--------------------------------------------------------+
 ```
 
@@ -729,115 +1120,94 @@ The service worker is generated by the `stellarPWA` Vite plugin during build. It
 
 | Strategy | Resources | Behavior | Cache Name |
 |----------|-----------|----------|------------|
-| **Cache-first** | `/_app/immutable/**` | Serve from cache; never re-fetch (hash guarantees freshness) | `immutable-v{N}` |
-| **Stale-while-revalidate** | Icons, manifest, fonts | Serve cached version immediately; fetch update in background | `shell-v{N}` |
-| **Network-first** | HTML pages, navigation | Try network; fall back to cached shell if offline | `shell-v{N}` |
-| **Network-only** | `/api/**` | Always hit the network; no caching for dynamic data | N/A |
+| Cache-first | `/_app/immutable/**` | Serve from cache; never re-fetch | `immutable-v{N}` |
+| Stale-while-revalidate | Icons, manifest, fonts | Serve cached; fetch update in background | `shell-v{N}` |
+| Network-first | HTML pages, navigation | Try network (1.5s timeout); fall back to cache | `shell-v{N}` |
+| Network-only | `/api/**` | Always hit network; no caching | N/A |
 
-### Background Precaching
+### Offline Bridge
 
-During the install phase, the service worker precaches all assets listed in the build manifest:
-
-```ts
-// Generated asset manifest (simplified)
-const ASSETS = [
-  '/_app/immutable/chunks/index.abc123.js',
-  '/_app/immutable/chunks/stores.def456.js',
-  '/_app/immutable/entry/start.ghi789.js',
-  // ... all route chunks
-];
-
-// Precache during install
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(`immutable-v${VERSION}`)
-      .then(cache => cache.addAll(ASSETS))
-  );
-});
-```
+The service worker communicates network status to the app:
+- Monitors `online`/`offline` events
+- Uses Cache API as a connectivity probe
+- Relays status to the layout via message passing
+- App adjusts behavior (skip sync, show offline indicators)
 
 ---
 
-## 9. Real-Time Sync
+## 12. Real-Time Sync
 
 ### WebSocket Subscriptions
 
-stellar-drive subscribes to Supabase Realtime channels for each table:
+stellar-drive subscribes to Supabase Realtime channels for all app tables:
 
 ```
 Client connects to Supabase Realtime (WSS)
-  |
-  +-- Subscribe: postgres_changes, table=transactions, event=*
-  +-- Subscribe: postgres_changes, table=accounts, event=*
-  +-- Subscribe: postgres_changes, table=categories, event=*
-  +-- Subscribe: postgres_changes, table=* (all synced tables)
+  +-- Subscribe: postgres_changes, table=*, event=*
+  +-- Filter: schema=public
 ```
 
 ### Remote Change Processing
-
-When a remote change arrives via WebSocket:
 
 ```
 WebSocket event received
   |
   v
 +-------------------------------------+
-| 1. DEDUPLICATION                     |
-|    Check if this change originated   |
-|    from this device (device_id)      |
-|    If yes --> ignore (already applied)|
+| 1. ECHO SUPPRESSION                  |
+|    Compare event device_id to own    |
+|    If match → discard (own echo)     |
 +-------------+-----------------------+
-              | No (remote change)
+              | Remote change
               v
 +-------------------------------------+
-| 2. CONFLICT CHECK                    |
-|    Compare remote _version with      |
-|    local _version                    |
-|    If remote > local --> apply        |
-|    If equal --> field-level merge     |
-|    If remote < local --> ignore       |
+| 2. DEDUP WITH POLLING                |
+|    Check recentlyProcessedByRealtime |
+|    map (2-second TTL)                |
+|    If exists → skip                  |
 +-------------+-----------------------+
               |
               v
 +-------------------------------------+
-| 3. INDEXEDDB UPDATE                  |
-|    Write merged record to Dexie      |
-|    This triggers reactive store      |
-|    subscriptions                     |
+| 3. RECENTLY-MODIFIED CHECK           |
+|    Entity modified < 2s ago locally? |
+|    If yes → skip (local push pending)|
 +-------------+-----------------------+
               |
               v
 +-------------------------------------+
-| 4. UI UPDATE                         |
-|    Reactive stores re-emit           |
-|    Components re-render with         |
-|    new data (potential animation     |
-|    for remote changes)               |
+| 4. CONFLICT RESOLUTION               |
+|    Compare versions, apply 3-tier    |
+|    resolution strategy               |
++-------------+-----------------------+
+              |
+              v
++-------------------------------------+
+| 5. SOFT DELETE HANDLING               |
+|    Record in remoteChangesStore       |
+|    BEFORE Dexie write                 |
+|    (enables removal animation in UI)  |
++-------------+-----------------------+
+              |
+              v
++-------------------------------------+
+| 6. INDEXEDDB WRITE + UI UPDATE        |
+|    Write merged record to Dexie       |
+|    Reactive stores re-emit            |
+|    Components re-render               |
 +-------------------------------------+
 ```
 
-### Fallback Polling
+### Reconnection Strategy
 
-If the WebSocket connection drops, stellar-drive falls back to periodic polling:
-
-1. Connection loss detected via heartbeat timeout
-2. Polling interval activates (configurable, default 30s)
-3. Fetch all records with `updated_at > last_sync_timestamp`
-4. Apply changes using the same conflict resolution logic
-5. When WebSocket reconnects, polling stops automatically
-
-### Deferred Changes
-
-Changes received while the app is in the background (service worker context) are deferred:
-
-1. Service worker receives push notification or background sync event
-2. Changes stored in a deferred queue
-3. When the app becomes visible, deferred changes are applied in batch
-4. UI updates with optional animation to highlight new/changed data
+- Exponential backoff: 1s, 2s, 4s, 8s, 16s
+- Max 5 attempts (~31 seconds total wait)
+- Paused entirely when browser offline (no wasted timers)
+- When WebSocket reconnects, fallback polling stops automatically
 
 ---
 
-## 10. Security Architecture
+## 13. Security Architecture
 
 ### Defense in Depth
 
@@ -845,77 +1215,32 @@ Changes received while the app is in the background (service worker context) are
 +-----------------------------------------------------+
 |  NETWORK LAYER                                       |
 |  +-- HTTPS/TLS everywhere (enforced by Vercel)       |
-|  +-- mTLS for Teller API (certificate pinning)       |
+|  +-- mTLS for Teller API (client certificates)       |
 |  +-- HMAC-SHA256 webhook verification                |
 |  +-- CORS headers (same-origin for API routes)       |
+|  +-- Replay protection (3-min timestamp window)      |
 +-----------------------------------------------------+
 |  APPLICATION LAYER                                   |
-|  +-- PIN gate (bcrypt-hashed, rate-limited)           |
+|  +-- PIN gate (bcrypt cost 10, rate-limited)          |
 |  +-- Device verification (trusted device list)        |
 |  +-- SvelteKit CSRF protection (origin checking)     |
-|  +-- Content Security Policy headers                 |
 |  +-- XSS prevention (Svelte auto-escapes output)     |
+|  +-- Open redirect prevention (URL validation)       |
 +-----------------------------------------------------+
 |  DATABASE LAYER                                      |
 |  +-- Row Level Security on every table                |
 |  +-- Supabase Auth JWT verification                  |
 |  +-- Service role key never exposed to client         |
-|  +-- Column-level access control via RLS policies     |
+|  +-- Column-level access via RLS policies             |
+|  +-- set_user_id trigger (auto-assigns owner)         |
 +-----------------------------------------------------+
 |  DATA LAYER                                          |
 |  +-- Soft deletes (audit trail)                       |
 |  +-- Version tracking (tamper detection)             |
 |  +-- Device ID tracking (change attribution)         |
 |  +-- Timestamp tracking (conflict resolution)         |
+|  +-- Tombstone garbage collection (7-day retention)   |
 +-----------------------------------------------------+
-```
-
-### Row Level Security Policies
-
-Every table enforces user-scoped access:
-
-```sql
--- All tables follow this pattern
-ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
-
--- Users can only SELECT their own records
-CREATE POLICY "select_own" ON transactions
-  FOR SELECT USING (auth.uid() = user_id);
-
--- Users can only INSERT with their own user_id
-CREATE POLICY "insert_own" ON transactions
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Users can only UPDATE their own records
-CREATE POLICY "update_own" ON transactions
-  FOR UPDATE USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- Users can only DELETE their own records
-CREATE POLICY "delete_own" ON transactions
-  FOR DELETE USING (auth.uid() = user_id);
-```
-
-### PIN Security
-
-- **Hashing**: PINs hashed with bcrypt (cost factor 10)
-- **Storage**: Hash stored in IndexedDB, synced to Supabase for multi-device
-- **Rate limiting**: Exponential lockout on failed attempts (1min --> 5min --> 15min --> 1hr)
-- **No recovery**: PIN cannot be recovered -- only reset via authenticated email
-
-### Webhook Verification
-
-```ts
-// HMAC-SHA256 verification
-const signature = request.headers.get('Teller-Signature');
-const expectedSignature = crypto
-  .createHmac('sha256', TELLER_WEBHOOK_SECRET)
-  .update(rawBody)
-  .digest('hex');
-
-if (signature !== expectedSignature) {
-  return new Response('Unauthorized', { status: 401 });
-}
 ```
 
 ### Environment Variable Security
@@ -926,70 +1251,58 @@ if (signature !== expectedSignature) {
 | `PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` | Client-side | Protected by RLS -- safe to expose |
 | `DATABASE_URL` | Build-time only | Never bundled into client code |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side only | Bypasses RLS -- must remain secret |
-| `TELLER_CERTIFICATE` | Server-side only | mTLS identity -- must remain secret |
-| `TELLER_PRIVATE_KEY` | Server-side only | mTLS identity -- must remain secret |
+| `TELLER_CERT` | Server-side only | mTLS identity -- must remain secret |
+| `TELLER_KEY` | Server-side only | mTLS identity -- must remain secret |
 | `TELLER_WEBHOOK_SECRET` | Server-side only | HMAC verification -- must remain secret |
 
 ---
 
-## 11. Performance Architecture
+## 14. Performance Architecture
+
+### Egress Optimization
+
+| Technique | Savings | Implementation |
+|-----------|---------|----------------|
+| Selective column fetching | ~40-60% fewer bytes | `SELECT id,amount,date` not `SELECT *` |
+| Operation coalescing | ~80-90% fewer requests | 50 rapid edits → 1 coalesced push |
+| Push-only mode | Skip entire pull phase | When realtime WebSocket is healthy |
+| Cached auth validation | 1 call/hour vs 1/sync | `getUser()` result cached 1 hour |
+| Visibility-aware sync | Skip unnecessary syncs | Only sync if tab was hidden > 5 minutes |
+| Batch upserts | 1 request per 500 rows | vs 500 individual requests |
+| Dedup with realtime | Avoid double-processing | `recentlyProcessedByRealtime` map |
 
 ### Chunk Splitting Strategy
 
-SvelteKit automatically code-splits by route. Radiant optimizes further:
-
 ```
 Initial load:
-  +-- _app/immutable/entry/start.js      (~15KB)  Framework bootstrap
-  +-- _app/immutable/entry/app.js        (~8KB)   App shell
-  +-- _app/immutable/chunks/index.js     (~25KB)  Shared utilities
-  +-- _app/immutable/nodes/0.js          (~5KB)   Layout node
+  +-- entry/start.js           (~15KB)  Framework bootstrap
+  +-- entry/app.js             (~8KB)   App shell
+  +-- chunks/index.js          (~25KB)  Shared utilities
+  +-- vendor-supabase.js       (~100KB) @supabase (cached separately)
+  +-- vendor-dexie.js           (~30KB) Dexie.js (cached separately)
 
-Dashboard route (/):
-  +-- _app/immutable/nodes/2.js          (~40KB)  Dashboard components
-
-Transactions route (/transactions):
-  +-- _app/immutable/nodes/3.js          (~30KB)  Transaction list
+Per-route (code-split, loaded on demand):
+  +-- Dashboard                (~40KB)
+  +-- Transactions             (~30KB)
+  +-- Budget                   (~45KB)
+  +-- Accounts                 (~35KB)
 ```
 
-Each route loads only its required chunks. Shared code is extracted into common chunks that are cached across routes.
+Content-hashed filenames enable infinite cache TTL on immutable assets.
 
-### Optimistic Updates
+### Optimistic UI Performance
 
-Every user action reflects in the UI within < 5ms:
-
-1. **No loading spinners for writes** -- data appears instantly in IndexedDB
-2. **Reactive stores** re-emit on IndexedDB changes -- no manual cache invalidation
-3. **Sync status** shown subtly (not blocking) -- users know sync is happening but are not slowed by it
-
-### IndexedDB Query Optimization
-
-- **Compound indexes** for common filter+sort patterns
-- **Cursor-based pagination** for large transaction lists
-- **Selective loading** -- stores only query visible data, not entire tables
-- **Debounced re-queries** -- multiple rapid IndexedDB changes batch into one store update
-
-### Debounced Effects
-
-Svelte 5 `$effect` calls that trigger expensive operations are debounced:
-
-```svelte
-<script lang="ts">
-  let searchQuery = $state('');
-  let debouncedQuery = $state('');
-
-  $effect(() => {
-    const timeout = setTimeout(() => {
-      debouncedQuery = searchQuery;
-    }, 300);
-    return () => clearTimeout(timeout);
-  });
-</script>
-```
+| Operation | Perceived Latency | Actual Network Latency |
+|-----------|-------------------|----------------------|
+| Categorize transaction | < 5ms | 200-500ms (background) |
+| Edit notes | < 5ms | 200-500ms (background) |
+| Create category | < 5ms | 200-500ms (background) |
+| Delete transaction | < 5ms | 200-500ms (background) |
+| Bulk CSV import (100 rows) | ~50ms | 1-2s (background) |
 
 ---
 
-## 12. Deployment Architecture
+## 15. Deployment Architecture
 
 ### Vercel Serverless Architecture
 
@@ -1001,7 +1314,7 @@ Svelte 5 `$effect` calls that trigger expensive operations are debounced:
 |  |  Static Assets (CDN)                      |   |
 |  |  +-- /_app/immutable/** (forever cache)   |   |
 |  |  +-- /manifest.json                       |   |
-|  |  +-- /sw.js                               |   |
+|  |  +-- /sw.js (service worker)              |   |
 |  |  +-- /icons/**                            |   |
 |  +------------------------------------------+   |
 |                                                  |
@@ -1010,24 +1323,22 @@ Svelte 5 `$effect` calls that trigger expensive operations are debounced:
 |  |  +-- /api/config        (GET)             |   |
 |  |  +-- /api/setup/validate (POST)           |   |
 |  |  +-- /api/setup/deploy   (POST)           |   |
-|  |  +-- /api/teller/sync    (POST)  <-- mTLS |   |
-|  |  +-- /api/teller/webhook (POST)  <-- HMAC |   |
+|  |  +-- /api/teller/sync    (POST, mTLS)     |   |
+|  |  +-- /api/teller/webhook (POST, HMAC)     |   |
 |  +------------------------------------------+   |
 |                                                  |
 |  +------------------------------------------+   |
 |  |  SSR Functions                            |   |
 |  |  +-- / (dashboard)                        |   |
 |  |  +-- /transactions                        |   |
+|  |  +-- /budget                              |   |
 |  |  +-- /accounts                            |   |
-|  |  +-- /login                               |   |
-|  |  +-- /setup                               |   |
+|  |  +-- /login, /setup, /profile             |   |
 |  +------------------------------------------+   |
 +------------------------------------------------+
 ```
 
-### Schema Auto-Migration on Deploy
-
-Every Vercel build automatically syncs the database schema:
+### Schema Auto-Migration on Build
 
 ```
 vercel build triggers
@@ -1038,72 +1349,107 @@ Vite buildStart hook fires
   v
 stellarPWA plugin reads src/lib/schema.ts
   |
-  +-- Generate TypeScript types --> src/lib/types.generated.ts
+  +-- Generate TypeScript types → src/lib/types.generated.ts
   |
-  +-- Connect to DATABASE_URL (Postgres)
+  +-- Connect to DATABASE_URL (PostgreSQL)
       |
       +-- CREATE TABLE IF NOT EXISTS (5 tables)
       +-- ALTER TABLE ADD COLUMN IF NOT EXISTS (new fields)
       +-- CREATE INDEX IF NOT EXISTS (declared indexes)
       +-- ENABLE ROW LEVEL SECURITY (all tables)
-      +-- CREATE POLICY IF NOT EXISTS (CRUD policies)
-      +-- CREATE OR REPLACE FUNCTION (updated_at triggers)
+      +-- CREATE POLICY IF NOT EXISTS (per-table CRUD)
+      +-- CREATE OR REPLACE FUNCTION (updated_at triggers, set_user_id)
 ```
 
-This is fully idempotent -- safe to run on every deployment. No migration files, no version tracking, no manual SQL. The schema file is the single source of truth.
-
-### Environment Variable Management
-
-```
-Development:   .env file (local, gitignored)
-Production:    Vercel dashboard --> Environment Variables
-Validation:    /setup wizard validates credentials before saving
-Runtime:       /api/config serves public vars to the client
-```
+Fully idempotent -- safe to run on every deployment. No migration files, no version tracking, no manual SQL.
 
 ### CI/CD Pipeline
 
 ```
 Push to main
-  |
-  v
-Vercel detects push --> triggers build
-  |
-  +-- npm install
-  +-- vite build
-  |   +-- Schema types generated
-  |   +-- Schema SQL pushed to Supabase
-  |   +-- Service worker generated
-  |   +-- SvelteKit routes compiled
-  |   +-- Assets content-hashed
-  |
-  +-- Deploy to Vercel edge
-  |   +-- Static assets --> CDN (immutable headers)
-  |   +-- Server routes --> Serverless functions
-  |   +-- API routes --> Serverless functions
-  |
-  +-- Live at production URL
+  → Vercel detects push → triggers build
+  → npm install
+  → vite build
+  │   +-- Schema types generated
+  │   +-- Schema SQL pushed to Supabase
+  │   +-- Service worker generated (with new APP_VERSION)
+  │   +-- SvelteKit routes compiled
+  │   +-- Assets content-hashed
+  → Deploy to Vercel edge
+  │   +-- Static assets → CDN (immutable headers)
+  │   +-- Server routes → Serverless functions
+  │   +-- API routes → Serverless functions
+  → Live at production URL
+  → Connected clients detect new SW → update prompt
 ```
 
 ---
 
-## 13. Summary of Design Complexities
+## 16. Demo Mode Architecture
 
-| Area | Complexity | Why It Exists |
-|------|-----------|---------------|
-| **Field-level conflict resolution** | Last-writer-wins merge with grace period tiebreaking | Two devices editing the same transaction offline must converge to the same result |
-| **Tombstone lifecycle** | Soft delete --> sync --> retention period --> hard delete | Deletions must propagate to all devices before permanent removal |
-| **Version tracking** | Monotonic `_version` counter per record | Detects stale writes and prevents lost updates during concurrent edits |
-| **mTLS proxy** | Server-side certificate-authenticated proxy for Teller API | Browsers cannot perform mutual TLS; bank API requires client certificates |
-| **HMAC webhook verification** | SHA-256 signature validation on every incoming webhook | Prevents forged webhook payloads from triggering unauthorized data writes |
-| **PIN gate + device verification** | Local bcrypt auth layered with trusted device list | Financial data requires stronger-than-password protection, even offline |
-| **Schema-driven auto-migration** | Single `schema.ts` generates types, IndexedDB, and PostgreSQL DDL | Eliminates migration files and ensures client/server schema never diverge |
-| **Service worker caching** | Four-strategy cache with content-hashed immutable assets | PWA must work fully offline while still receiving updates when online |
-| **Singleton `user_settings`** | Single-row table with JSON fields for flexible config | Single-user app avoids joins and complex queries for app-wide settings |
-| **Denormalized account balances** | `balance` stored directly on accounts, updated on sync | Avoids expensive SUM(transactions) on every dashboard render |
-| **Exponential rate limiting** | Progressive lockout on failed PIN attempts | Prevents brute-force attacks on the local PIN gate |
-| **Fallback polling** | 30s polling interval when WebSocket drops | Real-time sync must degrade gracefully when persistent connections fail |
+### Isolation Strategy
+
+Demo mode runs a completely isolated instance:
+
+```
+Production mode:
+  IndexedDB: "radiant"
+  Supabase: connected, syncing
+  Auth: Supabase session + PIN
+  Realtime: WebSocket active
+
+Demo mode:
+  IndexedDB: "radiant_demo"        ← separate database
+  Supabase: disconnected            ← no cloud sync
+  Auth: authMode = 'demo'          ← mock auth, no PIN
+  Realtime: disabled                ← no WebSocket
+```
+
+### Seed Data
+
+Deterministic IDs (all prefixed with `demo-`) enable idempotent re-seeding:
+
+- **2 enrollments**: Chase, Bank of America
+- **5 accounts**: Chase Checking, Chase Savings, Chase Sapphire Preferred, BofA Checking, BofA Cash Rewards
+- **18 categories**: Groceries ($600), Dining ($300), Coffee ($80), Rent ($2200), Utilities ($250), etc.
+- **~60 transactions**: Spanning 90 days, realistic amounts, mix of posted/pending
+- **8 recurring entries**: Netflix, Spotify, Rent, Equinox, OpenAI, PG&E, AT&T
+
+### Activation Flow
+
+1. User navigates to `/demo` route
+2. Cinematic activation animation plays
+3. Engine teardown → reinitialize with `demo: true`
+4. `seedDemoData(db)` populates separate IndexedDB
+5. Redirect to dashboard with demo data
 
 ---
 
-For details on the sync engine internals (queue processing, conflict resolution algorithms, reactive store layer, and IndexedDB abstraction), see the [stellar-drive](https://github.com/prabhask5/stellar-drive) package documentation.
+## 17. Summary of Design Complexities
+
+| Area | Complexity | Why It Exists |
+|------|-----------|---------------|
+| **Intent-based outbox** | 4 operation types with 6-step coalescing pipeline | 50 rapid edits must become 1 network request; state snapshots lose algebraic reducibility |
+| **Three-tier conflict resolution** | Field-level merge with 4 strategy priorities | Two devices editing the same record offline must converge deterministically |
+| **Device-ID tiebreaking** | Lexicographic comparison when timestamps match | Clock skew between devices makes timestamp-only comparison unreliable |
+| **Version tracking** | Monotonic `_version` counter per record | Detects stale writes and prevents lost updates during concurrent edits |
+| **Tombstone lifecycle** | Soft delete → sync → 7-day retention → hard delete | Deletions must propagate to all devices before permanent removal |
+| **mTLS proxy** | Server-side certificate-authenticated proxy for Teller API | Browsers cannot perform mutual TLS; bank API requires client certificates |
+| **HMAC webhook verification** | SHA-256 with timestamp replay protection and secret rotation | Prevents forged webhook payloads from triggering unauthorized data writes |
+| **PIN gate + device verification** | 4-layer auth with bcrypt, email verification, exponential lockout | Financial data requires defense-in-depth, must work offline |
+| **Schema-driven auto-migration** | Single `schema.ts` generates types, IndexedDB, and PostgreSQL DDL | Eliminates migration files; ensures client/server schema never diverge |
+| **Naive Bayes auto-categorization** | Per-user classifier with Laplace smoothing and softmax confidence | Transactions should auto-categorize without manual ML configuration |
+| **Category propagation** | Fuzzy token matching with overlap coefficient ≥ 0.5 | One manual categorization should fix dozens of similar transactions |
+| **Exact interval matching** | √N-scaled tolerances across 5 frequency bands | Subscription detection must handle billing jitter without false positives |
+| **Recurring auto-lifecycle** | Create, re-activate, update, auto-end based on detection results | Cancelled subscriptions should disappear; resumed ones should reappear |
+| **CSV idempotent import** | djb2 hash + unique constraint + dual IndexedDB/Supabase check | Uploading overlapping CSVs must never create duplicate transactions |
+| **Category source tracking** | `manual` / `auto` / `propagation` / `null` hierarchy | ML must never overwrite user intent; propagation must feed classifier training |
+| **Echo suppression** | device_id comparison + recentlyProcessedByRealtime TTL map | Devices must not process their own outgoing changes received back via WebSocket |
+| **Push-only optimization** | Skip pull when realtime healthy | Avoids redundant SELECT queries when WebSocket already delivers changes |
+| **Service worker caching** | Four-strategy cache with content-hashed immutable assets | PWA must work fully offline while receiving updates when online |
+| **Cross-tab BroadcastChannel** | Email verification relay between /confirm and /login tabs | Instant auth completion without polling; works across browser tabs |
+| **Recently-modified protection** | 2-second TTL skip during pull | Prevents pull from reverting fresh local changes before they reach server |
+
+---
+
+For details on the stellar-drive sync engine source code, see the [stellar-drive npm package](https://www.npmjs.com/package/stellar-drive).
