@@ -92,9 +92,19 @@
 
   /**
    * Derived booleans for controlling navigation visibility.
-   * Navbar only shows on the four main app pages (dashboard, transactions,
-   * accounts, profile). All other routes hide the app shell chrome.
+   * Shell visibility is based on auth/public route semantics, while the
+   * nav-route list only controls whether store preloading blocks page render.
    */
+  const isOnLoginPage = $derived($page.url.pathname.startsWith('/login'));
+  const isOnSetupPage = $derived($page.url.pathname.startsWith('/setup'));
+  const isOnDemoPage = $derived($page.url.pathname === '/demo');
+  const isOnPolicyPage = $derived($page.url.pathname.startsWith('/policy'));
+  const isOnConfirmPage = $derived($page.url.pathname.startsWith('/confirm'));
+  const isSetupNoAuth = $derived(isOnSetupPage && data.authMode === 'none');
+  const isAuthPage = $derived(
+    isOnLoginPage || isSetupNoAuth || isOnDemoPage || isOnPolicyPage || isOnConfirmPage
+  );
+
   const NAV_ROUTES = ['/', '/budget', '/transactions', '/accounts', '/profile'];
   const isNavPage = $derived(
     NAV_ROUTES.some((r) =>
@@ -104,7 +114,9 @@
   /** Whether all app data (stores + ML + Teller) is fully initialized. */
   let dataReady = $state(false);
 
-  const isAuthenticated = $derived(data.authMode !== 'none' && isNavPage && !$authState.isLoading);
+  const isAuthenticated = $derived(
+    data.authMode !== 'none' && !isAuthPage && !$authState.isLoading
+  );
 
   /** Show the crystal loader while auth is resolving OR data is still loading. */
   const showLoader = $derived(
