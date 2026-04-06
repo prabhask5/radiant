@@ -744,23 +744,54 @@ Teller requires mutual TLS authentication -- every API request must present a cl
                             +--------------+
 ```
 
-### Three Data Paths
+### Teller Ingestion Paths
 
-#### Path 1: Initial Enrollment + Manual Refresh
+Teller data reaches Radiant through four distinct paths. Only three of them
+fetch from Teller directly. The fourth is realtime fan-out, where one
+Teller-driven write is pushed into already-open clients.
+
+| Path | Trigger | How often it happens | Where Teller data lands first | Notes |
+|------|---------|----------------------|-------------------------------|-------|
+| Initial enrollment sync | User completes Teller Connect for a brand new bank link | Once per new enrollment | Browser local DB first (IndexedDB + sync queue), then Supabase | Full fetch via `/api/teller/sync`, then `processTellerSyncData()` writes locally |
+| Manual refresh / reconnect sync | User clicks re-sync, or completes reconnect after token expiry | Only when user explicitly triggers it | Browser local DB first, then Supabase | Same code path as initial sync, but for an existing enrollment |
+| Background auto-sync | App bootstraps authenticated UI and finds active enrollments | Once per app boot / hard page load in that browser session | Browser local DB first, then Supabase | Runs silently after local data is shown; not polling on an interval |
+| Webhook-driven server sync | Teller sends webhook events such as `transactions.processed` | Whenever Teller emits an event | Supabase first, then connected browsers via realtime | Browser does not need to be open for this path to run |
+
+#### Path 1: Initial Enrollment Sync
 
 ```
 User clicks "Connect Bank" → Teller Connect widget opens
   → User selects bank, authenticates with credentials
   → Widget returns access_token + enrollment metadata
+  → Client creates local teller_enrollments row
   → Client sends POST /api/teller/sync
   → Server: fetch accounts + transactions via mTLS
-  → Server: write to Supabase (service_role, bypasses RLS)
-  → Server: return JSON to client
-  → Client: write to IndexedDB for immediate UI
-  → Other devices: receive via stellar-drive realtime WebSocket
+  → Server: return raw JSON only (no DB writes in this route)
+  → Client: processTellerSyncData() writes IndexedDB + sync queue
+  → Sync engine pushes resulting local changes to Supabase
+  → Other devices: receive those DB changes via stellar-drive realtime
 ```
 
-#### Path 2: Webhook-Driven Updates
+- Triggered by `handleEnrollmentSuccess()` on the Accounts page.
+- Frequency: once per new bank connection.
+- Scope: full account fetch plus full transaction fetch unless a later incremental window is supplied.
+
+#### Path 2: Manual Refresh and Reconnect
+
+```
+User clicks "Re-sync" or finishes reconnect flow
+  → Client sends POST /api/teller/sync with stored/new access token
+  → Server fetches fresh Teller accounts + transactions via mTLS
+  → Client runs processTellerSyncData()
+  → Only true account / transaction diffs are written locally
+  → Sync queue forwards those diffs to Supabase
+```
+
+- Triggered by `retrySyncEnrollment()` and `handleReconnectSuccess()` on the Accounts page.
+- Frequency: only when the user explicitly asks for it, plus reconnect after a 401/disconnected state.
+- Purpose: user-forced freshness and recovery from expired credentials.
+
+#### Path 3: Webhook-Driven Updates
 
 ```
 Teller sends POST /api/teller/webhook
@@ -807,12 +838,60 @@ Teller sends POST /api/teller/webhook
 +------------------------------+
 ```
 
-#### Path 3: Auto-Sync (Background)
+- Triggered by Teller, not by the browser UI.
+- Frequency: event-driven. It happens whenever Teller emits a configured webhook event.
+- `transactions.processed` performs a server-side incremental refetch from Teller and writes directly to Supabase.
+- `enrollment.disconnected` marks the enrollment disconnected in Supabase.
+- `webhook.test` verifies configuration but does not ingest financial data.
 
-- **Stale threshold**: 4 hours since last sync
-- **Sync window**: 3-day buffer before `last_synced_at` (catches pending→posted transitions)
-- **Module mutex**: Only one auto-sync runs at a time
-- **Silent failure**: Logs errors but does not show UI notifications
+#### Path 4: Background Auto-Sync (Browser)
+
+```
+Authenticated app layout renders
+  → initializeApp() loads IndexedDB immediately for fast UI
+  → startBackgroundSync() runs in the background
+  → autoSyncEnrollments() loops through connected/error enrollments
+  → Client sends POST /api/teller/sync for each enrollment
+  → Server fetches incremental Teller data via mTLS
+  → Client runs processTellerSyncData()
+  → Local stores reload so balances / transactions update without hard refresh
+```
+
+- Triggered from the root layout after app initialization.
+- Frequency: once per authenticated app bootstrap in that browser tab/page lifetime.
+- It is not timer-based polling. There is no `setInterval` or recurring background poll loop.
+- It runs silently and does not block page render.
+- Incremental window: 3-day buffer before `last_synced_at` to catch pending-to-posted changes.
+- Retry behavior: transient failures retry with exponential backoff up to 5 attempts.
+- Concurrency guard: module-level mutex prevents overlapping auto-sync runs.
+
+### How New Teller Data Reaches the UI Without a Hard Refresh
+
+There are two ways fresh Teller data can appear while the user stays on the app:
+
+1. **This browser fetches Teller itself**
+   The root layout starts `startBackgroundSync()` after loading cached local data.
+   That background task fetches Teller data, writes only real diffs into IndexedDB,
+   then reloads the local stores. The page is already visible, so the UI updates
+   reactively without a full browser refresh.
+
+2. **Another process writes Teller data and this browser receives realtime**
+   A webhook or another device/browser can write Teller-driven changes into Supabase.
+   stellar-drive's realtime subscription receives those row changes over WebSocket,
+   merges them into IndexedDB, and the Svelte stores update the UI reactively.
+
+In short: Radiant does not need a hard refresh because the visible UI is driven by
+reactive stores backed by IndexedDB, and IndexedDB can be updated either by the
+current browser's background sync or by Supabase realtime events.
+
+### Important Cadence Notes
+
+- There is no fixed 30-second or 5-minute Teller polling loop.
+- Auto-sync happens on app bootstrap, not continuously.
+- Manual sync happens only on explicit user action.
+- Reconnect sync happens only after the user re-authenticates a broken enrollment.
+- Webhook sync happens whenever Teller emits supported events.
+- Realtime propagation happens whenever Supabase receives a write from any of the above paths.
 
 ### Multi-Layer Deduplication
 

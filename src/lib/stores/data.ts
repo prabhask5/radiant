@@ -530,10 +530,25 @@ function createEnrollmentsStore() {
     },
     async updateStatus(id: string, status: string, errorMessage?: string) {
       debug('log', '[DATA] teller_enrollments — updateStatus', { id, status });
+      const existing = (await engineGetAll('teller_enrollments')).find(
+        (row) => row.id === id && !row.deleted
+      ) as TellerEnrollment | undefined;
+
+      const normalizedError = errorMessage || null;
+      if (
+        existing &&
+        existing.status === status &&
+        (existing.error_message ?? null) === normalizedError &&
+        !(status === 'connected' && !existing.last_synced_at)
+      ) {
+        debug('log', '[DATA] teller_enrollments — updateStatus skipped (no-op)', { id, status });
+        return;
+      }
+
       remoteChangesStore.recordLocalChange(id, 'teller_enrollments', 'update');
       const fields: Record<string, unknown> = {
         status,
-        error_message: errorMessage || null
+        error_message: normalizedError
       };
       // Only update last_synced_at on success — errors shouldn't claim a successful sync
       if (status === 'connected') {
@@ -707,9 +722,10 @@ export async function startBackgroundSync(
       newTellerCount = await autoSyncEnrollments(enrollments, (id, status) =>
         enrollmentsStore.updateStatus(id, status)
       );
+      // Reload local stores after Teller completes so balance-only account
+      // updates are visible even when no new transactions were inserted.
+      await Promise.all([transactionsStore.load(), accountsStore.load()]);
       if (newTellerCount > 0) {
-        // 2. Reload stores so ML sees the new Teller transactions
-        await Promise.all([transactionsStore.load(), accountsStore.load()]);
         debug('log', `[SYNC] Teller: ${newTellerCount} new transactions loaded`);
       } else {
         debug('log', '[SYNC] Teller: no new transactions');

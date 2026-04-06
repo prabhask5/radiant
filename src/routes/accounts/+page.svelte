@@ -674,6 +674,10 @@
         parts.push(
           `${syncResult.newAccounts} account${syncResult.newAccounts !== 1 ? 's' : ''} linked`
         );
+      if (syncResult.updatedAccounts > 0)
+        parts.push(
+          `${syncResult.updatedAccounts} account${syncResult.updatedAccounts !== 1 ? 's' : ''} refreshed`
+        );
       if (syncResult.newTransactions > 0)
         parts.push(
           `${syncResult.newTransactions} new transaction${syncResult.newTransactions !== 1 ? 's' : ''}`
@@ -744,13 +748,21 @@
       ]);
       debug('log', '[ACCOUNTS] retrySyncEnrollment complete —', enrollment.institution_name);
       const parts: string[] = [];
+      if (syncResult.updatedAccounts > 0)
+        parts.push(
+          `${syncResult.updatedAccounts} account${syncResult.updatedAccounts !== 1 ? 's' : ''} refreshed`
+        );
       if (syncResult.newTransactions > 0)
         parts.push(
           `${syncResult.newTransactions} new transaction${syncResult.newTransactions !== 1 ? 's' : ''}`
         );
       if (syncResult.updatedTransactions > 0)
         parts.push(`${syncResult.updatedTransactions} updated`);
-      if (syncResult.newTransactions === 0 && syncResult.updatedTransactions === 0)
+      if (
+        syncResult.newTransactions === 0 &&
+        syncResult.updatedTransactions === 0 &&
+        syncResult.updatedAccounts === 0
+      )
         parts.push('already up to date');
       showFeedback('success', `${enrollment.institution_name} — ${parts.join(', ')}.`);
     } catch (err) {

@@ -37,6 +37,51 @@ import {
 } from '$lib/teller/client';
 import type { RequestHandler } from './$types';
 
+interface ExistingAccountRow {
+  id: string;
+  teller_account_id: string;
+  institution_name: string;
+  name: string;
+  type: string;
+  subtype: string;
+  currency: string | null;
+  last_four: string | null;
+  status: string;
+  balance_available: string | null;
+  balance_ledger: string | null;
+}
+
+function getWebhookAccountUpdateFields(
+  existing: ExistingAccountRow,
+  incoming: {
+    institution_name: string;
+    name: string;
+    type: string;
+    subtype: string;
+    currency: string | null;
+    last_four: string | null;
+    status: string;
+    balance_available: string | null;
+    balance_ledger: string | null;
+  },
+  timestamp: string
+): Record<string, unknown> | null {
+  const changed: Record<string, unknown> = {};
+  let hasChanges = false;
+
+  for (const key of Object.keys(incoming) as Array<keyof typeof incoming>) {
+    if (incoming[key] !== existing[key]) {
+      changed[key] = incoming[key];
+      hasChanges = true;
+    }
+  }
+
+  if (!hasChanges) return null;
+  changed.updated_at = timestamp;
+  changed.balance_updated_at = timestamp;
+  return changed;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    WEBHOOK ENDPOINT
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -189,17 +234,20 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
     // Look up existing accounts for stable IDs
     const { data: existingAccounts } = await admin
       .from('accounts')
-      .select('id, teller_account_id')
+      .select(
+        'id, teller_account_id, institution_name, name, type, subtype, currency, last_four, status, balance_available, balance_ledger'
+      )
       .eq('enrollment_id', localEnrollmentId);
     const acctIdMap = new Map(
-      (existingAccounts ?? []).map((a: { id: string; teller_account_id: string }) => [
-        a.teller_account_id,
-        a.id
-      ])
+      (existingAccounts ?? []).map((a: ExistingAccountRow) => [a.teller_account_id, a.id])
+    );
+    const existingAccountMap = new Map(
+      (existingAccounts ?? []).map((a: ExistingAccountRow) => [a.teller_account_id, a])
     );
 
-    // Build account rows with balances
-    const accountRows = [];
+    // Build account updates only for rows whose Teller-managed fields changed.
+    const accountUpdates: Array<{ id: string; fields: Record<string, unknown> }> = [];
+    let updatedAccountCount = 0;
     for (const account of tellerAccounts) {
       let balances = { available: null as string | null, ledger: null as string | null };
       try {
@@ -212,48 +260,34 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
 
       const id = acctIdMap.get(account.id) ?? crypto.randomUUID();
       acctIdMap.set(account.id, id);
+      const existing = existingAccountMap.get(account.id);
+      if (!existing) continue;
 
-      accountRows.push({
-        id,
-        user_id: userId,
-        enrollment_id: localEnrollmentId,
-        teller_account_id: account.id,
-        institution_name: account.institution.name,
-        name: account.name,
-        type: account.type,
-        subtype: account.subtype,
-        currency: account.currency,
-        last_four: account.last_four,
-        status: account.status,
-        balance_available: balances.available,
-        balance_ledger: balances.ledger,
-        balance_updated_at: timestamp,
-        source: 'teller',
-        is_hidden: false,
-        created_at: timestamp,
-        updated_at: timestamp,
-        deleted: false,
-        _version: 1
-      });
+      const updateFields = getWebhookAccountUpdateFields(
+        existing,
+        {
+          institution_name: account.institution.name,
+          name: account.name,
+          type: account.type,
+          subtype: account.subtype,
+          currency: account.currency ?? null,
+          last_four: account.last_four ?? null,
+          status: account.status,
+          balance_available: balances.available,
+          balance_ledger: balances.ledger
+        },
+        timestamp
+      );
+
+      if (updateFields) {
+        accountUpdates.push({ id, fields: updateFields });
+        updatedAccountCount++;
+      }
     }
 
-    // Update existing accounts (balance refresh, status changes).
-    // We use UPDATE (not upsert) because the Supabase `set_user_id` trigger
-    // fires on INSERT and sets `user_id = auth.uid()`, which is NULL for
-    // service-role clients. UPDATE bypasses this trigger.
-    // New accounts are created client-side during Teller Connect enrollment,
-    // so the webhook only needs to refresh existing ones.
     await Promise.all(
-      accountRows.map(async (row) => {
-        const {
-          id,
-          user_id: _uid,
-          created_at: _ca,
-          deleted: _del,
-          _version: _v,
-          ...updateFields
-        } = row as Record<string, unknown>;
-        const { error: acctError } = await admin.from('accounts').update(updateFields).eq('id', id);
+      accountUpdates.map(async ({ id, fields }) => {
+        const { error: acctError } = await admin.from('accounts').update(fields).eq('id', id);
         if (acctError) {
           console.log(`[TELLER] Webhook account update error for ${id}: ${acctError.message}`);
         }
@@ -444,14 +478,22 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       }
     }
 
-    // Update enrollment last_synced_at
-    await admin
-      .from('teller_enrollments')
-      .update({ last_synced_at: timestamp, updated_at: timestamp })
-      .eq('id', localEnrollmentId);
+    const hasMaterialChanges =
+      updatedAccountCount > 0 || insertRows.length > 0 || updateRows.length > 0;
+    if (hasMaterialChanges || enrollment.status !== 'connected') {
+      await admin
+        .from('teller_enrollments')
+        .update({
+          status: 'connected',
+          error_message: null,
+          last_synced_at: timestamp,
+          updated_at: timestamp
+        })
+        .eq('id', localEnrollmentId);
+    }
 
     console.log(
-      `[TELLER] Webhook sync complete: ${accountRows.length} accounts, ${insertRows.length} new transactions, ${updateRows.length} pending→posted updates, ${skippedExisting} skipped existing`
+      `[TELLER] Webhook sync complete: ${updatedAccountCount} account updates, ${insertRows.length} new transactions, ${updateRows.length} transaction updates, ${skippedExisting} skipped existing`
     );
   } catch (err) {
     if (err instanceof TellerApiError && err.status === 401) {

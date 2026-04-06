@@ -61,6 +61,20 @@ interface LocalTellerTxn {
   deleted?: boolean;
 }
 
+/** Teller-managed account fields we track for change detection. */
+interface LocalTellerAccount {
+  id: string;
+  institution_name: string;
+  name: string;
+  type: string;
+  subtype: string;
+  currency: string | null;
+  last_four: string | null;
+  status: string;
+  balance_available: string | null;
+  balance_ledger: string | null;
+}
+
 /**
  * Get a map of all teller_transaction_ids currently in IndexedDB,
  * including Teller-managed fields for change detection.
@@ -126,6 +140,42 @@ function getTellerUpdateFields(
   return hasChanges ? changed : null;
 }
 
+/**
+ * Build an update fields object for Teller-managed account properties that changed.
+ * Returns null if nothing changed, preventing redundant account writes.
+ */
+function getTellerAccountUpdateFields(
+  local: LocalTellerAccount,
+  tellerAcct: Record<string, unknown>
+): Record<string, unknown> | null {
+  const institution = tellerAcct.institution as { name?: string } | undefined;
+  const incoming = {
+    institution_name: institution?.name ?? local.institution_name,
+    name: tellerAcct.name as string,
+    type: tellerAcct.type as string,
+    subtype: tellerAcct.subtype as string,
+    currency: ((tellerAcct.currency as string) ?? null) as string | null,
+    last_four: ((tellerAcct.last_four as string) ?? null) as string | null,
+    status: tellerAcct.status as string,
+    balance_available: ((tellerAcct.balance_available as string) ?? null) as string | null,
+    balance_ledger: ((tellerAcct.balance_ledger as string) ?? null) as string | null
+  };
+
+  const changed: Record<string, unknown> = {};
+  let hasChanges = false;
+
+  for (const key of Object.keys(incoming) as Array<keyof typeof incoming>) {
+    if (incoming[key] !== local[key]) {
+      changed[key] = incoming[key];
+      hasChanges = true;
+    }
+  }
+
+  if (!hasChanges) return null;
+  changed.balance_updated_at = now();
+  return changed;
+}
+
 /** Result of a Teller sync operation with accurate counts for toast messages. */
 export interface TellerSyncResult {
   /** New transactions created from Teller data. */
@@ -183,7 +233,9 @@ async function processTellerSyncDataInternal(
   // Build local lookup maps from IndexedDB
   const allLocalAccounts = (await engineGetAll('accounts')) as unknown as Account[];
   const localAccountMap = new Map(
-    allLocalAccounts.filter((a) => a.teller_account_id).map((a) => [a.teller_account_id, a])
+    allLocalAccounts
+      .filter((a) => a.teller_account_id)
+      .map((a) => [a.teller_account_id, a as Account & LocalTellerAccount])
   );
 
   const existingTxnMap = await getFreshTellerTxnMap();
@@ -199,17 +251,13 @@ async function processTellerSyncDataInternal(
     const existing = localAccountMap.get(tellerId);
 
     if (existing) {
-      // Update balance + status only
       tellerIdToLocalId.set(tellerId, existing.id);
-      updatedAccountCount++;
-      const updateFields = {
-        balance_available: tellerAcct.balance_available ?? existing.balance_available,
-        balance_ledger: tellerAcct.balance_ledger ?? existing.balance_ledger,
-        balance_updated_at: now(),
-        status: tellerAcct.status ?? existing.status
-      };
-      ops.push({ type: 'update', table: 'accounts', id: existing.id, fields: updateFields });
-      remoteChangesStore.recordLocalChange(existing.id, 'accounts', 'update');
+      const updateFields = getTellerAccountUpdateFields(existing, tellerAcct);
+      if (updateFields) {
+        ops.push({ type: 'update', table: 'accounts', id: existing.id, fields: updateFields });
+        remoteChangesStore.recordLocalChange(existing.id, 'accounts', 'update');
+        updatedAccountCount++;
+      }
     } else {
       // Create new account
       const id = generateId();
@@ -477,12 +525,20 @@ async function autoSyncEnrollmentsInternal(
         // Success
         const rawData = await response.json();
         const result = await processTellerSyncData(rawData, enrollment.id);
+        const hasDataChanges =
+          result.newTransactions > 0 ||
+          result.updatedTransactions > 0 ||
+          result.newAccounts > 0 ||
+          result.updatedAccounts > 0;
         totalNew += result.newTransactions + result.updatedTransactions;
-        // Clear any prior error state on success
-        await updateStatus(enrollment.id, 'connected');
+        // Persist connected/last_synced_at only when Teller materially changed data
+        // or when we need to clear a prior non-connected status.
+        if (hasDataChanges || enrollment.status !== 'connected') {
+          await updateStatus(enrollment.id, 'connected');
+        }
         debug(
           'log',
-          `[TELLER-SYNC] Auto-sync complete: ${enrollment.institution_name} — ${result.newTransactions} new, ${result.updatedTransactions} updated`
+          `[TELLER-SYNC] Auto-sync complete: ${enrollment.institution_name} — ${result.newTransactions} new, ${result.updatedTransactions} transaction updates, ${result.updatedAccounts} account updates`
         );
         succeeded = true;
         break;
