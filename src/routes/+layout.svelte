@@ -176,7 +176,7 @@
         error?.name === 'ChunkLoadError' ||
         (error?.message?.includes('Loading chunk') && error?.message?.includes('failed'));
 
-      if (isChunkError && !navigator.onLine) {
+      if (isChunkError) {
         event.preventDefault(); // Prevent default error handling
         // Show offline navigation toast
         addToast(
