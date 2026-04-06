@@ -1267,9 +1267,14 @@ WebSocket event received
 | Operation coalescing | ~80-90% fewer requests | 50 rapid edits → 1 coalesced push |
 | Push-only mode | Skip entire pull phase | When realtime WebSocket is healthy |
 | Cached auth validation | 1 call/hour vs 1/sync | `getUser()` result cached 1 hour |
-| Visibility-aware sync | Skip unnecessary syncs | Only sync if tab was hidden > 5 minutes |
+| Visibility-aware sync | Skip unnecessary syncs | Only sync if tab was hidden > 15 minutes |
 | Batch upserts | 1 request per 500 rows | vs 500 individual requests |
 | Dedup with realtime | Avoid double-processing | `recentlyProcessedByRealtime` map |
+Engine-level egress optimizations (realtime teardown, TOKEN_REFRESHED handling, timeout architecture, reconnect grace period, visibility-aware sync) are documented in [stellar-drive's ARCHITECTURE.md](../stellar-drive/ARCHITECTURE.md#68-egress-optimization-strategies).
+
+#### Teller Sync Strategy
+
+Teller sync runs on every page load for all connected enrollments (no stale threshold). This does NOT increase Supabase egress because: if Teller returns nothing new (95% of the time), zero IndexedDB writes occur → zero sync queue entries → zero Supabase requests. Enrollments in transient `error` state are automatically retried on next page load; only `disconnected` (expired token) requires manual reconnection.
 
 ### Chunk Splitting Strategy
 

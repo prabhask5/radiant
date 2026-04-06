@@ -1,5 +1,5 @@
 /**
- * @fileoverview Automatic Teller sync — background sync for stale enrollments.
+ * @fileoverview Automatic Teller sync — background sync for connected enrollments on page load.
  *
  * Fetches fresh data from Teller via the mTLS proxy and writes new transactions
  * and pending→posted updates to IndexedDB via the sync engine. Designed to run
@@ -31,9 +31,6 @@ import type { Account, TellerEnrollment } from '$lib/types';
    CONSTANTS & MUTEX
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** Enrollments older than this are considered stale and will auto-sync. */
-const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
-
 /**
  * Module-level mutex: only one Teller sync can run at a time.
  * Prevents duplicate transactions from concurrent auto-sync + manual sync.
@@ -41,7 +38,7 @@ const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
 let syncInProgress: Promise<number> | null = null;
 
 /**
- * Module-level mutex for autoSyncStaleEnrollments: prevents concurrent
+ * Module-level mutex for autoSyncEnrollments: prevents concurrent
  * auto-sync invocations when navigating between pages (accounts → transactions).
  */
 let autoSyncInProgress: Promise<number> | null = null;
@@ -352,6 +349,8 @@ async function processTellerSyncDataInternal(
   if (ops.length > 0) {
     await engineBatchWrite(ops);
     debug('log', '[TELLER-SYNC] processTellerSyncData — batch write complete');
+  } else {
+    debug('log', '[TELLER-SYNC] No new data from Teller — zero Supabase writes needed');
   }
 
   return {
@@ -363,18 +362,18 @@ async function processTellerSyncDataInternal(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   AUTO-SYNC STALE ENROLLMENTS
+   AUTO-SYNC ENROLLMENTS
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Auto-sync all connected Teller enrollments that haven't synced recently.
+ * Auto-sync all connected Teller enrollments on page load.
  * Runs silently in the background — no UI feedback unless something fails.
  *
  * @param enrollments — current enrollment list from the store
  * @param updateStatus — callback to update enrollment status after sync
  * @returns The total number of new transactions synced across all enrollments.
  */
-export function autoSyncStaleEnrollments(
+export function autoSyncEnrollments(
   enrollments: TellerEnrollment[],
   updateStatus: (id: string, status: string) => Promise<void>
 ): Promise<number> {
@@ -384,7 +383,7 @@ export function autoSyncStaleEnrollments(
     return autoSyncInProgress;
   }
 
-  const task = autoSyncStaleEnrollmentsInternal(enrollments, updateStatus);
+  const task = autoSyncEnrollmentsInternal(enrollments, updateStatus);
   autoSyncInProgress = task;
   task.finally(() => {
     autoSyncInProgress = null;
@@ -392,73 +391,124 @@ export function autoSyncStaleEnrollments(
   return task;
 }
 
-async function autoSyncStaleEnrollmentsInternal(
+async function autoSyncEnrollmentsInternal(
   enrollments: TellerEnrollment[],
   updateStatus: (id: string, status: string) => Promise<void>
 ): Promise<number> {
   if (isDemoMode()) return 0;
 
-  const staleEnrollments = enrollments.filter((e) => {
-    if (e.status !== 'connected' || !e.access_token) return false;
-    if (!e.last_synced_at) return true; // never synced
-    return Date.now() - new Date(e.last_synced_at).getTime() > STALE_THRESHOLD_MS;
+  // Sync all active enrollments on every page load. This does NOT increase
+  // Supabase egress: if Teller returns nothing new, zero sync queue entries
+  // are created → zero Supabase requests. Only cost is 1 HTTP request to our
+  // own server endpoint per enrollment (not counted in Supabase egress).
+  // Include 'error' enrollments so transient failures (network blips, server
+  // timeouts) self-heal on next page load. Only 'disconnected' (expired token)
+  // requires manual reconnection.
+  const activeEnrollments = enrollments.filter((e) => {
+    return (e.status === 'connected' || e.status === 'error') && !!e.access_token;
   });
 
-  if (staleEnrollments.length === 0) return 0;
+  if (activeEnrollments.length === 0) return 0;
 
-  debug('log', `[TELLER-SYNC] Auto-sync: ${staleEnrollments.length} stale enrollment(s)`);
+  debug('log', `[TELLER-SYNC] Auto-sync: ${activeEnrollments.length} active enrollment(s)`);
 
   let totalNew = 0;
 
-  for (const enrollment of staleEnrollments) {
-    try {
-      // Compute incremental fetch date: 3-day buffer before last_synced_at
-      // to catch pending→posted transitions near the sync boundary
-      let sinceDate: string | undefined;
-      if (enrollment.last_synced_at) {
-        const d = new Date(enrollment.last_synced_at);
-        d.setDate(d.getDate() - 3);
-        sinceDate = d.toISOString().slice(0, 10); // YYYY-MM-DD
-      }
+  for (const enrollment of activeEnrollments) {
+    // Compute incremental fetch date: 3-day buffer before last_synced_at
+    // to catch pending→posted transitions near the sync boundary
+    let sinceDate: string | undefined;
+    if (enrollment.last_synced_at) {
+      const d = new Date(enrollment.last_synced_at);
+      d.setDate(d.getDate() - 3);
+      sinceDate = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    }
 
-      const response = await fetch('/api/teller/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: enrollment.access_token, sinceDate })
-      });
+    // Retry transient failures up to 5 times with exponential backoff (2s, 4s, 8s, 16s).
+    // The error badge/banner only surfaces after all attempts are exhausted, so users
+    // never see transient blips that resolve themselves within ~30s.
+    const MAX_ATTEMPTS = 5;
+    let succeeded = false;
 
-      if (!response.ok) {
-        // Map the response to an enrollment status the UI can act on.
-        // 401 → access token expired (user must reconnect the bank).
-        // Anything else → generic error state. The detailed reason stays
-        // in the debug log; the UI only needs the status to prompt reconnect.
-        let errorBody = '';
-        try {
-          errorBody = await response.text();
-        } catch {
-          /* non-fatal */
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch('/api/teller/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: enrollment.access_token, sinceDate })
+        });
+
+        if (!response.ok) {
+          let errorBody = '';
+          try {
+            errorBody = await response.text();
+          } catch {
+            /* non-fatal */
+          }
+
+          // 401 → access token expired, no retries — user must reconnect manually.
+          if (response.status === 401) {
+            debug(
+              'warn',
+              `[TELLER-SYNC] Auto-sync failed for ${enrollment.institution_name}: HTTP 401 — marking disconnected`
+            );
+            await updateStatus(enrollment.id, 'disconnected');
+            succeeded = true; // not a retryable failure — skip to next enrollment
+            break;
+          }
+
+          // Transient error — retry if attempts remain
+          debug(
+            'warn',
+            `[TELLER-SYNC] Auto-sync attempt ${attempt}/${MAX_ATTEMPTS} failed for ${enrollment.institution_name}: HTTP ${response.status}${errorBody ? ` — ${errorBody.slice(0, 200)}` : ''}`
+          );
+
+          if (attempt < MAX_ATTEMPTS) {
+            const backoffMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s, 16s
+            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+            continue;
+          }
+
+          // All attempts exhausted
+          await updateStatus(enrollment.id, 'error');
+          break;
         }
-        const nextStatus = response.status === 401 ? 'disconnected' : 'error';
+
+        // Success
+        const rawData = await response.json();
+        const result = await processTellerSyncData(rawData, enrollment.id);
+        totalNew += result.newTransactions + result.updatedTransactions;
+        // Clear any prior error state on success
+        await updateStatus(enrollment.id, 'connected');
+        debug(
+          'log',
+          `[TELLER-SYNC] Auto-sync complete: ${enrollment.institution_name} — ${result.newTransactions} new, ${result.updatedTransactions} updated`
+        );
+        succeeded = true;
+        break;
+      } catch (err) {
         debug(
           'warn',
-          `[TELLER-SYNC] Auto-sync failed for ${enrollment.institution_name}: HTTP ${response.status}${errorBody ? ` — ${errorBody.slice(0, 200)}` : ''}`
+          `[TELLER-SYNC] Auto-sync attempt ${attempt}/${MAX_ATTEMPTS} error for ${enrollment.institution_name}:`,
+          err
         );
-        await updateStatus(enrollment.id, nextStatus);
-        continue;
-      }
 
-      const rawData = await response.json();
-      const result = await processTellerSyncData(rawData, enrollment.id);
-      totalNew += result.newTransactions + result.updatedTransactions;
-      // Clear any prior error state on success
-      await updateStatus(enrollment.id, 'connected');
+        if (attempt < MAX_ATTEMPTS) {
+          const backoffMs = Math.pow(2, attempt) * 1000;
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
+
+        // All attempts exhausted
+        await updateStatus(enrollment.id, 'error');
+      }
+    }
+
+    if (!succeeded) {
       debug(
-        'log',
-        `[TELLER-SYNC] Auto-sync complete: ${enrollment.institution_name} — ${result.newTransactions} new, ${result.updatedTransactions} updated`
+        'warn',
+        `[TELLER-SYNC] All ${MAX_ATTEMPTS} attempts exhausted for ${enrollment.institution_name}`
       );
-    } catch (err) {
-      debug('warn', `[TELLER-SYNC] Auto-sync error for ${enrollment.institution_name}:`, err);
-      await updateStatus(enrollment.id, 'error');
     }
   }
 

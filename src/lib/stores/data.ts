@@ -36,7 +36,7 @@ import type {
 import { syncRecurringDetections } from '$lib/ml/recurringSync';
 import { syncCategorizationResults } from '$lib/ml/categorizationSync';
 import { propagateCategory } from '$lib/ml/propagation';
-import { autoSyncStaleEnrollments } from '$lib/teller/autoSync';
+import { autoSyncEnrollments } from '$lib/teller/autoSync';
 import { get } from 'svelte/store';
 
 let mlSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -531,11 +531,15 @@ function createEnrollmentsStore() {
     async updateStatus(id: string, status: string, errorMessage?: string) {
       debug('log', '[DATA] teller_enrollments — updateStatus', { id, status });
       remoteChangesStore.recordLocalChange(id, 'teller_enrollments', 'update');
-      await engineUpdate('teller_enrollments', id, {
+      const fields: Record<string, unknown> = {
         status,
-        error_message: errorMessage || null,
-        last_synced_at: now()
-      });
+        error_message: errorMessage || null
+      };
+      // Only update last_synced_at on success — errors shouldn't claim a successful sync
+      if (status === 'connected') {
+        fields.last_synced_at = now();
+      }
+      await engineUpdate('teller_enrollments', id, fields);
       await store.load();
       debug('log', '[DATA] teller_enrollments — updateStatus complete', { id, status });
     },
@@ -700,7 +704,7 @@ export async function startBackgroundSync(
   const enrollments = (get(enrollmentsStore) ?? []) as TellerEnrollment[];
   if (enrollments.length > 0) {
     try {
-      newTellerCount = await autoSyncStaleEnrollments(enrollments, (id, status) =>
+      newTellerCount = await autoSyncEnrollments(enrollments, (id, status) =>
         enrollmentsStore.updateStatus(id, status)
       );
       if (newTellerCount > 0) {

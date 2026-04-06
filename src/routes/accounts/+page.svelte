@@ -1646,7 +1646,7 @@
                   <div class="reconnect-desc">
                     {isAuth
                       ? 'Your bank expired this link — new transactions won\u2019t appear until you sign in again.'
-                      : 'We hit an error reaching your bank. Your data is safe; reconnect to resume syncing.'}
+                      : 'We can\u2019t reach your bank right now because of an error. Your data is safe; wait a bit and reconnect to resume syncing.'}
                   </div>
                 </div>
                 <button
