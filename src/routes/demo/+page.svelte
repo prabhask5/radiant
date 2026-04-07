@@ -98,6 +98,9 @@
   <!-- ═══ Flash overlay ═══ -->
   <div class="flash-overlay"></div>
 
+  <!-- ═══ Anticipation veil (dims scene before toggle birth) ═══ -->
+  <div class="anticipation-veil"></div>
+
   <!-- ═══ Caustic sparkles (20 diamond shapes scattered across page) ═══ -->
   <div class="caustic-sparkle cs1"></div>
   <div class="caustic-sparkle cs2"></div>
@@ -122,6 +125,11 @@
 
   <!-- ═══ Toggle zone ═══ -->
   <div class="toggle-zone">
+    <!-- ═══ Birth rings (expand outward as toggle materialises) ═══ -->
+    <div class="birth-ring gbr1"></div>
+    <div class="birth-ring gbr2"></div>
+    <div class="birth-ring gbr3"></div>
+
     <!-- ═══ Sunbeam container (14 rays radiating from gem) ═══ -->
     <div class="sunbeam-container">
       <div class="sunbeam sb1"></div>
@@ -1800,6 +1808,223 @@
     letter-spacing: 0.05em;
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════
+     ENTRANCE ANIMATIONS — content slams into the scene on page load
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* Shared reveal keyframe */
+  @keyframes gemFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Title slams in from above with a gold blur-flash */
+  @keyframes gemTitleIn {
+    0% {
+      opacity: 0;
+      transform: translateY(-70px);
+      filter: blur(24px) brightness(2.5);
+    }
+    60% {
+      opacity: 1;
+      transform: translateY(8px);
+      filter: blur(2px) brightness(1.2);
+    }
+    80% {
+      transform: translateY(-4px);
+      filter: blur(0) brightness(1);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0) brightness(1);
+    }
+  }
+
+  /* Subtitle / body text rises up from below */
+  @keyframes gemSubIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Toggle zone materialises from a singularity — scale 0.01 → overshoot → settle */
+  @keyframes gemBirth {
+    0% {
+      opacity: 0;
+      transform: scale(0.01);
+      filter: blur(40px) brightness(5);
+    }
+    20% {
+      opacity: 0.5;
+      transform: scale(0.35);
+      filter: blur(18px) brightness(3);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.18);
+      filter: blur(4px) brightness(1.6);
+    }
+    72% {
+      transform: scale(0.94);
+      filter: blur(0) brightness(1.1);
+    }
+    88% {
+      transform: scale(1.06);
+      filter: blur(0) brightness(1);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+      filter: blur(0) brightness(1);
+    }
+  }
+
+  /* Birth rings expand outward as the toggle materialises */
+  @keyframes gemRingExpand {
+    0% {
+      width: 44px;
+      height: 44px;
+      opacity: 0.85;
+      border-width: 2px;
+    }
+    100% {
+      width: 800px;
+      height: 800px;
+      opacity: 0;
+      border-width: 0.3px;
+    }
+  }
+
+  /* bg-wash fades in from nothing */
+  .bg-wash {
+    opacity: 0;
+    animation: gemFadeIn 1s ease forwards;
+  }
+
+  /* Info card title — slams down */
+  .info-card h1 {
+    opacity: 0;
+    animation: gemTitleIn 1.1s 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Info card body — rises up */
+  .info-card p {
+    opacity: 0;
+    animation: gemSubIn 0.9s 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Toggle zone — born from singularity */
+  .toggle-zone {
+    opacity: 0;
+    animation: gemBirth 2.2s 2.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Anticipation veil — dims scene just before toggle birth */
+  .anticipation-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    background: rgba(8, 6, 4, 0.5);
+    animation: anticipate 1.8s 2s ease forwards;
+  }
+
+  @keyframes anticipate {
+    0% {
+      opacity: 0;
+    }
+    40% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* Birth rings — gold and rose variants */
+  .birth-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 1;
+  }
+
+  .gbr1 {
+    border: 2px solid rgba(232, 185, 74, 0.85);
+    animation: gemRingExpand 2.2s 3s ease-out forwards;
+  }
+
+  .gbr2 {
+    border: 2px solid rgba(232, 93, 117, 0.75);
+    animation: gemRingExpand 2.2s 3.15s ease-out forwards;
+  }
+
+  .gbr3 {
+    border: 2px solid rgba(255, 254, 245, 0.55);
+    animation: gemRingExpand 2.2s 3.35s ease-out forwards;
+  }
+
+  /* Footer text fades in after toggle is born */
+  .footer p {
+    opacity: 0;
+    animation: gemFadeIn 0.8s 5s ease forwards;
+  }
+
+  /* Crystal shards enter with staggered delay.
+     Use `backwards` fill so the `from` keyframe hides them during the delay,
+     but CSS takes over after animation ends (allows .page.active opacity transition). */
+  .sh1 {
+    animation:
+      shardReveal 1.2s 0.15s ease backwards,
+      shard-drift-1 25s ease-in-out infinite;
+  }
+  .sh2 {
+    animation:
+      shardReveal 1.2s 0.3s ease backwards,
+      shard-drift-2 30s ease-in-out infinite;
+  }
+  .sh3 {
+    animation:
+      shardReveal 1.2s 0.45s ease backwards,
+      shard-drift-3 22s ease-in-out infinite;
+  }
+  .sh4 {
+    animation:
+      shardReveal 1.2s 0.55s ease backwards,
+      shard-drift-4 28s ease-in-out infinite;
+  }
+  .sh5 {
+    animation:
+      shardReveal 1.2s 0.65s ease backwards,
+      shard-drift-5 26s ease-in-out infinite;
+  }
+
+  @keyframes shardReveal {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 0.04;
+    }
+  }
+
   /* ══════════════════════════════════════
      FADE TRANSITION (navigating away)
      ══════════════════════════════════════ */
@@ -2026,6 +2251,38 @@
     .refraction-overlay,
     .p-ray {
       animation: none;
+    }
+
+    /* Entrance animations — skip the motion, jump straight to final state */
+    .bg-wash,
+    .info-card h1,
+    .info-card p,
+    .toggle-zone,
+    .footer p,
+    .birth-ring,
+    .anticipation-veil {
+      animation: none;
+      opacity: 1;
+    }
+    .sh1,
+    .sh2,
+    .sh3,
+    .sh4,
+    .sh5 {
+      animation: shard-drift-1 25s ease-in-out infinite;
+      opacity: 0.04;
+    }
+    .sh2 {
+      animation: shard-drift-2 30s ease-in-out infinite;
+    }
+    .sh3 {
+      animation: shard-drift-3 22s ease-in-out infinite;
+    }
+    .sh4 {
+      animation: shard-drift-4 28s ease-in-out infinite;
+    }
+    .sh5 {
+      animation: shard-drift-5 26s ease-in-out infinite;
     }
 
     .sunbeam,
