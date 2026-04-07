@@ -962,7 +962,7 @@
     bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
-    z-index: 9000;
+    z-index: 9100; /* above DemoBanner (9000) */
     max-width: 420px;
     width: calc(100% - 32px);
     animation: gemToastSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -977,15 +977,15 @@
     bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
   }
 
-  /* In demo mode, raise toasts above the demo banner (2rem instead of 1rem) */
+  /* In demo mode (desktop), raise toasts above the demo banner (~3.2rem top edge) */
   .gem-toasts-wrap.demo-mode .gem-toast {
-    bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
   .gem-toasts-wrap.demo-mode .gem-toast + .gem-toast {
-    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
   }
   .gem-toasts-wrap.demo-mode .gem-toast + .gem-toast + .gem-toast {
-    bottom: calc(9rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
   }
 
   @keyframes gemToastSlideUp {
@@ -1105,6 +1105,17 @@
     }
     .gem-toast + .gem-toast + .gem-toast {
       bottom: calc(12.5rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Demo mode: raise above tab bar (5.5rem) AND demo banner (~6.25rem top edge) */
+    .gem-toasts-wrap.demo-mode .gem-toast {
+      bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+    }
+    .gem-toasts-wrap.demo-mode .gem-toast + .gem-toast {
+      bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
+    }
+    .gem-toasts-wrap.demo-mode .gem-toast + .gem-toast + .gem-toast {
+      bottom: calc(14.5rem + env(safe-area-inset-bottom, 0px));
     }
   }
 

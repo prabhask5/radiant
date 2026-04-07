@@ -120,6 +120,25 @@
   let confirmDeleteManualInst = $state<string | null>(null);
   let deletingManual = $state(false);
 
+  /** Account ID pending individual deletion confirmation. */
+  let confirmDeleteAccountId = $state<string | null>(null);
+  let deletingAccount = $state(false);
+
+  /** Edit modal state (manual accounts only). */
+  let showEditModal = $state(false);
+  let editingAccount = $state<Account | null>(null);
+  let editInstitution = $state('');
+  let editName = $state('');
+  let editType = $state<'depository' | 'credit'>('depository');
+  let editSubtype = $state('checking');
+  let editLastFour = $state('');
+  let editBalance = $state('');
+  let editCreditLimit = $state('');
+  let savingEdit = $state(false);
+
+  /** Institution name smart-dropdown state for Add Manual modal. */
+  let instDropdownOpen = $state(false);
+
   /** File input reference for CSV upload. */
   let csvFileInput: HTMLInputElement | undefined = $state(undefined);
 
@@ -212,6 +231,18 @@
     );
   });
 
+  /** Unique institution names across all accounts (for smart-fill dropdown). */
+  const existingInstitutionNames = $derived(
+    [...new Set(accounts.map((a) => a.institution_name))].sort()
+  );
+
+  /** Institution names filtered by what the user has typed. */
+  const instDropdownFiltered = $derived.by(() => {
+    if (!manualInstitution.trim()) return existingInstitutionNames;
+    const lower = manualInstitution.toLowerCase();
+    return existingInstitutionNames.filter((n) => n.toLowerCase().includes(lower));
+  });
+
   /** Count of Teller-connected accounts. */
   const connectedCount = $derived(accounts.filter((a) => a.source !== 'manual').length);
 
@@ -220,12 +251,15 @@
 
   /**
    * Total assets: sum of balances from depository accounts (checking, savings, etc).
+   * Uses manual_balance_override when set, otherwise falls back to stored balance.
    */
   const totalAssets = $derived.by(() => {
     return accounts
       .filter((a) => a.type === 'depository' && !a.is_hidden)
       .reduce((sum, a) => {
-        const balance = parseFloat(a.balance_available ?? a.balance_ledger ?? '0.00');
+        const balance = a.manual_balance_override
+          ? parseFloat(a.manual_balance_override)
+          : parseFloat(a.balance_available ?? a.balance_ledger ?? '0.00');
         return sum + (isNaN(balance) ? 0 : balance);
       }, 0);
   });
@@ -233,12 +267,15 @@
   /**
    * Total liabilities: sum of balances from credit accounts.
    * Credit card balances represent money owed, so they are liabilities.
+   * Uses manual_balance_override when set, otherwise falls back to stored balance.
    */
   const totalLiabilities = $derived.by(() => {
     return accounts
       .filter((a) => a.type === 'credit' && !a.is_hidden)
       .reduce((sum, a) => {
-        const balance = parseFloat(a.balance_ledger ?? a.balance_available ?? '0.00');
+        const balance = a.manual_balance_override
+          ? parseFloat(a.manual_balance_override)
+          : parseFloat(a.balance_ledger ?? a.balance_available ?? '0.00');
         return sum + (isNaN(balance) ? 0 : balance);
       }, 0);
   });
@@ -351,21 +388,34 @@
     allDates.add(todayStr);
 
     for (const acct of accts) {
-      const currentBal =
+      // Transaction-computed balance: used to anchor the historical reconstruction.
+      // This is always the balance_available/balance_ledger from CSV imports or Teller sync.
+      const txnComputedBal =
         parseFloat(
           acct.type === 'credit'
             ? (acct.balance_ledger ?? acct.balance_available ?? '0.00')
             : (acct.balance_available ?? acct.balance_ledger ?? '0.00')
         ) || 0;
 
+      // Today's displayed balance: if the user has set a manual override, use that
+      // for today's chart point. This creates a "step at today" effect — the historical
+      // trajectory is still driven by transaction sums (anchored to txnComputedBal),
+      // while today's point jumps to the manually-set balance. The offset between the
+      // two appears as an immediate step at the rightmost point of the chart.
+      const todayBal = acct.manual_balance_override
+        ? parseFloat(acct.manual_balance_override) || 0
+        : txnComputedBal;
+
       const acctTxns = txns
         .filter((t) => t.account_id === acct.id && !t.is_excluded)
         .map((t) => ({ ...t, date: dateOverrides.get(t.id) ?? t.date }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      // Starting balance = current balance minus all transactions ever
+      // Starting balance = txnComputedBal minus all transactions ever.
+      // We anchor to the transaction-computed balance (not the manual override) so
+      // that the historical trajectory is unaffected by the manual balance edit.
       const totalTxnSum = acctTxns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
-      let running = currentBal - totalTxnSum;
+      let running = txnComputedBal - totalTxnSum;
 
       // Fast-forward through pre-cutoff transactions
       let i = 0;
@@ -390,7 +440,9 @@
         }
       }
 
-      snapshots.set(todayStr, currentBal);
+      // Force today's point to the manual override (if set) — this is where the
+      // "step" between transaction-computed history and the override appears.
+      snapshots.set(todayStr, todayBal);
       accountTimelines.push({ isDebt: acct.type === 'credit', snapshots, balanceAtCutoff });
     }
 
@@ -858,10 +910,15 @@
 
   /**
    * Get the primary balance to display for an account.
+   * Uses manual_balance_override when set, otherwise uses stored balance fields.
    * For bank accounts: shows available balance.
    * For credit cards: shows current balance owed (ledger).
    */
   function displayBalance(account: (typeof accounts)[0]): string {
+    if (account.manual_balance_override) {
+      const val = parseFloat(account.manual_balance_override);
+      if (!isNaN(val)) return formatCurrency(val);
+    }
     if (account.type === 'credit') {
       const ledger = account.balance_ledger;
       if (!ledger) return '--';
@@ -874,10 +931,14 @@
 
   /**
    * Get the credit limit for a credit card account.
-   * Limit = available balance + ledger balance.
+   * Uses manual_credit_limit when set, otherwise computes limit = available + ledger.
    */
   function creditLimit(account: (typeof accounts)[0]): string | null {
     if (account.type !== 'credit') return null;
+    if (account.manual_credit_limit) {
+      const val = parseFloat(account.manual_credit_limit);
+      if (!isNaN(val) && val > 0) return formatCurrency(val);
+    }
     const ledger = parseFloat(account.balance_ledger ?? '0.00');
     const available = parseFloat(account.balance_available ?? '0.00');
     if (!ledger && !available) return null;
@@ -1027,8 +1088,123 @@
     }
   }
 
-  /** Start editing an account name. */
+  /** Delete a single account (with its transactions and recurring references). */
+  async function deleteAccount(accountId: string) {
+    deletingAccount = true;
+    debug('log', '[ACCOUNTS] deleteAccount —', accountId);
+    try {
+      await accountsStore.deleteAccount(accountId);
+      await Promise.all([accountsStore.refresh()]);
+      confirmDeleteAccountId = null;
+      showFeedback('success', 'Account and all its data removed.');
+    } catch (err) {
+      debug('error', '[ACCOUNTS] deleteAccount failed:', err);
+      console.error('Delete account error:', err);
+      showFeedback('error', 'Failed to delete account. Please try again.');
+    } finally {
+      deletingAccount = false;
+    }
+  }
+
+  /** Open the edit modal for a manual account. */
+  function openEditModal(account: Account) {
+    editingAccount = account;
+    editInstitution = account.institution_name;
+    editName = account.name;
+    editType = account.type as 'depository' | 'credit';
+    editSubtype = account.subtype;
+    editLastFour = account.last_four ?? '';
+    if (account.type === 'credit') {
+      editBalance = account.manual_balance_override
+        ? account.manual_balance_override
+        : (account.balance_ledger ?? '0');
+      const limitStr = account.manual_credit_limit
+        ? account.manual_credit_limit
+        : (
+            parseFloat(account.balance_ledger ?? '0') + parseFloat(account.balance_available ?? '0')
+          ).toFixed(2);
+      editCreditLimit = limitStr;
+    } else {
+      editBalance = account.manual_balance_override
+        ? account.manual_balance_override
+        : (account.balance_available ?? account.balance_ledger ?? '0');
+      editCreditLimit = '';
+    }
+    showEditModal = true;
+  }
+
+  /** Available subtypes for the edit form filtered by type. */
+  const editSubtypes = $derived(
+    editType === 'depository'
+      ? [
+          { value: 'checking', label: 'Checking' },
+          { value: 'savings', label: 'Savings' },
+          { value: 'money_market', label: 'Money Market' }
+        ]
+      : [{ value: 'credit_card', label: 'Credit Card' }]
+  );
+
+  // When edit type changes, reset subtype to first valid option
+  $effect(() => {
+    if (editType === 'depository' && editSubtype === 'credit_card') {
+      editSubtype = 'checking';
+    } else if (editType === 'credit' && editSubtype !== 'credit_card') {
+      editSubtype = 'credit_card';
+    }
+  });
+
+  /** Save all edits from the edit modal to the account. */
+  async function saveAccountEdit() {
+    if (!editingAccount || savingEdit) return;
+    if (!editInstitution.trim() || !editName.trim()) return;
+
+    savingEdit = true;
+    const account = editingAccount;
+    debug('log', '[ACCOUNTS] saveAccountEdit —', account.id);
+
+    try {
+      const { engineUpdate: eng } = await import('stellar-drive');
+      const fields: Record<string, unknown> = {
+        institution_name: editInstitution.trim(),
+        name: editName.trim(),
+        type: editType,
+        subtype: editSubtype,
+        last_four: editLastFour.trim() ? editLastFour.trim().slice(-4) : null
+      };
+
+      if (editType === 'credit') {
+        const creditUsed = parseFloat(editBalance) || 0;
+        const limit = parseFloat(editCreditLimit) || 0;
+        // Store credit used as manual override (for chart step-at-today behavior)
+        fields.manual_balance_override = creditUsed.toFixed(2);
+        fields.manual_credit_limit = limit > 0 ? limit.toFixed(2) : null;
+      } else {
+        const balance = parseFloat(editBalance) || 0;
+        // Store the manually-set balance as override (for chart step-at-today behavior).
+        // balance_available/balance_ledger remain as transaction-computed anchors.
+        fields.manual_balance_override = balance.toFixed(2);
+        fields.manual_credit_limit = null;
+      }
+
+      remoteChangesStore.recordLocalChange(account.id, 'accounts', 'update');
+      await eng('accounts', account.id, fields);
+      await accountsStore.refresh();
+
+      showEditModal = false;
+      editingAccount = null;
+      showFeedback('success', 'Account updated.');
+    } catch (err) {
+      debug('error', '[ACCOUNTS] saveAccountEdit failed:', err);
+      console.error('Save account edit error:', err);
+      showFeedback('error', 'Failed to save changes. Please try again.');
+    } finally {
+      savingEdit = false;
+    }
+  }
+
+  /** Start editing an account name. Only for manual accounts. */
   function startEditingName(account: Account) {
+    if (account.source !== 'manual') return;
     editingAccountId = account.id;
     editingAccountName = account.name;
   }
@@ -1216,7 +1392,7 @@
   // ==========================================================================
 
   /** Lock body scroll when any modal is open. */
-  const anyModalOpen = $derived(showManualModal || showCSVModal || tellerOpen);
+  const anyModalOpen = $derived(showManualModal || showCSVModal || tellerOpen || showEditModal);
 
   $effect(() => {
     if (browser && anyModalOpen) {
@@ -1759,7 +1935,7 @@
                 <!-- Account info -->
                 <div class="acct-info">
                   <div class="acct-top">
-                    {#if editingAccountId === account.id}
+                    {#if editingAccountId === account.id && account.source === 'manual'}
                       <input
                         class="acct-name-input"
                         type="text"
@@ -1772,20 +1948,33 @@
                         onclick={(e) => e.stopPropagation()}
                       />
                     {:else}
-                      <button
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <span
                         class="acct-name"
                         class:muted={account.is_hidden}
+                        class:acct-name-editable={account.source === 'manual'}
                         use:truncateTooltip
                         onclick={(e) => {
-                          e.stopPropagation();
-                          startEditingName(account);
+                          if (account.source === 'manual') {
+                            e.stopPropagation();
+                            startEditingName(account);
+                          }
+                        }}
+                        onkeydown={(e) => {
+                          if (account.source === 'manual' && (e.key === 'Enter' || e.key === ' ')) {
+                            e.stopPropagation();
+                            startEditingName(account);
+                          }
                         }}
                       >
                         {account.name}
                         {#if account.last_four}
                           <span class="acct-last4">{account.last_four}</span>
                         {/if}
-                      </button>
+                        {#if account.manual_balance_override}
+                          <span class="acct-override-badge" title="Balance manually set">✦</span>
+                        {/if}
+                      </span>
                     {/if}
                     <span class="acct-type-badge type-{account.type}">
                       {subtypeLabel(account.subtype)}
@@ -1804,10 +1993,33 @@
                   </div>
                 </div>
 
-                <!-- Manual account: import CSV button -->
+                <!-- Manual account actions: edit + import CSV -->
                 {#if account.source === 'manual'}
                   <button
-                    class="acct-import-btn"
+                    class="acct-action-btn acct-edit-btn"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      openEditModal(account);
+                    }}
+                    aria-label="Edit {account.name}"
+                    title="Edit account"
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
+                        d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                      /></svg
+                    >
+                  </button>
+                  <button
+                    class="acct-action-btn acct-import-btn"
                     onclick={(e) => {
                       e.stopPropagation();
                       openCSVForAccount(account);
@@ -1816,8 +2028,8 @@
                     title="Import CSV"
                   >
                     <svg
-                      width="16"
-                      height="16"
+                      width="15"
+                      height="15"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -1827,6 +2039,57 @@
                       ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
                         points="17 8 12 3 7 8"
                       /><line x1="12" y1="3" x2="12" y2="15" /></svg
+                    >
+                  </button>
+                {/if}
+
+                <!-- Per-account delete (with inline confirmation) -->
+                {#if confirmDeleteAccountId === account.id}
+                  <div class="acct-delete-confirm">
+                    <button
+                      class="btn-danger-sm"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        deleteAccount(account.id);
+                      }}
+                      disabled={deletingAccount}
+                    >
+                      {deletingAccount ? '...' : 'Delete'}
+                    </button>
+                    <button
+                      class="btn-ghost-sm"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        confirmDeleteAccountId = null;
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                {:else}
+                  <button
+                    class="acct-action-btn acct-delete-btn"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      confirmDeleteAccountId = account.id;
+                    }}
+                    aria-label="Delete {account.name}"
+                    title="Delete account"
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><polyline points="3 6 5 6 21 6" /><path
+                        d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"
+                      /><path d="M10 11v6" /><path d="M14 11v6" /><path
+                        d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"
+                      /></svg
                     >
                   </button>
                 {/if}
@@ -1933,12 +2196,48 @@
       <div class="modal-body">
         <label class="form-label">
           Institution Name
-          <input
-            class="form-input"
-            type="text"
-            bind:value={manualInstitution}
-            placeholder="e.g. Chase, Fidelity"
-          />
+          <div class="inst-input-wrap">
+            <input
+              class="form-input"
+              type="text"
+              bind:value={manualInstitution}
+              placeholder="e.g. Chase, Fidelity"
+              autocomplete="off"
+              onfocus={() => (instDropdownOpen = true)}
+              onblur={() => setTimeout(() => (instDropdownOpen = false), 180)}
+            />
+            {#if instDropdownOpen && instDropdownFiltered.length > 0}
+              <div class="inst-dropdown" role="listbox" aria-label="Existing institutions">
+                {#each instDropdownFiltered as name (name)}
+                  <button
+                    class="inst-dropdown-item"
+                    role="option"
+                    aria-selected={manualInstitution === name}
+                    onmousedown={() => {
+                      manualInstitution = name;
+                      instDropdownOpen = false;
+                    }}
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="inst-dd-icon"
+                      ><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path
+                        d="M9 21v-4h6v4"
+                      /></svg
+                    >
+                    {name}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
         </label>
 
         <label class="form-label">
@@ -2348,6 +2647,186 @@
             </div>
           {/if}
         {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     EDIT MANUAL ACCOUNT MODAL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+{#if showEditModal && editingAccount}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-backdrop"
+    onclick={() => (showEditModal = false)}
+    onkeydown={(e) => e.key === 'Escape' && (showEditModal = false)}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="modal-panel modal-edit" onclick={(e) => e.stopPropagation()}>
+      <!-- Prismatic shimmer edge -->
+      <div class="edit-modal-shimmer" aria-hidden="true"></div>
+
+      <div class="modal-header">
+        <div class="edit-modal-title-wrap">
+          <div class="edit-modal-gem" aria-hidden="true"></div>
+          <h2 class="modal-title">Edit Account</h2>
+        </div>
+        <button class="modal-close" onclick={() => (showEditModal = false)} aria-label="Close">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+          >
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Institution name (editable for manual accounts) -->
+        <label class="form-label">
+          Institution Name
+          <input
+            class="form-input"
+            type="text"
+            bind:value={editInstitution}
+            placeholder="e.g. Chase, Fidelity"
+          />
+          <span class="form-hint"
+            >Changing this moves the account to a different institution group.</span
+          >
+        </label>
+
+        <!-- Account name -->
+        <label class="form-label">
+          Account Name
+          <input
+            class="form-input"
+            type="text"
+            bind:value={editName}
+            placeholder="e.g. Personal Checking"
+          />
+        </label>
+
+        <!-- Last four -->
+        <label class="form-label">
+          Last 4 Digits
+          <input
+            class="form-input"
+            type="text"
+            bind:value={editLastFour}
+            placeholder="Optional"
+            maxlength="4"
+          />
+        </label>
+
+        <!-- Type + Subtype -->
+        <div class="form-row">
+          <label class="form-label form-half">
+            Type
+            <select class="form-input" bind:value={editType}>
+              <option value="depository">Depository</option>
+              <option value="credit">Credit</option>
+            </select>
+          </label>
+          <label class="form-label form-half">
+            Subtype
+            <select class="form-input" bind:value={editSubtype}>
+              {#each editSubtypes as st (st.value)}
+                <option value={st.value}>{st.label}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+
+        <!-- Balance section -->
+        <div class="edit-balance-section">
+          <div class="edit-balance-header">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><line x1="12" y1="1" x2="12" y2="23" /><path
+                d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"
+              /></svg
+            >
+            <span class="edit-balance-title">Balance Override</span>
+          </div>
+          <p class="edit-balance-desc">
+            {#if editType === 'credit'}
+              Set the current amount owed and credit limit. Your transaction history is preserved —
+              today's chart point will reflect this balance.
+            {:else}
+              Set the current balance. Transaction history is preserved — today's chart point will
+              jump to this value.
+            {/if}
+          </p>
+
+          {#if editType === 'credit'}
+            <div class="form-row">
+              <label class="form-label form-half">
+                Amount Owed
+                <input
+                  class="form-input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  bind:value={editBalance}
+                  placeholder="0.00"
+                />
+              </label>
+              <label class="form-label form-half">
+                Credit Limit
+                <input
+                  class="form-input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  bind:value={editCreditLimit}
+                  placeholder="0.00"
+                />
+              </label>
+            </div>
+          {:else}
+            <label class="form-label">
+              Current Balance
+              <input
+                class="form-input"
+                type="number"
+                step="0.01"
+                bind:value={editBalance}
+                placeholder="0.00"
+              />
+            </label>
+          {/if}
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-ghost-sm" onclick={() => (showEditModal = false)}>Cancel</button>
+        <button
+          class="btn-primary btn-edit-save"
+          onclick={saveAccountEdit}
+          disabled={savingEdit || !editInstitution.trim() || !editName.trim()}
+        >
+          {#if savingEdit}
+            <div class="btn-spinner"></div>
+            Saving...
+          {:else}
+            Save Changes
+          {/if}
+        </button>
       </div>
     </div>
   </div>
@@ -3368,32 +3847,7 @@
     flex-wrap: wrap;
   }
 
-  .acct-name {
-    all: unset;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    cursor: text;
-    border-radius: 4px;
-    padding: 1px 4px;
-    margin: -1px -4px;
-    transition:
-      background 0.2s ease,
-      box-shadow 0.2s ease;
-  }
-
-  .acct-name:hover {
-    background: rgba(180, 150, 80, 0.06);
-  }
-
-  .acct-name:focus-visible {
-    background: rgba(180, 150, 80, 0.08);
-    box-shadow: 0 0 0 1px rgba(232, 185, 74, 0.2);
-  }
-
+  /* .acct-name is now a <span> — base styles defined in the new CSS block below */
   .acct-name.muted {
     color: var(--text-muted);
   }
@@ -3422,27 +3876,6 @@
       box-shadow: 0 0 0 2px rgba(232, 185, 74, 0.15);
       transform: scale(1);
     }
-  }
-
-  .acct-import-btn {
-    all: unset;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition:
-      color 0.2s ease,
-      background 0.2s ease;
-    flex-shrink: 0;
-  }
-
-  .acct-import-btn:hover {
-    color: var(--amethyst);
-    background: rgba(232, 185, 74, 0.08);
   }
 
   .acct-last4 {
@@ -4473,5 +4906,274 @@
     .page-title {
       animation: none;
     }
+  }
+
+  /* ── Institution Smart Dropdown ─────────────────────────────────────────── */
+  .inst-input-wrap {
+    position: relative;
+  }
+
+  .inst-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-interactive);
+    border-radius: 10px;
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(180, 150, 80, 0.06);
+    overflow: hidden;
+    animation: dropdown-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  @keyframes dropdown-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.98);
+    }
+  }
+
+  .inst-dropdown-item {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+    box-sizing: border-box;
+  }
+
+  .inst-dropdown-item:hover,
+  .inst-dropdown-item[aria-selected='true'] {
+    background: rgba(232, 185, 74, 0.08);
+    color: var(--text-primary);
+  }
+
+  .inst-dd-icon {
+    color: var(--amethyst);
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  /* ── Account action buttons (edit, csv, delete) ─────────────────────────── */
+  .acct-action-btn {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background 0.2s ease;
+    flex-shrink: 0;
+    opacity: 0;
+    color: var(--text-muted);
+  }
+
+  .account-card:hover .acct-action-btn {
+    opacity: 1;
+  }
+
+  .acct-edit-btn:hover {
+    color: var(--cyan);
+    background: rgba(46, 196, 166, 0.08);
+  }
+
+  .acct-import-btn:hover {
+    color: var(--amethyst);
+    background: rgba(232, 185, 74, 0.08);
+  }
+
+  .acct-delete-btn:hover {
+    color: var(--ruby);
+    background: rgba(248, 113, 113, 0.08);
+  }
+
+  .acct-delete-confirm {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-shrink: 0;
+    animation: dropdown-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* ── Account name styles ────────────────────────────────────────────────── */
+  .acct-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin: -1px -4px;
+    display: inline-block;
+    max-width: 100%;
+  }
+
+  .acct-name.muted {
+    color: var(--text-muted);
+  }
+
+  .acct-name-editable {
+    cursor: text;
+    transition:
+      background 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .acct-name-editable:hover {
+    background: rgba(180, 150, 80, 0.06);
+  }
+
+  /* ── Manual balance override indicator ──────────────────────────────────── */
+  .acct-override-badge {
+    display: inline-block;
+    font-size: 0.55rem;
+    color: var(--amethyst);
+    vertical-align: super;
+    margin-left: 0.2rem;
+    opacity: 0.8;
+    animation: override-pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes override-pulse {
+    0%,
+    100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* ── Edit Modal ─────────────────────────────────────────────────────────── */
+  .modal-edit {
+    max-width: 480px;
+    overflow: visible;
+  }
+
+  .edit-modal-shimmer {
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(46, 196, 166, 0.5),
+      rgba(232, 185, 74, 0.4),
+      rgba(46, 196, 166, 0.3),
+      transparent
+    );
+    border-radius: 0 0 2px 2px;
+    pointer-events: none;
+    animation: edit-shimmer-slide 4s ease-in-out infinite;
+  }
+
+  @keyframes edit-shimmer-slide {
+    0%,
+    100% {
+      opacity: 0.5;
+      transform: scaleX(0.7);
+    }
+    50% {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+
+  .edit-modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .edit-modal-gem {
+    width: 10px;
+    height: 10px;
+    background: linear-gradient(135deg, var(--cyan), var(--amethyst));
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    animation: gem-spin 6s linear infinite;
+  }
+
+  @keyframes gem-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* ── Balance override section ───────────────────────────────────────────── */
+  .edit-balance-section {
+    background: var(--surface-overlay);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .edit-balance-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(46, 196, 166, 0.25), transparent);
+    pointer-events: none;
+  }
+
+  .edit-balance-header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--cyan);
+  }
+
+  .edit-balance-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--cyan);
+  }
+
+  .edit-balance-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .btn-edit-save {
+    background: linear-gradient(135deg, rgba(46, 196, 166, 0.1), rgba(52, 211, 153, 0.08));
+    border-color: rgba(46, 196, 166, 0.3);
+    color: var(--cyan);
+  }
+
+  .btn-edit-save:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(46, 196, 166, 0.18), rgba(52, 211, 153, 0.14));
+    border-color: rgba(46, 196, 166, 0.5);
+    box-shadow: 0 0 24px rgba(46, 196, 166, 0.2);
   }
 </style>

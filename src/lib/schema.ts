@@ -84,7 +84,9 @@ export const schema: SchemaDefinition = {
       balance_available: 'string?',
       balance_ledger: 'string?',
       balance_updated_at: 'timestamp?',
-      is_hidden: 'boolean'
+      is_hidden: 'boolean',
+      manual_balance_override: 'string?',
+      manual_credit_limit: 'string?'
     }
   },
 

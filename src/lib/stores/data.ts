@@ -108,7 +108,15 @@ function createAccountsStore() {
       debug('log', '[DATA] accounts — refresh complete');
     },
     async createManualAccount(
-      data: Omit<Account, SystemKeys | 'enrollment_id' | 'teller_account_id' | 'source'>
+      data: Omit<
+        Account,
+        | SystemKeys
+        | 'enrollment_id'
+        | 'teller_account_id'
+        | 'source'
+        | 'manual_balance_override'
+        | 'manual_credit_limit'
+      >
     ) {
       const id = generateId();
       debug('log', '[DATA] accounts — createManualAccount', { id });
@@ -118,7 +126,9 @@ function createAccountsStore() {
         ...data,
         enrollment_id: null,
         teller_account_id: null,
-        source: 'manual'
+        source: 'manual',
+        manual_balance_override: null,
+        manual_credit_limit: null
       });
       await store.load();
       debug('log', '[DATA] accounts — createManualAccount complete', { id });
@@ -160,6 +170,13 @@ function createAccountsStore() {
       await store.load();
       debug('log', '[DATA] accounts — updateBalance complete', { accountId });
     },
+    async updateAccount(accountId: string, fields: Partial<Account>) {
+      debug('log', '[DATA] accounts — updateAccount', { accountId, fields });
+      remoteChangesStore.recordLocalChange(accountId, 'accounts', 'update');
+      await engineUpdate('accounts', accountId, fields);
+      await store.load();
+      debug('log', '[DATA] accounts — updateAccount complete', { accountId });
+    },
     async deleteAccount(accountId: string) {
       debug('log', '[DATA] accounts — deleteAccount', { accountId });
 
@@ -180,6 +197,31 @@ function createAccountsStore() {
         }));
         await engineBatchWrite(ops);
         debug('log', '[DATA] accounts — cascade delete complete');
+      }
+
+      // Cascade: delete any recurring_transactions referencing this account.
+      const allRecurring = (await engineGetAll(
+        'recurring_transactions'
+      )) as unknown as RecurringTransaction[];
+      const accountRecurring = allRecurring.filter((r) => r.account_id === accountId && !r.deleted);
+      if (accountRecurring.length > 0) {
+        debug(
+          'log',
+          '[DATA] accounts — cascade deleting',
+          accountRecurring.length,
+          'recurring_transactions'
+        );
+        await Promise.all(
+          accountRecurring.map((r) =>
+            remoteChangesStore.markPendingDelete(r.id, 'recurring_transactions')
+          )
+        );
+        const recurringOps: BatchOperation[] = accountRecurring.map((r) => ({
+          type: 'delete' as const,
+          table: 'recurring_transactions',
+          id: r.id
+        }));
+        await engineBatchWrite(recurringOps);
       }
 
       await remoteChangesStore.markPendingDelete(accountId, 'accounts');
