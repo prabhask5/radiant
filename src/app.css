@@ -1488,7 +1488,8 @@ body {
   }
 
   /* Exception for toggle switches — they need fixed dimensions for proper aspect ratio */
-  .toggle-btn {
+  .toggle-btn,
+  .toggle-switch {
     min-height: auto;
     min-width: auto;
   }

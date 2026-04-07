@@ -1788,7 +1788,7 @@
      ══════════════════════════════════════ */
   .footer {
     position: absolute;
-    bottom: 2rem;
+    bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
     z-index: 10;
     text-align: center;
   }
@@ -1817,6 +1817,13 @@
      RESPONSIVE — 640px
      ══════════════════════════════════════ */
   @media (max-width: 640px) {
+    .page {
+      padding-top: max(0px, env(safe-area-inset-top, 0px));
+      padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+
     .info-card h1 {
       font-size: 1.35rem;
     }

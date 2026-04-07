@@ -1515,6 +1515,25 @@
     {/if}
 
     <!-- ================================================================= -->
+    <!--                   DEMO LINK (Mobile only)                        -->
+    <!-- ================================================================= -->
+    <a href="/demo" class="btn-demo-link">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polygon points="5 3 19 12 5 21 5 3" />
+      </svg>
+      Try Demo Mode
+    </a>
+
+    <!-- ================================================================= -->
     <!--                   SIGN OUT (Mobile)                               -->
     <!-- ================================================================= -->
     <button class="btn-signout" onclick={handleMobileSignOut} type="button">
@@ -2287,6 +2306,10 @@
     cursor: not-allowed;
   }
 
+  .btn-demo-link {
+    display: none; /* hidden on desktop — mobile only */
+  }
+
   .btn-signout {
     display: flex;
     align-items: center;
@@ -2896,6 +2919,42 @@
     }
     .debug-grid {
       grid-template-columns: 1fr;
+    }
+
+    /* Demo link — visible only on mobile */
+    .btn-demo-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px 20px;
+      margin-bottom: 10px;
+      background: rgba(180, 140, 50, 0.06);
+      color: var(--prof-gem, #b8862e);
+      border: 1px solid rgba(180, 140, 50, 0.2);
+      border-radius: var(--prof-radius);
+      font-family: var(
+        --font-body,
+        'SF Pro Text',
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        system-ui,
+        sans-serif
+      );
+      font-size: 0.9375rem;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition:
+        background 0.2s ease,
+        border-color 0.2s ease;
+    }
+
+    .btn-demo-link:hover {
+      background: rgba(180, 140, 50, 0.12);
+      border-color: rgba(180, 140, 50, 0.35);
     }
   }
 

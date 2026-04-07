@@ -27,7 +27,7 @@
   /* ── SvelteKit Utilities ── */
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
-  import { goto } from '$app/navigation';
+  import { goto, afterNavigate } from '$app/navigation';
 
   /* ── Stellar Engine — Auth & Stores ── */
   import { lockSingleUser, resolveFirstName, resolveAvatarInitial } from 'stellar-drive/auth';
@@ -154,6 +154,11 @@
    */
   $effect(() => {
     hydrateAuthState(data);
+  });
+
+  // Scroll to top after every navigation so the new page always starts at the top.
+  afterNavigate(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   });
 
   // Load local data (IndexedDB) before showing pages — fast, no network.
