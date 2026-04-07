@@ -251,7 +251,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       name: 'Dining',
       icon: '🍽️',
       color: '#f59e0b',
-      budget_amount: '300',
+      budget_amount: '100',
       order: 2
     },
     {
@@ -267,7 +267,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       name: 'Rent',
       icon: '🏠',
       color: '#14b8a6',
-      budget_amount: '2200',
+      budget_amount: '1600',
       order: 4
     },
     {
@@ -299,7 +299,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       name: 'Shopping',
       icon: '🛍️',
       color: '#8b5cf6',
-      budget_amount: '200',
+      budget_amount: '130',
       order: 8
     },
     {
@@ -741,6 +741,19 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'organization',
       CAT_SHOPPING,
       'posted'
+    ),
+    txn(
+      '66',
+      ACCT_CHASE_CREDIT,
+      '479.99',
+      daysAgo(6),
+      'BEST BUY #0934',
+      'Best Buy',
+      'organization',
+      CAT_SHOPPING,
+      'posted',
+      null,
+      'New air purifier'
     ),
 
     // ── Entertainment ────────────────────────────────────────────────────

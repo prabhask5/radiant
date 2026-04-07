@@ -523,9 +523,11 @@
 
       if (editingRecurringId) {
         await recurringTransactionsStore.update(editingRecurringId, data);
+        await recurringTransactionsStore.refresh();
         addToast(`"${data.name}" updated`, 'emerald');
       } else {
         await recurringTransactionsStore.create(data);
+        await recurringTransactionsStore.refresh();
         addToast(`"${data.name}" added to recurring`, 'emerald');
       }
 
@@ -542,6 +544,7 @@
     const item = recurringItems.find((r: RecurringTransaction) => r.id === id);
     try {
       await recurringTransactionsStore.remove(id);
+      await recurringTransactionsStore.refresh();
       addToast(`"${item?.name ?? 'Item'}" removed from recurring`, 'ruby');
     } catch {
       addToast('Failed to remove recurring transaction', 'ruby');
@@ -661,6 +664,7 @@
   async function markCancelling(id: string) {
     try {
       await recurringTransactionsStore.update(id, { status: 'cancelling' });
+      await recurringTransactionsStore.refresh();
       addToast('Marked as cancelling — watch for zombie charges', 'ruby');
     } catch {
       addToast('Failed to update status', 'ruby');
@@ -671,6 +675,7 @@
   async function markEnded(id: string) {
     try {
       await recurringTransactionsStore.update(id, { status: 'ended' });
+      await recurringTransactionsStore.refresh();
       addToast('Subscription cancelled', 'emerald');
     } catch {
       addToast('Failed to update status', 'ruby');
@@ -681,6 +686,7 @@
   async function reactivate(id: string) {
     try {
       await recurringTransactionsStore.update(id, { status: 'active' });
+      await recurringTransactionsStore.refresh();
       addToast('Subscription reactivated', 'emerald');
     } catch {
       addToast('Failed to update status', 'ruby');

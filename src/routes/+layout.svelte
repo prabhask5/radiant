@@ -35,7 +35,9 @@
   import { debug } from 'stellar-drive/utils';
   import { hydrateAuthState } from 'stellar-drive/kit';
   import { scrollGuard } from 'stellar-drive/actions';
+  import { isDemoMode } from 'stellar-drive/demo';
   import DemoBanner from 'stellar-drive/components/DemoBanner';
+  import DemoBlockedMessage from 'stellar-drive/components/DemoBlockedMessage';
   import SyncStatus from 'stellar-drive/components/SyncStatus';
 
   /* ── App Components ── */
@@ -77,6 +79,10 @@
     sapphire: 'M12 2L2 7l10 15L22 7z',
     amethyst: 'M12 2L2 7l10 15L22 7z'
   };
+
+  /* ── Demo Mode ── */
+  /** Whether demo mode is currently active — controls toast bottom offset. */
+  const inDemoMode = $derived(isDemoMode());
 
   /* ── Sign-Out ── */
   /** When `true`, a full-screen overlay is shown to mask the sign-out transition. */
@@ -381,40 +387,43 @@
   {/if}
 
   <!-- ── Gem Toast Notifications — global cinematic toast queue ── -->
-  {#each $toastStore as toast (toast.id)}
-    <div class="gem-toast gem-toast-{toast.gem}" transition:fade={{ duration: 180 }}>
-      <div class="gem-toast-content">
-        <svg class="gem-toast-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path
-            d={GEM_ICONS[toast.gem]}
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linejoin="round"
-          />
-          <path d="M2 7h20" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
-          <path d="M8 7l4 15 4-15" stroke="currentColor" stroke-width="1.2" opacity="0.4" />
-        </svg>
-        <span class="gem-toast-text">{toast.message}</span>
-        <button
-          class="gem-toast-dismiss"
-          onclick={() => dismissGlobalToast(toast.id)}
-          aria-label="Dismiss"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-          >
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+  <!-- demo-mode class raises toasts above the demo banner (2rem vs 1rem) -->
+  <div class="gem-toasts-wrap" class:demo-mode={inDemoMode}>
+    {#each $toastStore as toast (toast.id)}
+      <div class="gem-toast gem-toast-{toast.gem}" transition:fade={{ duration: 180 }}>
+        <div class="gem-toast-content">
+          <svg class="gem-toast-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path
+              d={GEM_ICONS[toast.gem]}
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linejoin="round"
+            />
+            <path d="M2 7h20" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
+            <path d="M8 7l4 15 4-15" stroke="currentColor" stroke-width="1.2" opacity="0.4" />
           </svg>
-        </button>
+          <span class="gem-toast-text">{toast.message}</span>
+          <button
+            class="gem-toast-dismiss"
+            onclick={() => dismissGlobalToast(toast.id)}
+            aria-label="Dismiss"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
       </div>
-    </div>
-  {/each}
+    {/each}
+  </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        Mobile Dynamic Island Header (visible < 768px)
@@ -743,6 +752,9 @@
 
   <!-- ── Demo Mode Banner ── -->
   <DemoBanner />
+
+  <!-- ── Demo Blocked Message — center-screen overlay for gated demo operations ── -->
+  <DemoBlockedMessage />
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -963,6 +975,17 @@
   }
   .gem-toast + .gem-toast + .gem-toast {
     bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* In demo mode, raise toasts above the demo banner (2rem instead of 1rem) */
+  .gem-toasts-wrap.demo-mode .gem-toast {
+    bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  }
+  .gem-toasts-wrap.demo-mode .gem-toast + .gem-toast {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .gem-toasts-wrap.demo-mode .gem-toast + .gem-toast + .gem-toast {
+    bottom: calc(9rem + env(safe-area-inset-bottom, 0px));
   }
 
   @keyframes gemToastSlideUp {
@@ -1600,6 +1623,11 @@
   }
 
   @media (max-width: 767px) {
+    /* Raise the demo banner above the mobile bottom nav bar */
+    :global(:root) {
+      --demo-banner-bottom: 4.5rem;
+    }
+
     .nav-mobile {
       display: block;
     }

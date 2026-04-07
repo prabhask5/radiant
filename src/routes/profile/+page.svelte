@@ -29,7 +29,7 @@
   import { resetDatabase } from 'stellar-drive/config';
   import { repairSyncQueue } from 'stellar-drive/engine';
   import { getTrustedDevices, removeTrustedDevice, getCurrentDeviceId } from 'stellar-drive/auth';
-  import { isDemoMode, getDemoConfig } from 'stellar-drive/demo';
+  import { isDemoMode, getDemoConfig, showDemoBlocked } from 'stellar-drive/demo';
   import type { TrustedDevice } from 'stellar-drive/types';
   import type { DiagnosticsSnapshot } from 'stellar-drive/types';
   import { onMount, onDestroy } from 'svelte';
@@ -82,27 +82,6 @@
   let codeSuccess = $state<string | null>(null);
   let debugMode = $state(isDebugMode());
   let resetting = $state(false);
-
-  /* ── Demo mode toast ──── */
-  let demoToast = $state('');
-  let demoToastDismissing = $state(false);
-  let demoToastTimer: ReturnType<typeof setTimeout> | null = null;
-  let demoToastDismissTimer: ReturnType<typeof setTimeout> | null = null;
-
-  /** Show a temporary toast for blocked demo operations. */
-  function showDemoToast(msg: string) {
-    demoToast = msg;
-    demoToastDismissing = false;
-    if (demoToastTimer) clearTimeout(demoToastTimer);
-    if (demoToastDismissTimer) clearTimeout(demoToastDismissTimer);
-    demoToastTimer = setTimeout(() => {
-      demoToastDismissing = true;
-      demoToastDismissTimer = setTimeout(() => {
-        demoToast = '';
-        demoToastDismissing = false;
-      }, 300);
-    }, 3000);
-  }
 
   /* ── Debug tools loading flags ──── */
   let forceSyncing = $state(false);
@@ -356,7 +335,7 @@
   async function handleProfileSubmit(e: Event) {
     e.preventDefault();
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     profileLoading = true;
@@ -391,7 +370,7 @@
   async function handleCodeSubmit(e: Event) {
     e.preventDefault();
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
 
@@ -445,7 +424,7 @@
   async function handleEmailSubmit(e: Event) {
     e.preventDefault();
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     emailError = null;
@@ -555,7 +534,7 @@
    */
   async function handleResetDatabase() {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     if (
@@ -583,7 +562,7 @@
    */
   async function handleRemoveDevice(id: string) {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     removingDeviceId = id;
@@ -612,7 +591,7 @@
   /** Resets the sync cursor and re-downloads all data from Supabase. */
   async function handleForceFullSync() {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     if (
@@ -641,7 +620,7 @@
   /** Manually trigger a single push/pull sync cycle. */
   async function handleTriggerSync() {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     triggeringSyncManual = true;
@@ -662,7 +641,7 @@
   /** Reset the sync cursor so the next cycle pulls all remote data. */
   async function handleResetSyncCursor() {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     resettingCursor = true;
@@ -685,7 +664,7 @@
   /** Log soft-deleted record counts per table to the browser console. */
   async function handleViewTombstones() {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     viewingTombstones = true;
@@ -708,7 +687,7 @@
   /** Permanently remove old soft-deleted records from local + remote DBs. */
   async function handleCleanupTombstones() {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     if (
@@ -737,7 +716,7 @@
   /** Scan IndexedDB for records missing from the sync queue and re-queue them. */
   async function handleRepairSyncQueue() {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     if (
@@ -803,7 +782,7 @@
   /** Dispatch a custom event that the app shell listens for to sign out on mobile. */
   function handleMobileSignOut() {
     if (inDemoMode) {
-      showDemoToast('Not available in demo mode');
+      showDemoBlocked('Not available in demo mode');
       return;
     }
     window.dispatchEvent(new CustomEvent('radiant:signout'));
@@ -1150,7 +1129,7 @@
       {#if inDemoMode}
         <button
           class="btn-action setup-link"
-          onclick={() => showDemoToast('Not available in demo mode')}>Update Configuration</button
+          onclick={() => showDemoBlocked('Not available in demo mode')}>Update Configuration</button
         >
       {:else}
         <a href="/setup" class="btn-action setup-link">Update Configuration</a>
@@ -1562,13 +1541,6 @@
     </footer>
   </div>
 </div>
-
-<!-- ================================================================= -->
-<!--                    DEMO MODE TOAST                                -->
-<!-- ================================================================= -->
-{#if demoToast}
-  <div class="demo-toast" class:dismissing={demoToastDismissing}>{demoToast}</div>
-{/if}
 
 <!-- ================================================================= -->
 <!--               EMAIL CONFIRMATION MODAL                            -->
@@ -2657,62 +2629,6 @@
   @keyframes spin {
     to {
       transform: rotate(360deg);
-    }
-  }
-
-  /* ================================================================= */
-  /*                     DEMO TOAST                                    */
-  /* ================================================================= */
-
-  .demo-toast {
-    position: fixed;
-    bottom: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(18, 14, 10, 0.95);
-    border: 1px solid rgba(180, 140, 50, 0.2);
-    color: var(--prof-text);
-    font-family: var(
-      --font-body,
-      'SF Pro Text',
-      -apple-system,
-      BlinkMacSystemFont,
-      'Segoe UI',
-      system-ui,
-      sans-serif
-    );
-    font-size: 0.8125rem;
-    padding: 10px 20px;
-    border-radius: 10px;
-    z-index: 9000;
-    animation: toastIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-    white-space: nowrap;
-  }
-
-  .demo-toast.dismissing {
-    animation: toastOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  }
-
-  @keyframes toastIn {
-    from {
-      opacity: 0;
-      transform: translateX(-50%) translateY(16px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
-    }
-  }
-
-  @keyframes toastOut {
-    from {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
-    }
-    to {
-      opacity: 0;
-      transform: translateX(-50%) translateY(16px) scale(0.96);
     }
   }
 

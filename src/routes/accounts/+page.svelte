@@ -23,7 +23,7 @@
     transactionsStore,
     preloadAllStores
   } from '$lib/stores/data';
-  import { isDemoMode } from 'stellar-drive/demo';
+  import { isDemoMode, showDemoBlocked } from 'stellar-drive/demo';
   import { remoteChangesStore } from 'stellar-drive/stores';
   import { getConfig } from 'stellar-drive/config';
   import { debug } from 'stellar-drive/utils';
@@ -474,7 +474,7 @@
    */
   async function openTellerConnect(reconnectEnrollmentId?: string) {
     if (isDemoMode()) {
-      showFeedback('error', 'Connecting bank accounts is not available in demo mode.');
+      showDemoBlocked('Connecting bank accounts is not available in demo mode');
       return;
     }
     if (!tellerAppId) {
@@ -704,7 +704,7 @@
   async function retrySyncEnrollment(enrollmentId: string) {
     debug('log', '[ACCOUNTS] retrySyncEnrollment —', enrollmentId);
     if (isDemoMode()) {
-      showFeedback('error', 'Syncing with banks is not available in demo mode.');
+      showDemoBlocked('Syncing with banks is not available in demo mode');
       return;
     }
     const enrollment = enrollments.find((e) => e.id === enrollmentId);

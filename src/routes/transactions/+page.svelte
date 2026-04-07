@@ -487,6 +487,7 @@
     debug('log', '[TRANSACTIONS] saveDescription —', transactionId, '→', trimmed);
     try {
       await transactionsStore.updateDescription(transactionId, trimmed);
+      await transactionsStore.refresh();
     } finally {
       savingField = null;
     }
@@ -501,6 +502,7 @@
     debug('log', '[TRANSACTIONS] saveDate —', transactionId, '→', value);
     try {
       await transactionsStore.updateDate(transactionId, value);
+      await transactionsStore.refresh();
     } finally {
       savingField = null;
     }
