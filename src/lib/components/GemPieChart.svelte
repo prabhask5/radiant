@@ -175,17 +175,23 @@
   const tipStyle = $derived.by(() => {
     if (!hoveredSegment || !wrapperEl) return '';
     const tipW = 160;
+    const tipH = 70; // estimated tooltip height for top clamping
     const rect = wrapperEl.getBoundingClientRect();
     // Convert container-relative coords to viewport coords for fixed positioning
     const viewX = rect.left + tooltipPos.x;
     const viewY = rect.top + tooltipPos.y;
-    // Clamp within viewport
+    // Clamp X within viewport
     const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
     let x = viewX;
     if (x + tipW / 2 > vw - 12) x = vw - tipW / 2 - 12;
     if (x - tipW / 2 < 12) x = tipW / 2 + 12;
-    // Position tooltip above cursor with generous gap (72px)
-    return `left: ${x}px; top: ${viewY - 72}px;`;
+    // Position tooltip so its bottom edge is 8px above cursor.
+    // CSS applies translateY(-100%) so `top` is the bottom edge of the tooltip.
+    // Clamp so tooltip doesn't go off the top of the screen.
+    let y = viewY - 8;
+    if (y - tipH < 8) y = viewY + tipH + 8; // flip below cursor if no room above
+    return `left: ${x}px; top: ${y}px;`;
   });
 </script>
 

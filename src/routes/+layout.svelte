@@ -393,7 +393,7 @@
   <!-- demo-mode class raises toasts above the demo banner (2rem vs 1rem) -->
   <div class="gem-toasts-wrap" class:demo-mode={inDemoMode}>
     {#each $toastStore as toast (toast.id)}
-      <div class="gem-toast gem-toast-{toast.gem}" transition:fade={{ duration: 180 }}>
+      <div class="gem-toast gem-toast-{toast.gem}" out:fade={{ duration: 180 }}>
         <div class="gem-toast-content">
           <svg class="gem-toast-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
             <path

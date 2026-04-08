@@ -762,8 +762,8 @@ export async function startBackgroundSync(
   const enrollments = (get(enrollmentsStore) ?? []) as TellerEnrollment[];
   if (enrollments.length > 0) {
     try {
-      newTellerCount = await autoSyncEnrollments(enrollments, (id, status) =>
-        enrollmentsStore.updateStatus(id, status)
+      newTellerCount = await autoSyncEnrollments(enrollments, (id, status, force) =>
+        enrollmentsStore.updateStatus(id, status, undefined, force)
       );
       // Reload local stores after Teller completes so balance-only account
       // updates are visible even when no new transactions were inserted.

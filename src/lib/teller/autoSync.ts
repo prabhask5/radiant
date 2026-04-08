@@ -423,7 +423,7 @@ async function processTellerSyncDataInternal(
  */
 export function autoSyncEnrollments(
   enrollments: TellerEnrollment[],
-  updateStatus: (id: string, status: string) => Promise<void>
+  updateStatus: (id: string, status: string, force?: boolean) => Promise<void>
 ): Promise<number> {
   // If an auto-sync is already running (e.g. from another page mount), return its result
   if (autoSyncInProgress) {
@@ -441,7 +441,7 @@ export function autoSyncEnrollments(
 
 async function autoSyncEnrollmentsInternal(
   enrollments: TellerEnrollment[],
-  updateStatus: (id: string, status: string) => Promise<void>
+  updateStatus: (id: string, status: string, force?: boolean) => Promise<void>
 ): Promise<number> {
   if (isDemoMode()) return 0;
 
@@ -531,10 +531,10 @@ async function autoSyncEnrollmentsInternal(
           result.newAccounts > 0 ||
           result.updatedAccounts > 0;
         totalNew += result.newTransactions + result.updatedTransactions;
-        // Persist connected/last_synced_at only when Teller materially changed data
-        // or when we need to clear a prior non-connected status.
+        // Update last_synced_at only when data actually changed, or when
+        // clearing a prior non-connected status (e.g. error → connected).
         if (hasDataChanges || enrollment.status !== 'connected') {
-          await updateStatus(enrollment.id, 'connected');
+          await updateStatus(enrollment.id, 'connected', true);
         }
         debug(
           'log',

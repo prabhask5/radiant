@@ -138,9 +138,11 @@
 
   /** Institution name smart-dropdown state for Add Manual modal. */
   let instDropdownOpen = $state(false);
+  let instInputEl = $state<HTMLInputElement | undefined>(undefined);
 
   /** Institution name smart-dropdown state for Edit Account modal. */
   let editInstDropdownOpen = $state(false);
+  let editInstInputEl = $state<HTMLInputElement | undefined>(undefined);
 
   /** Inline rename state for manual institution groups. */
   let renamingManualInst = $state<string | null>(null);
@@ -256,6 +258,20 @@
     if (!editInstitution.trim()) return existingInstitutionNames;
     const lower = editInstitution.toLowerCase();
     return existingInstitutionNames.filter((n) => n.toLowerCase().includes(lower));
+  });
+
+  /** Fixed-position style for the Add modal institution dropdown (escapes modal overflow clipping). */
+  const instDropdownStyle = $derived.by(() => {
+    if (!instDropdownOpen || !instInputEl || typeof window === 'undefined') return '';
+    const r = instInputEl.getBoundingClientRect();
+    return `position:fixed;top:${r.bottom}px;left:${r.left}px;width:${r.width}px;z-index:9999;`;
+  });
+
+  /** Fixed-position style for the Edit modal institution dropdown. */
+  const editInstDropdownStyle = $derived.by(() => {
+    if (!editInstDropdownOpen || !editInstInputEl || typeof window === 'undefined') return '';
+    const r = editInstInputEl.getBoundingClientRect();
+    return `position:fixed;top:${r.bottom}px;left:${r.left}px;width:${r.width}px;z-index:9999;`;
   });
 
   /** Set of existing transaction CSV import hashes (for pre-import duplicate detection). */
@@ -2336,18 +2352,27 @@
       <div class="modal-body">
         <label class="form-label">
           Institution Name
-          <div class="inst-input-wrap">
+          <div
+            class="inst-input-wrap"
+            class:inst-open={instDropdownOpen && instDropdownFiltered.length > 0}
+          >
             <input
               class="form-input"
               type="text"
               bind:value={manualInstitution}
+              bind:this={instInputEl}
               placeholder="e.g. Chase, Fidelity"
               autocomplete="off"
               onfocus={() => (instDropdownOpen = true)}
               onblur={() => setTimeout(() => (instDropdownOpen = false), 180)}
             />
             {#if instDropdownOpen && instDropdownFiltered.length > 0}
-              <div class="inst-dropdown" role="listbox" aria-label="Existing institutions">
+              <div
+                class="inst-dropdown"
+                role="listbox"
+                aria-label="Existing institutions"
+                style={instDropdownStyle}
+              >
                 {#each instDropdownFiltered as name (name)}
                   <button
                     class="inst-dropdown-item"
@@ -2836,18 +2861,27 @@
         <!-- Institution name (editable for manual accounts) -->
         <label class="form-label">
           Institution Name
-          <div class="inst-input-wrap">
+          <div
+            class="inst-input-wrap"
+            class:inst-open={editInstDropdownOpen && editInstDropdownFiltered.length > 0}
+          >
             <input
               class="form-input"
               type="text"
               bind:value={editInstitution}
+              bind:this={editInstInputEl}
               placeholder="e.g. Chase, Fidelity"
               autocomplete="off"
               onfocus={() => (editInstDropdownOpen = true)}
               onblur={() => setTimeout(() => (editInstDropdownOpen = false), 180)}
             />
             {#if editInstDropdownOpen && editInstDropdownFiltered.length > 0}
-              <div class="inst-dropdown" role="listbox" aria-label="Existing institutions">
+              <div
+                class="inst-dropdown"
+                role="listbox"
+                aria-label="Existing institutions"
+                style={editInstDropdownStyle}
+              >
                 {#each editInstDropdownFiltered as name (name)}
                   <button
                     class="inst-dropdown-item"
@@ -5192,20 +5226,24 @@
     width: 100%;
   }
 
+  /* When dropdown is open: square the input's bottom corners so it flows into the dropdown */
+  .inst-input-wrap.inst-open .form-input {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-color: transparent;
+  }
+
   .inst-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    z-index: 50;
-    background: var(--surface-raised);
+    /* Base styles — position overridden by JS inline style (position:fixed + rect coords) */
+    background: #1a1610;
     border: 1px solid var(--border-interactive);
-    border-radius: 10px;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
     box-shadow:
-      0 8px 24px rgba(0, 0, 0, 0.35),
-      0 0 0 1px rgba(180, 150, 80, 0.06);
+      0 8px 24px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(180, 150, 80, 0.08);
     overflow: hidden;
-    animation: dropdown-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: dropdown-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
     max-height: 200px;
     overflow-y: auto;
   }
@@ -5213,25 +5251,27 @@
   @keyframes dropdown-in {
     from {
       opacity: 0;
-      transform: translateY(-6px) scale(0.98);
+      transform: translateY(-4px);
     }
   }
 
   .inst-dropdown-item {
-    all: unset;
     display: flex;
     align-items: center;
     gap: 0.55rem;
     width: 100%;
     padding: 0.6rem 0.85rem;
     font-size: 0.85rem;
-    /* Explicit background so `all:unset` doesn't leave items transparent */
-    background: var(--surface-raised);
+    background: #1a1610;
     color: var(--text-secondary);
     cursor: pointer;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    text-align: left;
     transition:
-      background 0.15s ease,
-      color 0.15s ease;
+      background 0.12s ease,
+      color 0.12s ease;
     box-sizing: border-box;
   }
 
