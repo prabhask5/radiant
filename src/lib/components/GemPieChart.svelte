@@ -170,26 +170,21 @@
     hoveredIndex !== null && hoveredIndex < segments.length ? segments[hoveredIndex] : null
   );
 
-  // Tooltip clamping — use fixed positioning so it's never clipped by overflow:hidden
-  // and always appears above the hovered element with generous clearance.
+  // Tooltip: X follows cursor (clamped to viewport), Y is pinned just inside the
+  // top of the chart container so it never overlaps the arc being hovered.
   const tipStyle = $derived.by(() => {
     if (!hoveredSegment || !wrapperEl) return '';
     const tipW = 160;
-    const tipH = 70; // estimated tooltip height for top clamping
     const rect = wrapperEl.getBoundingClientRect();
-    // Convert container-relative coords to viewport coords for fixed positioning
     const viewX = rect.left + tooltipPos.x;
-    const viewY = rect.top + tooltipPos.y;
-    // Clamp X within viewport
     const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
     let x = viewX;
     if (x + tipW / 2 > vw - 12) x = vw - tipW / 2 - 12;
     if (x - tipW / 2 < 12) x = tipW / 2 + 12;
-    // Position tooltip so its bottom edge is 8px above cursor.
-    // CSS applies translateY(-100%) so `top` is the bottom edge of the tooltip.
-    // Clamp so tooltip doesn't go off the top of the screen.
-    let y = viewY - 8;
-    if (y - tipH < 8) y = viewY + tipH + 8; // flip below cursor if no room above
+    // Pin Y to top of chart so tooltip never sits on the segment.
+    // CSS applies translateY(-100%) so `top` = bottom edge of tooltip.
+    // rect.top + 72 puts the tooltip bottom just inside the chart header area.
+    const y = rect.top + 72;
     return `left: ${x}px; top: ${y}px;`;
   });
 </script>
@@ -652,7 +647,7 @@
   @keyframes tipReveal {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(calc(-100% + 6px)) scale(0.97);
+      transform: translateX(-50%) translateY(calc(-100% - 4px)) scale(0.97);
     }
     to {
       opacity: 1;
