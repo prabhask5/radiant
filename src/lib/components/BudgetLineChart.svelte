@@ -262,13 +262,20 @@
   //                     SPENDING LINE RENDER DATA
   // ══════════════════════════════════════════════════════════════════════════
 
-  /** Map spending data to day numbers (1-indexed). */
+  /** Map spending data to day numbers (1-indexed), always anchored at day 1 with value 0. */
   const spendingPts = $derived.by(() => {
-    return spendingData.map((d) => {
+    const pts = spendingData.map((d) => {
       const date = new Date(d.date + 'T00:00:00');
       const day = date.getDate();
       return { x: sx(day), y: sy(d.value) };
     });
+    // Always start at day 1 so the line spans the full month axis
+    const firstDay =
+      spendingData.length > 0 ? new Date(spendingData[0].date + 'T00:00:00').getDate() : 2;
+    if (firstDay > 1) {
+      pts.unshift({ x: sx(1), y: sy(0) });
+    }
+    return pts;
   });
 
   const spendingPath = $derived(toPath(spendingPts));
@@ -293,16 +300,16 @@
   const fillAreaPath = $derived.by(() => {
     if (spendingPts.length < 2 || daysInMonth <= 1) return '';
 
-    // Pace Y at the first and last spending data point's X position
-    const firstDay = new Date(spendingData[0].date + 'T00:00:00').getDate();
+    // Pace Y at day 1 (always) and last spending data point's X position.
+    // spendingPts always starts at day 1, so firstDay is always 1.
     const lastDay = new Date(spendingData[spendingData.length - 1].date + 'T00:00:00').getDate();
     const pacePerDay = (budgetTotal - recurringDeduction) / (daysInMonth - 1);
-    const paceYFirst = sy(recurringDeduction + pacePerDay * (firstDay - 1));
+    const paceYFirst = sy(recurringDeduction); // pace at day 1
     const paceYLast = sy(recurringDeduction + pacePerDay * (lastDay - 1));
 
     // Spending curve forward (exact same path as the rendered line),
-    // then straight line along pace backwards, then close.
-    return `${spendingPath}L${sx(lastDay)},${paceYLast}L${sx(firstDay)},${paceYFirst}Z`;
+    // then straight line along pace backwards to day 1, then close.
+    return `${spendingPath}L${sx(lastDay)},${paceYLast}L${sx(1)},${paceYFirst}Z`;
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -316,7 +323,9 @@
 
     const days = spendingData.map((d) => new Date(d.date + 'T00:00:00').getDate());
 
-    if (day <= days[0]) return spendingData[0].value;
+    // Before the first transaction, cumulative spending is 0
+    if (day < days[0]) return 0;
+    if (day === days[0]) return spendingData[0].value;
     if (day >= days[days.length - 1]) return spendingData[spendingData.length - 1].value;
 
     for (let i = 0; i < days.length - 1; i++) {

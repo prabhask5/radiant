@@ -752,52 +752,57 @@
         <div class="title-flare f2"></div>
         <h1 class="page-title">Budget</h1>
       </div>
-      <button class="config-btn" onclick={openCategoryModal} aria-label="Manage categories">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M8.325 2.317a1.5 1.5 0 013.35 0l.148.654a1.5 1.5 0 002.058.868l.592-.302a1.5 1.5 0 011.676 2.369l-.444.558a1.5 1.5 0 00.558 2.245l.594.297a1.5 1.5 0 010 2.685l-.594.297a1.5 1.5 0 00-.558 2.245l.444.558a1.5 1.5 0 01-1.676 2.37l-.592-.303a1.5 1.5 0 00-2.058.868l-.148.654a1.5 1.5 0 01-3.35 0l-.148-.654a1.5 1.5 0 00-2.058-.868l-.592.302a1.5 1.5 0 01-1.676-2.369l.444-.558a1.5 1.5 0 00-.558-2.245l-.594-.297a1.5 1.5 0 010-2.685l.594-.297a1.5 1.5 0 00.558-2.245l-.444-.558A1.5 1.5 0 015.527 3.537l.592.302a1.5 1.5 0 002.058-.868l.148-.654z"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.3" />
-        </svg>
-      </button>
-    </div>
-    <div class="month-nav-group">
-      {#if !isCurrentMonth}
-        <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}>
+      <div class="month-nav-group">
+        <!-- Always rendered so it holds space; hidden on current month -->
+        <button
+          class="today-btn"
+          class:today-hidden={isCurrentMonth}
+          onclick={() => (selectedMonth = getCurrentMonth())}
+          aria-hidden={isCurrentMonth}
+          tabindex={isCurrentMonth ? -1 : 0}
+        >
           Today
         </button>
-      {/if}
-      <div class="month-nav">
-        <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
+        <div class="month-nav">
+          <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M12.5 15L7.5 10L12.5 5"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+          <span class="month-label">{formatMonth(selectedMonth)}</span>
+          <button
+            class="month-arrow"
+            onclick={nextMonth}
+            disabled={isCurrentMonth}
+            aria-label="Next month"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M7.5 15L12.5 10L7.5 5"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <button class="config-btn" onclick={openCategoryModal} aria-label="Manage categories">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path
-              d="M12.5 15L7.5 10L12.5 5"
+              d="M8.325 2.317a1.5 1.5 0 013.35 0l.148.654a1.5 1.5 0 002.058.868l.592-.302a1.5 1.5 0 011.676 2.369l-.444.558a1.5 1.5 0 00.558 2.245l.594.297a1.5 1.5 0 010 2.685l-.594.297a1.5 1.5 0 00-.558 2.245l.444.558a1.5 1.5 0 01-1.676 2.37l-.592-.303a1.5 1.5 0 00-2.058.868l-.148.654a1.5 1.5 0 01-3.35 0l-.148-.654a1.5 1.5 0 00-2.058-.868l-.592.302a1.5 1.5 0 01-1.676-2.369l.444-.558a1.5 1.5 0 00-.558-2.245l-.594-.297a1.5 1.5 0 010-2.685l.594-.297a1.5 1.5 0 00.558-2.245l-.444-.558A1.5 1.5 0 015.527 3.537l.592.302a1.5 1.5 0 002.058-.868l.148-.654z"
               stroke="currentColor"
-              stroke-width="1.5"
+              stroke-width="1.3"
               stroke-linecap="round"
               stroke-linejoin="round"
             />
-          </svg>
-        </button>
-        <span class="month-label">{formatMonth(selectedMonth)}</span>
-        <button
-          class="month-arrow"
-          onclick={nextMonth}
-          disabled={isCurrentMonth}
-          aria-label="Next month"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M7.5 15L12.5 10L7.5 5"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
+            <circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.3" />
           </svg>
         </button>
       </div>
@@ -1817,13 +1822,13 @@
   .page-header {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
   }
 
   .header-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
   }
 
   /* ── Ruby gem title ── */
@@ -1912,12 +1917,10 @@
     width: 36px;
     height: 36px;
     min-width: 36px;
-    max-width: 36px;
     min-height: 36px;
-    max-height: 36px;
+    aspect-ratio: 1 / 1;
     flex-shrink: 0;
     padding: 0;
-    overflow: hidden;
     border-radius: 50%;
     border: 1px solid var(--border);
     background: var(--frost);
@@ -1928,6 +1931,7 @@
       color 0.2s,
       border-color 0.2s;
     -webkit-tap-highlight-color: transparent;
+    box-sizing: content-box;
   }
 
   .config-btn:hover {
@@ -2016,16 +2020,12 @@
     border-color: rgba(232, 84, 84, 0.3);
   }
 
+  .today-hidden {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   @media (max-width: 640px) {
-    .month-nav-group {
-      width: 100%;
-      justify-content: space-between;
-    }
-
-    .today-btn {
-      order: 1;
-    }
-
     .month-label {
       font-size: 0.82rem;
       min-width: 110px;

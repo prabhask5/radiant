@@ -334,6 +334,52 @@
   /** Net position: assets minus liabilities. */
   const netPosition = $derived(totalAssets - totalLiabilities);
 
+  /**
+   * Per-account stats:
+   * - Credit accounts: utilization % (balance owed / credit limit)
+   * - All other accounts: net transaction flow this month vs last month (% change)
+   */
+  const acctStats = $derived.by(() => {
+    const txns = $transactionsStore ?? [];
+    const now = new Date();
+    const thisMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthPrefix = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+    const map = new Map<string, { utilization: number | null; pctChange: number | null }>();
+
+    for (const acct of accounts) {
+      if (acct.type === 'credit') {
+        // Utilization = balance owed / credit limit
+        const owed = parseFloat(acct.balance_ledger ?? '0') || 0;
+        let limit = 0;
+        if (acct.manual_credit_limit) {
+          limit = parseFloat(acct.manual_credit_limit) || 0;
+        } else {
+          const avail = parseFloat(acct.balance_available ?? '0') || 0;
+          const ledger = parseFloat(acct.balance_ledger ?? '0') || 0;
+          limit = avail + ledger;
+        }
+        const utilization = limit > 0 ? Math.min((owed / limit) * 100, 100) : null;
+        map.set(acct.id, { utilization, pctChange: null });
+      } else {
+        // Net transaction flow: sum amounts for this vs last month
+        let thisNet = 0;
+        let lastNet = 0;
+        for (const t of txns) {
+          if (t.account_id !== acct.id || t.is_excluded) continue;
+          const amt = parseFloat(t.amount) || 0;
+          if (t.date.startsWith(thisMonthPrefix)) thisNet += amt;
+          else if (t.date.startsWith(lastMonthPrefix)) lastNet += amt;
+        }
+        // Only show if last month had activity; use absolute value of last for denominator
+        const pctChange = lastNet !== 0 ? ((thisNet - lastNet) / Math.abs(lastNet)) * 100 : null;
+        map.set(acct.id, { utilization: null, pctChange });
+      }
+    }
+    return map;
+  });
+
   /** Whether the Teller app ID is configured. */
   const hasTellerConfig = $derived(!!tellerAppId);
 
@@ -2024,6 +2070,7 @@
           <div class="accounts-list">
             {#each group.accounts as account, ai (account.id)}
               {@const iconType = accountTypeIcon(account.type, account.subtype)}
+              {@const acctStat = acctStats.get(account.id)}
               <div
                 class="account-card"
                 class:hidden-account={account.is_hidden}
@@ -2147,6 +2194,42 @@
                       <span class="acct-updated">{formatLastSync(account.balance_updated_at)}</span>
                     {/if}
                   </div>
+                  {#if acctStat}
+                    {#if acctStat.utilization !== null}
+                      <div class="acct-stat-row">
+                        <div
+                          class="acct-util-bar"
+                          class:util-low={acctStat.utilization < 30}
+                          class:util-mid={acctStat.utilization >= 30 && acctStat.utilization < 70}
+                          class:util-high={acctStat.utilization >= 70}
+                        >
+                          <div
+                            class="util-fill"
+                            style="width: {acctStat.utilization.toFixed(1)}%"
+                          ></div>
+                        </div>
+                        <span
+                          class="acct-stat-label"
+                          class:stat-low={acctStat.utilization < 30}
+                          class:stat-mid={acctStat.utilization >= 30 && acctStat.utilization < 70}
+                          class:stat-high={acctStat.utilization >= 70}
+                          >{acctStat.utilization.toFixed(0)}% utilized</span
+                        >
+                      </div>
+                    {:else if acctStat.pctChange !== null}
+                      <div class="acct-stat-row">
+                        <span
+                          class="acct-stat-label"
+                          class:stat-pos={acctStat.pctChange > 0}
+                          class:stat-neg={acctStat.pctChange < 0}
+                          class:stat-neutral={acctStat.pctChange === 0}
+                        >
+                          {acctStat.pctChange > 0 ? '+' : ''}{acctStat.pctChange.toFixed(0)}% vs
+                          last month
+                        </span>
+                      </div>
+                    {/if}
+                  {/if}
                 </div>
 
                 <!-- Manual account actions: edit + import CSV -->
@@ -4242,6 +4325,65 @@
     letter-spacing: 0.02em;
   }
 
+  /* ── Account stat row (utilization / monthly change) ────────────────────── */
+  .acct-stat-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+  }
+
+  .acct-util-bar {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border-subtle);
+    overflow: hidden;
+    max-width: 72px;
+  }
+
+  .util-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .util-low .util-fill {
+    background: #10b981;
+  }
+  .util-mid .util-fill {
+    background: #dbb044;
+  }
+  .util-high .util-fill {
+    background: #ef4444;
+  }
+
+  .acct-stat-label {
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+  }
+
+  .acct-stat-label.stat-low {
+    color: #10b981;
+  }
+  .acct-stat-label.stat-mid {
+    color: #dbb044;
+  }
+  .acct-stat-label.stat-high {
+    color: #ef4444;
+  }
+  .acct-stat-label.stat-pos {
+    color: #10b981;
+  }
+  .acct-stat-label.stat-neg {
+    color: #ef4444;
+  }
+  .acct-stat-label.stat-neutral {
+    color: var(--text-muted);
+  }
+
   /* ── Hide Toggle ────────────────────────────────────────────────────────── */
   .hide-toggle {
     display: flex;
@@ -4686,6 +4828,7 @@
   }
 
   .form-input {
+    width: 100%;
     height: 44px;
     padding: 0 14px;
     background: var(--surface-raised);
