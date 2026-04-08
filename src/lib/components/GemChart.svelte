@@ -100,11 +100,15 @@
   //                         LAYOUT GEOMETRY
   // ══════════════════════════════════════════════════════════════════════════
 
+  /** Whether to use mobile chart layout (floating overlay y-labels, no left margin). */
+  const isMobileLayout = $derived(containerW > 0 && containerW < 520);
+
   const margin = $derived({
     top: 12,
-    right: 20,
+    right: isMobileLayout ? 4 : 20,
     bottom: 28,
-    left: containerW < 360 ? 44 : 54
+    // Mobile: y-labels are HTML overlays, so no left margin needed
+    left: isMobileLayout ? 0 : containerW < 360 ? 44 : 54
   });
 
   const chartH = $derived(Math.max(140, height));
@@ -519,20 +523,22 @@
             />
           {/each}
 
-          <!-- Y-axis labels -->
-          {#each yTicks as tick, i (i)}
-            {#if containerW >= 360 || i === 0 || i === yTicks.length - 1}
-              <text
-                x={margin.left - 10}
-                y={sy(tick)}
-                class="y-label"
-                text-anchor="end"
-                dominant-baseline="middle"
-              >
-                {formatValue(tick)}
-              </text>
-            {/if}
-          {/each}
+          <!-- Y-axis labels (desktop only — mobile uses HTML overlay) -->
+          {#if !isMobileLayout}
+            {#each yTicks as tick, i (i)}
+              {#if containerW >= 360 || i === 0 || i === yTicks.length - 1}
+                <text
+                  x={margin.left - 10}
+                  y={sy(tick)}
+                  class="y-label"
+                  text-anchor="end"
+                  dominant-baseline="middle"
+                >
+                  {formatValue(tick)}
+                </text>
+              {/if}
+            {/each}
+          {/if}
 
           <!-- X-axis labels -->
           {#each xLabels as lbl, i (i)}
@@ -632,6 +638,17 @@
             {/each}
           {/if}
         </svg>
+
+        <!-- Mobile: floating y-label overlay (replaces SVG y-labels to save left margin) -->
+        {#if isMobileLayout}
+          <div class="y-labels-overlay" aria-hidden="true">
+            {#each yTicks as tick, i (i)}
+              {#if i === 0 || i === Math.floor(yTicks.length / 2) || i === yTicks.length - 1}
+                <span class="y-overlay-label" style="top: {sy(tick)}px;">{formatValue(tick)}</span>
+              {/if}
+            {/each}
+          </div>
+        {/if}
 
         <!-- Tooltip (HTML, outside SVG for backdrop-filter) -->
         {#if hover}
@@ -1038,6 +1055,33 @@
   /* ────────────────────────────────────────────────────────────────────────
      TOOLTIP
      ──────────────────────────────────────────────────────────────────────── */
+  /* ── Mobile y-label overlay ─────────────────────────────────────────── */
+  .y-labels-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .y-overlay-label {
+    position: absolute;
+    left: 4px;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: var(--gc-dim);
+    background: rgba(14, 12, 8, 0.72);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
   .chart-tip {
     position: absolute;
     top: 0;
@@ -1052,7 +1096,7 @@
     box-shadow:
       0 12px 40px rgba(0, 0, 0, 0.5),
       0 0 0 0.5px rgba(180, 150, 80, 0.08) inset;
-    z-index: 10;
+    z-index: 9999;
     white-space: nowrap;
     animation: tipReveal 0.18s ease-out;
     min-width: 120px;

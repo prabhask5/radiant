@@ -170,14 +170,22 @@
     hoveredIndex !== null && hoveredIndex < segments.length ? segments[hoveredIndex] : null
   );
 
-  // Tooltip clamping
+  // Tooltip clamping — use fixed positioning so it's never clipped by overflow:hidden
+  // and always appears above the hovered element with generous clearance.
   const tipStyle = $derived.by(() => {
-    if (!hoveredSegment) return '';
+    if (!hoveredSegment || !wrapperEl) return '';
     const tipW = 160;
-    let x = tooltipPos.x;
-    if (x + tipW / 2 > containerW - 12) x = containerW - tipW / 2 - 12;
+    const rect = wrapperEl.getBoundingClientRect();
+    // Convert container-relative coords to viewport coords for fixed positioning
+    const viewX = rect.left + tooltipPos.x;
+    const viewY = rect.top + tooltipPos.y;
+    // Clamp within viewport
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
+    let x = viewX;
+    if (x + tipW / 2 > vw - 12) x = vw - tipW / 2 - 12;
     if (x - tipW / 2 < 12) x = tipW / 2 + 12;
-    return `left: ${x}px; top: ${tooltipPos.y - 12}px;`;
+    // Position tooltip above cursor with generous gap (72px)
+    return `left: ${x}px; top: ${viewY - 72}px;`;
   });
 </script>
 
@@ -544,9 +552,8 @@
   .segment-glow {
     opacity: 0;
     pointer-events: none;
-    transition:
-      opacity 0.3s ease,
-      stroke-dasharray 0.8s var(--gc-spring);
+    /* No opacity transition — glow must be immediate on hover */
+    transition: stroke-dasharray 0.8s var(--gc-spring);
   }
 
   .segment-glow.glow-active {
@@ -619,19 +626,20 @@
      TOOLTIP
      ──────────────────────────────────────────────────────────────────────── */
   .pie-tip {
-    position: absolute;
-    transform: translate(-50%, -100%);
-    background: rgba(12, 10, 6, 0.88);
+    /* Fixed positioning so it's never clipped by overflow:hidden on parent */
+    position: fixed;
+    transform: translateX(-50%);
+    background: rgba(12, 10, 6, 0.92);
     backdrop-filter: blur(20px) saturate(1.3);
     -webkit-backdrop-filter: blur(20px) saturate(1.3);
-    border: 1px solid rgba(180, 150, 80, 0.14);
+    border: 1px solid rgba(180, 150, 80, 0.2);
     border-radius: 10px;
     padding: 10px 14px;
     pointer-events: none;
     box-shadow:
-      0 12px 40px rgba(0, 0, 0, 0.5),
-      0 0 0 0.5px rgba(180, 150, 80, 0.08) inset;
-    z-index: 10;
+      0 12px 40px rgba(0, 0, 0, 0.55),
+      0 0 0 0.5px rgba(180, 150, 80, 0.1) inset;
+    z-index: 9999;
     white-space: nowrap;
     animation: tipReveal 0.18s ease-out;
     min-width: 120px;

@@ -570,14 +570,15 @@ function createEnrollmentsStore() {
       debug('log', '[DATA] teller_enrollments — create complete', { id });
       return id;
     },
-    async updateStatus(id: string, status: string, errorMessage?: string) {
-      debug('log', '[DATA] teller_enrollments — updateStatus', { id, status });
+    async updateStatus(id: string, status: string, errorMessage?: string, force = false) {
+      debug('log', '[DATA] teller_enrollments — updateStatus', { id, status, force });
       const existing = (await engineGetAll('teller_enrollments')).find(
         (row) => row.id === id && !row.deleted
       ) as TellerEnrollment | undefined;
 
       const normalizedError = errorMessage || null;
       if (
+        !force &&
         existing &&
         existing.status === status &&
         (existing.error_message ?? null) === normalizedError &&

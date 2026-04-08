@@ -1911,8 +1911,13 @@
     justify-content: center;
     width: 36px;
     height: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    min-height: 36px;
+    max-height: 36px;
     flex-shrink: 0;
-    aspect-ratio: 1;
+    padding: 0;
+    overflow: hidden;
     border-radius: 50%;
     border: 1px solid var(--border);
     background: var(--frost);

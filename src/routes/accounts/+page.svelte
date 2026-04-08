@@ -139,6 +139,14 @@
   /** Institution name smart-dropdown state for Add Manual modal. */
   let instDropdownOpen = $state(false);
 
+  /** Institution name smart-dropdown state for Edit Account modal. */
+  let editInstDropdownOpen = $state(false);
+
+  /** Inline rename state for manual institution groups. */
+  let renamingManualInst = $state<string | null>(null);
+  let renameManualInstValue = $state('');
+  let savingRename = $state(false);
+
   /** File input reference for CSV upload. */
   let csvFileInput: HTMLInputElement | undefined = $state(undefined);
 
@@ -242,6 +250,33 @@
     const lower = manualInstitution.toLowerCase();
     return existingInstitutionNames.filter((n) => n.toLowerCase().includes(lower));
   });
+
+  /** Institution names filtered by what the user has typed in the edit modal. */
+  const editInstDropdownFiltered = $derived.by(() => {
+    if (!editInstitution.trim()) return existingInstitutionNames;
+    const lower = editInstitution.toLowerCase();
+    return existingInstitutionNames.filter((n) => n.toLowerCase().includes(lower));
+  });
+
+  /** Set of existing transaction CSV import hashes (for pre-import duplicate detection). */
+  const csvExistingHashes = $derived.by(() => {
+    const txns = $transactionsStore ?? [];
+    const hashes = new Set<string>();
+    for (const t of txns as Array<{ csv_import_hash?: string }>) {
+      if (t.csv_import_hash) hashes.add(t.csv_import_hash);
+    }
+    return hashes;
+  });
+
+  /** Number of new (non-duplicate) transactions in the pending CSV import. */
+  const csvNewCount = $derived(
+    csvMappedTransactions.filter((t) => !csvExistingHashes.has(t.csv_import_hash)).length
+  );
+
+  /** Number of duplicate transactions in the pending CSV import. */
+  const csvDuplicateCount = $derived(
+    csvMappedTransactions.filter((t) => csvExistingHashes.has(t.csv_import_hash)).length
+  );
 
   /** Count of Teller-connected accounts. */
   const connectedCount = $derived(accounts.filter((a) => a.source !== 'manual').length);
@@ -790,8 +825,8 @@
       // Process data client-side: IndexedDB + sync queue (offline-first)
       const syncResult = await processTellerSyncData(rawData, enrollment.id);
 
-      // Update enrollment last_synced_at
-      await enrollmentsStore.updateStatus(enrollment.id, 'connected');
+      // Always force-update last_synced_at so manual syncs are always reflected in the UI
+      await enrollmentsStore.updateStatus(enrollment.id, 'connected', undefined, true);
 
       await Promise.all([
         accountsStore.refresh(),
@@ -1085,6 +1120,36 @@
       showFeedback('error', 'Failed to delete institution. Please try again.');
     } finally {
       deletingManual = false;
+    }
+  }
+
+  /** Rename a manual institution group (updates all accounts in that group). */
+  async function renameManualInstitution(oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === oldName) {
+      renamingManualInst = null;
+      return;
+    }
+    savingRename = true;
+    debug('log', '[ACCOUNTS] renameManualInstitution —', oldName, '->', trimmed);
+    try {
+      const { engineUpdate } = await import('stellar-drive');
+      const manualAccounts = accounts.filter(
+        (a) => a.source === 'manual' && a.institution_name === oldName
+      );
+      for (const acct of manualAccounts) {
+        remoteChangesStore.recordLocalChange(acct.id, 'accounts', 'update');
+        await engineUpdate('accounts', acct.id, { institution_name: trimmed });
+      }
+      await accountsStore.refresh();
+      renamingManualInst = null;
+      showFeedback('success', `Institution renamed to "${trimmed}".`);
+    } catch (err) {
+      debug('error', '[ACCOUNTS] renameManualInstitution failed:', err);
+      console.error('Rename institution error:', err);
+      showFeedback('error', 'Failed to rename institution. Please try again.');
+    } finally {
+      savingRename = false;
     }
   }
 
@@ -1668,14 +1733,66 @@
                 >
               </div>
               <div class="inst-text">
-                <h2 class="inst-name" use:truncateTooltip>{group.institutionName}</h2>
-                <span class="inst-sync"
-                  >{group.enrollmentStatus === 'manual'
-                    ? group.lastSynced
-                      ? `Last import ${formatLastSync(group.lastSynced)}`
-                      : 'No imports yet'
-                    : formatLastSync(group.lastSynced)}</span
-                >
+                {#if renamingManualInst === group.institutionName}
+                  <div class="inst-rename-wrap">
+                    <input
+                      class="inst-rename-input"
+                      type="text"
+                      bind:value={renameManualInstValue}
+                      onkeydown={(e) => {
+                        if (e.key === 'Enter')
+                          renameManualInstitution(group.institutionName, renameManualInstValue);
+                        if (e.key === 'Escape') renamingManualInst = null;
+                      }}
+                      aria-label="Rename institution"
+                    />
+                    <button
+                      class="inst-rename-confirm"
+                      onclick={() =>
+                        renameManualInstitution(group.institutionName, renameManualInstValue)}
+                      disabled={savingRename}
+                      aria-label="Save rename"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                      >
+                    </button>
+                    <button
+                      class="inst-rename-cancel"
+                      onclick={() => (renamingManualInst = null)}
+                      aria-label="Cancel rename"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><line x1="18" y1="6" x2="6" y2="18" /><line
+                          x1="6"
+                          y1="6"
+                          x2="18"
+                          y2="18"
+                        /></svg
+                      >
+                    </button>
+                  </div>
+                {:else}
+                  <h2 class="inst-name" use:truncateTooltip>{group.institutionName}</h2>
+                  {#if group.enrollmentStatus !== 'manual'}
+                    <span class="inst-sync">{formatLastSync(group.lastSynced)}</span>
+                  {/if}
+                {/if}
               </div>
             </div>
             <div class="inst-actions">
@@ -1698,6 +1815,29 @@
                     </button>
                   </div>
                 {:else}
+                  <button
+                    class="inst-rename-btn"
+                    onclick={() => {
+                      renamingManualInst = group.institutionName;
+                      renameManualInstValue = group.institutionName;
+                      confirmDeleteManualInst = null;
+                    }}
+                    aria-label="Rename {group.institutionName}"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
+                        d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                      /></svg
+                    >
+                  </button>
                   <button
                     class="disconnect-btn"
                     onclick={() => (confirmDeleteManualInst = group.institutionName)}
@@ -2580,18 +2720,22 @@
             <div class="csv-review">
               <div class="review-stats">
                 <div class="review-stat">
-                  <span class="review-stat-value">{csvRows.length}</span>
-                  <span class="review-stat-label">Total Rows</span>
-                </div>
-                <div class="review-stat">
                   <span class="review-stat-value">{csvMappedTransactions.length}</span>
-                  <span class="review-stat-label">Valid Transactions</span>
+                  <span class="review-stat-label">Valid</span>
                 </div>
-                <div class="review-stat">
+                <div class="review-stat review-stat-new">
+                  <span class="review-stat-value">{csvNewCount}</span>
+                  <span class="review-stat-label">New</span>
+                </div>
+                <div class="review-stat review-stat-dup">
+                  <span class="review-stat-value">{csvDuplicateCount}</span>
+                  <span class="review-stat-label">Duplicates</span>
+                </div>
+                <div class="review-stat review-stat-skip">
                   <span class="review-stat-value"
                     >{csvRows.length - csvMappedTransactions.length}</span
                   >
-                  <span class="review-stat-label">Skipped / Invalid</span>
+                  <span class="review-stat-label">Invalid</span>
                 </div>
               </div>
 
@@ -2692,12 +2836,48 @@
         <!-- Institution name (editable for manual accounts) -->
         <label class="form-label">
           Institution Name
-          <input
-            class="form-input"
-            type="text"
-            bind:value={editInstitution}
-            placeholder="e.g. Chase, Fidelity"
-          />
+          <div class="inst-input-wrap">
+            <input
+              class="form-input"
+              type="text"
+              bind:value={editInstitution}
+              placeholder="e.g. Chase, Fidelity"
+              autocomplete="off"
+              onfocus={() => (editInstDropdownOpen = true)}
+              onblur={() => setTimeout(() => (editInstDropdownOpen = false), 180)}
+            />
+            {#if editInstDropdownOpen && editInstDropdownFiltered.length > 0}
+              <div class="inst-dropdown" role="listbox" aria-label="Existing institutions">
+                {#each editInstDropdownFiltered as name (name)}
+                  <button
+                    class="inst-dropdown-item"
+                    role="option"
+                    aria-selected={editInstitution === name}
+                    onmousedown={() => {
+                      editInstitution = name;
+                      editInstDropdownOpen = false;
+                    }}
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="inst-dd-icon"
+                      ><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path
+                        d="M9 21v-4h6v4"
+                      /></svg
+                    >
+                    {name}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
           <span class="form-hint"
             >Changing this moves the account to a different institution group.</span
           >
@@ -3658,6 +3838,91 @@
     cursor: not-allowed;
   }
 
+  /* ── Manual institution rename button ────────────────────────────────────── */
+  .inst-rename-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+
+  .inst-rename-btn:hover {
+    background: rgba(232, 185, 74, 0.08);
+    border-color: rgba(232, 185, 74, 0.2);
+    color: var(--citrine, #dbb044);
+  }
+
+  /* Inline rename field */
+  .inst-rename-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .inst-rename-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--surface-raised);
+    border: 1px solid rgba(232, 185, 74, 0.3);
+    border-radius: 6px;
+    outline: none;
+    font-family: inherit;
+  }
+
+  .inst-rename-input:focus {
+    border-color: rgba(232, 185, 74, 0.55);
+    box-shadow: 0 0 0 2px rgba(232, 185, 74, 0.08);
+  }
+
+  .inst-rename-confirm,
+  .inst-rename-cancel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+
+  .inst-rename-confirm {
+    background: rgba(74, 222, 128, 0.12);
+    color: #4ade80;
+  }
+
+  .inst-rename-confirm:hover:not(:disabled) {
+    background: rgba(74, 222, 128, 0.22);
+  }
+
+  .inst-rename-confirm:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .inst-rename-cancel {
+    background: rgba(248, 113, 113, 0.1);
+    color: #f87171;
+  }
+
+  .inst-rename-cancel:hover {
+    background: rgba(248, 113, 113, 0.2);
+  }
+
   .disconnect-btn {
     display: flex;
     align-items: center;
@@ -3995,7 +4260,7 @@
       gap: 0.75rem;
     }
 
-    .connect-btn {
+    .page-header .connect-btn {
       align-self: flex-start;
     }
 
@@ -4771,6 +5036,18 @@
     font-weight: 500;
   }
 
+  .review-stat-new .review-stat-value {
+    color: #4ade80;
+  }
+
+  .review-stat-dup .review-stat-value {
+    color: var(--citrine, #dbb044);
+  }
+
+  .review-stat-skip .review-stat-value {
+    color: var(--text-muted);
+  }
+
   .csv-success {
     display: flex;
     flex-direction: column;
@@ -4911,6 +5188,8 @@
   /* ── Institution Smart Dropdown ─────────────────────────────────────────── */
   .inst-input-wrap {
     position: relative;
+    display: block;
+    width: 100%;
   }
 
   .inst-dropdown {
@@ -4946,6 +5225,8 @@
     width: 100%;
     padding: 0.6rem 0.85rem;
     font-size: 0.85rem;
+    /* Explicit background so `all:unset` doesn't leave items transparent */
+    background: var(--surface-raised);
     color: var(--text-secondary);
     cursor: pointer;
     transition:
@@ -4956,7 +5237,7 @@
 
   .inst-dropdown-item:hover,
   .inst-dropdown-item[aria-selected='true'] {
-    background: rgba(232, 185, 74, 0.08);
+    background: rgba(232, 185, 74, 0.1);
     color: var(--text-primary);
   }
 
