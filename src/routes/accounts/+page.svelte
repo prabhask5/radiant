@@ -21,6 +21,7 @@
     accountsStore,
     enrollmentsStore,
     transactionsStore,
+    balanceSnapshotsStore,
     preloadAllStores
   } from '$lib/stores/data';
   import { isDemoMode, showDemoBlocked } from 'stellar-drive/demo';
@@ -340,11 +341,10 @@
    * - All other accounts: net transaction flow this month vs last month (% change)
    */
   const acctStats = $derived.by(() => {
-    const txns = $transactionsStore ?? [];
-    const now = new Date();
-    const thisMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthPrefix = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    const snapshots = $balanceSnapshotsStore ?? [];
+    const today = new Date();
+    const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+    const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}-${String(lastMonthDate.getDate()).padStart(2, '0')}`;
 
     const map = new Map<string, { utilization: number | null; pctChange: number | null }>();
 
@@ -363,17 +363,17 @@
         const utilization = limit > 0 ? Math.min((owed / limit) * 100, 100) : null;
         map.set(acct.id, { utilization, pctChange: null });
       } else {
-        // Net transaction flow: sum amounts for this vs last month
-        let thisNet = 0;
-        let lastNet = 0;
-        for (const t of txns) {
-          if (t.account_id !== acct.id || t.is_excluded) continue;
-          const amt = parseFloat(t.amount) || 0;
-          if (t.date.startsWith(thisMonthPrefix)) thisNet += amt;
-          else if (t.date.startsWith(lastMonthPrefix)) lastNet += amt;
+        // Balance-based % change: compare today's live balance to the snapshot
+        // from the same calendar day one month ago.
+        const snap = snapshots.find(
+          (s) => s.account_id === acct.id && s.snapshot_date === lastMonthStr
+        );
+        let pctChange: number | null = null;
+        if (snap) {
+          const current = parseFloat(acct.balance_available ?? acct.balance_ledger ?? '0') || 0;
+          const prior = parseFloat(snap.balance) || 0;
+          pctChange = prior !== 0 ? ((current - prior) / Math.abs(prior)) * 100 : null;
         }
-        // Only show if last month had activity; use absolute value of last for denominator
-        const pctChange = lastNet !== 0 ? ((thisNet - lastNet) / Math.abs(lastNet)) * 100 : null;
         map.set(acct.id, { utilization: null, pctChange });
       }
     }
@@ -2205,7 +2205,7 @@
                         >
                           <div
                             class="util-fill"
-                            style="width: {acctStat.utilization.toFixed(1)}%"
+                            style="width: {Math.max(acctStat.utilization, 0.0).toFixed(1)}%"
                           ></div>
                         </div>
                         <span

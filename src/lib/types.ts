@@ -16,7 +16,8 @@ export type {
   Account,
   Transaction,
   Category,
-  RecurringTransaction
+  RecurringTransaction,
+  AccountBalanceSnapshot
 } from './types.generated';
 
 /* ═══════════════════════════════════════════════════════════════════════════

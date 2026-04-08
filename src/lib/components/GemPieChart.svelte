@@ -170,21 +170,20 @@
     hoveredIndex !== null && hoveredIndex < segments.length ? segments[hoveredIndex] : null
   );
 
-  // Tooltip: X follows cursor (clamped to viewport), Y is pinned just inside the
-  // top of the chart container so it never overlaps the arc being hovered.
   const tipStyle = $derived.by(() => {
     if (!hoveredSegment || !wrapperEl) return '';
     const tipW = 160;
+    const tipH = 70;
     const rect = wrapperEl.getBoundingClientRect();
     const viewX = rect.left + tooltipPos.x;
+    const viewY = rect.top + tooltipPos.y;
     const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
     let x = viewX;
     if (x + tipW / 2 > vw - 12) x = vw - tipW / 2 - 12;
     if (x - tipW / 2 < 12) x = tipW / 2 + 12;
-    // Pin Y to top of chart so tooltip never sits on the segment.
-    // CSS applies translateY(-100%) so `top` = bottom edge of tooltip.
-    // rect.top + 72 puts the tooltip bottom just inside the chart header area.
-    const y = rect.top + 72;
+    // Bottom of tooltip sits 16px above cursor; flip below if too close to top
+    let y = viewY - 16;
+    if (y - tipH < 8) y = viewY + tipH + 8;
     return `left: ${x}px; top: ${y}px;`;
   });
 </script>
@@ -626,33 +625,20 @@
      TOOLTIP
      ──────────────────────────────────────────────────────────────────────── */
   .pie-tip {
-    /* Fixed positioning so it's never clipped by overflow:hidden on parent */
     position: fixed;
-    /* translateY(-100%) so `top` in tipStyle acts as the bottom edge of the tooltip */
     transform: translateX(-50%) translateY(-100%);
-    background: rgba(12, 10, 6, 0.96);
-    border: 1px solid rgba(180, 150, 80, 0.2);
+    /* Fully opaque — no backdrop-filter so text behind never bleeds through */
+    background: #0f0d0a;
+    border: 1px solid rgba(180, 150, 80, 0.22);
     border-radius: 10px;
     padding: 10px 14px;
     pointer-events: none;
     box-shadow:
-      0 12px 40px rgba(0, 0, 0, 0.65),
+      0 12px 40px rgba(0, 0, 0, 0.7),
       0 0 0 0.5px rgba(180, 150, 80, 0.1) inset;
     z-index: 9999;
     white-space: nowrap;
-    animation: tipReveal 0.18s ease-out;
     min-width: 120px;
-  }
-
-  @keyframes tipReveal {
-    from {
-      opacity: 0;
-      transform: translateX(-50%) translateY(calc(-100% - 4px)) scale(0.97);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(-50%) translateY(-100%) scale(1);
-    }
   }
 
   .tip-row {
@@ -669,7 +655,6 @@
     height: 5px;
     border-radius: 50%;
     flex-shrink: 0;
-    box-shadow: 0 0 4px currentColor;
   }
 
   .tip-icon {
@@ -872,10 +857,6 @@
 
     .gem-pie.mounted .legend-item {
       transition-duration: 0.01ms !important;
-    }
-
-    .pie-tip {
-      animation-duration: 0.01ms !important;
     }
 
     .skeleton-shimmer-ring::after {

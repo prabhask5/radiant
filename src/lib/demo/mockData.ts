@@ -75,6 +75,7 @@ function base(id: string) {
 // Enrollments
 const ENROLLMENT_CHASE = 'demo-enrollment-chase';
 const ENROLLMENT_BOFA = 'demo-enrollment-bofa';
+const ENROLLMENT_WF = 'demo-enrollment-wf'; // disconnected — triggers reconnect banner
 
 // Accounts
 const ACCT_CHASE_CHECKING = 'demo-acct-chase-checking';
@@ -82,6 +83,9 @@ const ACCT_CHASE_SAVINGS = 'demo-acct-chase-savings';
 const ACCT_CHASE_CREDIT = 'demo-acct-chase-credit';
 const ACCT_BOFA_CHECKING = 'demo-acct-bofa-checking';
 const ACCT_BOFA_CREDIT = 'demo-acct-bofa-credit';
+const ACCT_WF_CHECKING = 'demo-acct-wf-checking'; // under disconnected enrollment
+const ACCT_MANUAL_SAVINGS = 'demo-acct-manual-savings'; // manual (no Teller link)
+const ACCT_BOFA_JOINT = 'demo-acct-bofa-joint'; // hidden account
 
 // Categories — deterministic demo IDs
 const CAT_GROCERIES = 'demo-cat-groceries';
@@ -140,6 +144,17 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       status: 'connected',
       last_synced_at: now(),
       error_message: null
+    },
+    {
+      // Disconnected enrollment — exercises the reconnect banner / error state UI
+      ...base(ENROLLMENT_WF),
+      enrollment_id: 'enr_wf_demo_001',
+      institution_name: 'Wells Fargo',
+      institution_id: 'wells_fargo',
+      access_token: 'demo-token-wf',
+      status: 'disconnected',
+      last_synced_at: new Date(Date.now() - 5 * 864e5).toISOString(),
+      error_message: 'Session expired — reconnection required'
     }
   ]);
 
@@ -231,6 +246,61 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       balance_ledger: '523.40',
       balance_updated_at: now(),
       is_hidden: false
+    },
+    {
+      // Account under the disconnected Wells Fargo enrollment
+      ...base(ACCT_WF_CHECKING),
+      enrollment_id: ENROLLMENT_WF,
+      teller_account_id: 'acc_wf_chk_001',
+      institution_name: 'Wells Fargo',
+      name: 'WF Everyday Checking',
+      type: 'depository',
+      subtype: 'checking',
+      currency: 'USD',
+      last_four: '6218',
+      status: 'open',
+      source: 'teller',
+      balance_available: '2150.00',
+      balance_ledger: '2150.00',
+      balance_updated_at: new Date(Date.now() - 5 * 864e5).toISOString(),
+      is_hidden: false
+    },
+    {
+      // Manual account — no Teller link, balance set via manual_balance_override
+      ...base(ACCT_MANUAL_SAVINGS),
+      enrollment_id: null,
+      teller_account_id: null,
+      institution_name: 'Ally Bank',
+      name: 'Emergency Fund',
+      type: 'depository',
+      subtype: 'savings',
+      currency: 'USD',
+      last_four: null,
+      status: 'open',
+      source: 'manual',
+      balance_available: null,
+      balance_ledger: null,
+      balance_updated_at: now(),
+      manual_balance_override: '15000.00',
+      is_hidden: false
+    },
+    {
+      // Hidden account — exercises is_hidden UI (excluded from totals, shown dimmed)
+      ...base(ACCT_BOFA_JOINT),
+      enrollment_id: ENROLLMENT_BOFA,
+      teller_account_id: 'acc_bofa_joint_001',
+      institution_name: 'Bank of America',
+      name: 'BofA Joint Checking',
+      type: 'depository',
+      subtype: 'checking',
+      currency: 'USD',
+      last_four: '5501',
+      status: 'open',
+      source: 'teller',
+      balance_available: '4500.00',
+      balance_ledger: '4500.00',
+      balance_updated_at: now(),
+      is_hidden: true
     }
   ]);
 
@@ -814,7 +884,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       true
     ),
     txn(
-      '66',
+      '69',
       ACCT_CHASE_CHECKING,
       '-145.20',
       daysAgo(70),
@@ -1147,6 +1217,56 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'posted'
     ),
 
+    // ── Manual account — a few deposits to show balance history ──────────
+    txn(
+      '70',
+      ACCT_MANUAL_SAVINGS,
+      '5000.00',
+      daysAgo(14),
+      'Transfer from Chase Checking',
+      null,
+      null,
+      CAT_TRANSFER,
+      'posted'
+    ),
+    txn(
+      '71',
+      ACCT_MANUAL_SAVINGS,
+      '10000.00',
+      daysAgo(45),
+      'Initial deposit — emergency fund',
+      null,
+      null,
+      CAT_TRANSFER,
+      'posted',
+      null,
+      '6-month emergency fund goal'
+    ),
+
+    // ── Wells Fargo (disconnected) — stale transactions still visible ─────
+    txn(
+      '72',
+      ACCT_WF_CHECKING,
+      '3200.00',
+      daysAgo(20),
+      'Direct Deposit - ACME Corp',
+      'ACME Corp',
+      'organization',
+      CAT_SALARY,
+      'posted'
+    ),
+    txn(
+      '73',
+      ACCT_WF_CHECKING,
+      '-1800.00',
+      daysAgo(22),
+      'RENT PAYMENT',
+      null,
+      null,
+      CAT_RENT,
+      'posted'
+    ),
+
     // ── Excluded transaction (showcases the is_excluded feature) ─────────
     txn(
       '46',
@@ -1208,13 +1328,14 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       next_date: daysFromNow(28)
     },
     {
+      // 'cancelling' status — exercises the cancellation UI state (floated to top)
       ...base('demo-rec-gym'),
       name: 'Equinox Fitness',
       amount: '49.99',
       category_id: CAT_GYM_FITNESS,
       frequency: 'monthly',
       source: 'auto-detected',
-      status: 'active',
+      status: 'cancelling',
       account_id: ACCT_CHASE_CREDIT,
       merchant_pattern: 'equinox',
       last_detected_date: daysAgo(6),
@@ -1258,6 +1379,20 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       merchant_pattern: 'att',
       last_detected_date: daysAgo(12),
       next_date: daysFromNow(18)
+    },
+    {
+      // 'ended' status — exercises the ended/cancelled recurring UI state
+      ...base('demo-rec-hulu'),
+      name: 'Hulu',
+      amount: '17.99',
+      category_id: CAT_STREAMING,
+      frequency: 'monthly',
+      source: 'auto-detected',
+      status: 'ended',
+      account_id: ACCT_CHASE_CREDIT,
+      merchant_pattern: 'hulu',
+      last_detected_date: daysAgo(65),
+      next_date: null
     }
   ]);
 }
