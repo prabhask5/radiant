@@ -10,7 +10,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { goto, invalidateAll } from '$app/navigation';
+  import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import {
     setupSingleUser,
@@ -260,8 +260,7 @@
             const result = await completeSingleUserSetup();
             if (!result.error) {
               showConfirmationModal = false;
-              await invalidateAll();
-              goto('/');
+              goto('/', { invalidateAll: true });
             } else {
               error = result.error;
               showConfirmationModal = false;
@@ -331,12 +330,13 @@
     const result = await completeDeviceVerification();
     if (!result.error) {
       showDeviceVerificationModal = false;
-      await invalidateAll();
-      goto(redirectUrl);
+      goto(redirectUrl, { invalidateAll: true });
     } else {
       error = result.error;
       showDeviceVerificationModal = false;
       verificationCompleting = false;
+      loading = false;
+      linkLoading = false;
     }
   }
 
@@ -633,8 +633,7 @@
         return;
       }
       /* No confirmation needed → go straight to the app (keep loading=true to avoid flash) */
-      await invalidateAll();
-      goto('/');
+      goto('/', { invalidateAll: true });
       return;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : 'Setup failed. Please try again.';
@@ -703,8 +702,7 @@
         return;
       }
       /* Success → navigate to the redirect target (keep loading=true to avoid PIN flash) */
-      await invalidateAll();
-      goto(redirectUrl);
+      goto(redirectUrl, { invalidateAll: true });
       return;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : 'Incorrect code';
@@ -788,8 +786,7 @@
         return;
       }
       /* Success → navigate to the redirect target (keep linkLoading=true to avoid flash) */
-      await invalidateAll();
-      goto(redirectUrl);
+      goto(redirectUrl, { invalidateAll: true });
       return;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : 'Incorrect code';
@@ -1062,29 +1059,29 @@
         </h2>
         <p class="card-subtitle">Enter your code to continue</p>
 
-        <div class="pin-section">
-          <div class="pin-row">
-            {#each unlockDigits as _, i (i)}
-              <input
-                type="tel"
-                inputmode="numeric"
-                maxlength="1"
-                class="pin-digit"
-                bind:this={unlockInputs[i]}
-                oninput={(e) =>
-                  handleDigitInput(unlockDigits, i, e, unlockInputs, autoSubmitUnlock)}
-                onkeydown={(e) => handleDigitKeydown(unlockDigits, i, e, unlockInputs)}
-                onpaste={(e) => handleDigitPaste(unlockDigits, e, unlockInputs, autoSubmitUnlock)}
-                disabled={loading || retryCountdown > 0}
-              />
-            {/each}
-          </div>
-        </div>
-
         {#if loading}
           <div class="unlock-loading">
             <span class="spinner"></span>
             <span>Unlocking...</span>
+          </div>
+        {:else}
+          <div class="pin-section">
+            <div class="pin-row">
+              {#each unlockDigits as _, i (i)}
+                <input
+                  type="tel"
+                  inputmode="numeric"
+                  maxlength="1"
+                  class="pin-digit"
+                  bind:this={unlockInputs[i]}
+                  oninput={(e) =>
+                    handleDigitInput(unlockDigits, i, e, unlockInputs, autoSubmitUnlock)}
+                  onkeydown={(e) => handleDigitKeydown(unlockDigits, i, e, unlockInputs)}
+                  onpaste={(e) => handleDigitPaste(unlockDigits, e, unlockInputs, autoSubmitUnlock)}
+                  disabled={retryCountdown > 0}
+                />
+              {/each}
+            </div>
           </div>
         {/if}
       </div>
@@ -1111,28 +1108,28 @@
         </h2>
         <p class="card-subtitle">Enter your code to link this device</p>
 
-        <div class="pin-section">
-          <div class="pin-row">
-            {#each { length: remoteUser.codeLength } as _, i (i)}
-              <input
-                type="tel"
-                inputmode="numeric"
-                maxlength="1"
-                class="pin-digit"
-                bind:this={linkInputs[i]}
-                oninput={(e) => handleDigitInput(linkDigits, i, e, linkInputs, autoSubmitLink)}
-                onkeydown={(e) => handleDigitKeydown(linkDigits, i, e, linkInputs)}
-                onpaste={(e) => handleDigitPaste(linkDigits, e, linkInputs, autoSubmitLink)}
-                disabled={linkLoading || retryCountdown > 0}
-              />
-            {/each}
-          </div>
-        </div>
-
         {#if linkLoading}
           <div class="unlock-loading">
             <span class="spinner"></span>
             <span>Linking...</span>
+          </div>
+        {:else}
+          <div class="pin-section">
+            <div class="pin-row">
+              {#each { length: remoteUser.codeLength } as _, i (i)}
+                <input
+                  type="tel"
+                  inputmode="numeric"
+                  maxlength="1"
+                  class="pin-digit"
+                  bind:this={linkInputs[i]}
+                  oninput={(e) => handleDigitInput(linkDigits, i, e, linkInputs, autoSubmitLink)}
+                  onkeydown={(e) => handleDigitKeydown(linkDigits, i, e, linkInputs)}
+                  onpaste={(e) => handleDigitPaste(linkDigits, e, linkInputs, autoSubmitLink)}
+                  disabled={retryCountdown > 0}
+                />
+              {/each}
+            </div>
           </div>
         {/if}
       </div>

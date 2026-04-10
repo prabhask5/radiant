@@ -21,7 +21,6 @@
     accountsStore,
     enrollmentsStore,
     transactionsStore,
-    balanceSnapshotsStore,
     preloadAllStores
   } from '$lib/stores/data';
   import { isDemoMode, showDemoBlocked } from 'stellar-drive/demo';
@@ -338,10 +337,12 @@
   /**
    * Per-account stats:
    * - Credit accounts: utilization % (balance owed / credit limit)
-   * - All other accounts: net transaction flow this month vs last month (% change)
+   * - All other accounts: % change vs balance one month ago, derived from
+   *   transactions (currentBalance − sum of transactions in the last month).
+   *   Works instantly for all accounts — no snapshot required.
    */
   const acctStats = $derived.by(() => {
-    const snapshots = $balanceSnapshotsStore ?? [];
+    const txns = $transactionsStore ?? [];
     const today = new Date();
     const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
     const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}-${String(lastMonthDate.getDate()).padStart(2, '0')}`;
@@ -363,17 +364,22 @@
         const utilization = limit > 0 ? Math.min((owed / limit) * 100, 100) : null;
         map.set(acct.id, { utilization, pctChange: null });
       } else {
-        // Balance-based % change: compare today's live balance to the snapshot
-        // from the same calendar day one month ago.
-        const snap = snapshots.find(
-          (s) => s.account_id === acct.id && s.snapshot_date === lastMonthStr
-        );
-        let pctChange: number | null = null;
-        if (snap) {
-          const current = parseFloat(acct.balance_available ?? acct.balance_ledger ?? '0') || 0;
-          const prior = parseFloat(snap.balance) || 0;
-          pctChange = prior !== 0 ? ((current - prior) / Math.abs(prior)) * 100 : null;
-        }
+        // Transaction-based % change: use pure transaction sums for both sides
+        // so that manual_balance_override display values don't skew the metric.
+        //   currentTxnBalance = sum(all non-excluded transactions)
+        //   priorTxnBalance   = sum(non-excluded transactions with date < lastMonthStr)
+        //   pctChange         = monthTxnSum / |priorTxnBalance| * 100
+        const acctTxns = txns.filter((t) => t.account_id === acct.id && !t.is_excluded);
+
+        const currentTxnBalance = acctTxns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+        const monthTxnSum = acctTxns
+          .filter((t) => t.date >= lastMonthStr)
+          .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+        const priorTxnBalance = currentTxnBalance - monthTxnSum;
+
+        const pctChange =
+          priorTxnBalance !== 0 ? (monthTxnSum / Math.abs(priorTxnBalance)) * 100 : null;
+
         map.set(acct.id, { utilization: null, pctChange });
       }
     }

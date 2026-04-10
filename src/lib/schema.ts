@@ -194,38 +194,5 @@ export const schema: SchemaDefinition = {
       last_detected_date: 'string?',
       next_date: 'string?'
     }
-  },
-
-  /* ═══════════════════════════════════════════════════════════════════════
-     ACCOUNT BALANCE SNAPSHOTS — Daily balance history for non-CC accounts
-     ═══════════════════════════════════════════════════════════════════════
-
-     Stores one balance snapshot per non-credit account per day. Written
-     on every background sync. A 35-day rolling window is enforced at
-     write time so storage stays O(1) per account regardless of history
-     length.
-
-     Used to compute the "% change vs same day last month" stat shown on
-     the accounts page. Comparing today's live balance to the snapshot from
-     exactly one month ago gives a balance-based percentage, not a
-     cash-flow-based one.
-
-     Relationships:
-       - Many snapshots → one `accounts` (via `account_id`)
-
-     Indexes:
-       - `account_id` — look up all snapshots for a given account
-       - `snapshot_date` — range-query by date
-       - `[account_id+snapshot_date]` — efficient point lookup
-     ═══════════════════════════════════════════════════════════════════════ */
-  account_balance_snapshots: {
-    indexes: 'account_id, snapshot_date, [account_id+snapshot_date]',
-    ownership: { parent: 'accounts', fk: 'account_id' },
-    fields: {
-      account_id: 'uuid',
-      snapshot_date: 'date',
-      balance: 'string'
-    },
-    uniqueConstraints: [{ columns: ['account_id', 'snapshot_date'] }]
   }
 };

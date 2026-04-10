@@ -29,8 +29,7 @@ import type {
   Transaction,
   Category,
   TellerEnrollment,
-  RecurringTransaction,
-  AccountBalanceSnapshot
+  RecurringTransaction
 } from '$lib/types';
 
 /* ── ML Sync (debounced triggers) ── */
@@ -691,100 +690,6 @@ function createRecurringTransactionsStore() {
 export const recurringTransactionsStore = createRecurringTransactionsStore();
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ACCOUNT BALANCE SNAPSHOTS STORE
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/** Reactive store of all {@link AccountBalanceSnapshot} rows. */
-export const balanceSnapshotsStore = createCollectionStore<AccountBalanceSnapshot>({
-  load: async () => {
-    const all = await engineGetAll('account_balance_snapshots');
-    return all.filter((r) => !r.deleted) as unknown as AccountBalanceSnapshot[];
-  }
-});
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/** Date string of the last completed snapshot run. Resets on page reload. */
-let lastSnapshotDate = '';
-
-/**
- * Upsert today's balance snapshot for every non-credit account and
- * delete snapshots older than 35 days (rolling window → O(1) per account).
- *
- * Runs at most once per calendar day per session. Skips if accounts
- * haven't loaded yet (the next sync call will succeed once they have).
- */
-export async function snapshotCurrentBalances(accounts: Account[]): Promise<void> {
-  const today = new Date();
-  const todayStr = toDateStr(today);
-
-  // Once-per-day guard — no-op after first successful run each day.
-  // Don't mark done if accounts haven't loaded yet; next sync will retry.
-  if (lastSnapshotDate === todayStr) return;
-  if (accounts.length === 0) return;
-
-  const cutoff = new Date(today);
-  cutoff.setDate(cutoff.getDate() - 35);
-  const cutoffStr = toDateStr(cutoff);
-
-  const all = (await engineGetAll(
-    'account_balance_snapshots'
-  )) as unknown as AccountBalanceSnapshot[];
-  const existing = all.filter((s) => !s.deleted);
-
-  const existingMap = new Map<string, AccountBalanceSnapshot>();
-  for (const s of existing) {
-    existingMap.set(`${s.account_id}|${s.snapshot_date}`, s);
-  }
-
-  const ops: BatchOperation[] = [];
-
-  for (const acct of accounts) {
-    if (acct.type === 'credit') continue;
-    const balance = acct.balance_available ?? acct.balance_ledger ?? '0';
-    const key = `${acct.id}|${todayStr}`;
-    const snap = existingMap.get(key);
-
-    if (snap) {
-      if (snap.balance !== balance) {
-        ops.push({
-          type: 'update',
-          table: 'account_balance_snapshots',
-          id: snap.id,
-          fields: { balance }
-        });
-        remoteChangesStore.recordLocalChange(snap.id, 'account_balance_snapshots', 'update');
-      }
-    } else {
-      const id = generateId();
-      remoteChangesStore.recordLocalChange(id, 'account_balance_snapshots', 'create');
-      ops.push({
-        type: 'create',
-        table: 'account_balance_snapshots',
-        data: { id, account_id: acct.id, snapshot_date: todayStr, balance }
-      });
-    }
-  }
-
-  for (const s of existing) {
-    if (s.snapshot_date < cutoffStr) {
-      await remoteChangesStore.markPendingDelete(s.id, 'account_balance_snapshots');
-      ops.push({ type: 'delete', table: 'account_balance_snapshots', id: s.id });
-    }
-  }
-
-  if (ops.length > 0) {
-    await engineBatchWrite(ops);
-    await balanceSnapshotsStore.load();
-    debug('log', '[SNAPSHOT] Balance snapshots written:', ops.length);
-  }
-
-  lastSnapshotDate = todayStr;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
    CENTRALIZED PRELOAD + BACKGROUND SYNC
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -804,8 +709,7 @@ export function preloadAllStores(): Promise<void> {
     transactionsStore.load(),
     categoriesStore.load(),
     enrollmentsStore.load(),
-    recurringTransactionsStore.load(),
-    balanceSnapshotsStore.load()
+    recurringTransactionsStore.load()
   ]).then(() => {});
   return preloadPromise;
 }
@@ -864,7 +768,6 @@ export async function startBackgroundSync(
       // Reload local stores after Teller completes so balance-only account
       // updates are visible even when no new transactions were inserted.
       await Promise.all([transactionsStore.load(), accountsStore.load()]);
-      await snapshotCurrentBalances(get(accountsStore) ?? []);
       if (newTellerCount > 0) {
         debug('log', `[SYNC] Teller: ${newTellerCount} new transactions loaded`);
       } else {
