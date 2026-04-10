@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "postgres": "^3.4.0",
-    "stellar-drive": "^1.2.24"
+    "stellar-drive": "^1.2.26"
   },
   "type": "module"
 }

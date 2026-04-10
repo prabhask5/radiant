@@ -54,6 +54,17 @@
   /** Triggers the CSS shake animation on the login card */
   let shaking = $state(false);
 
+  /** Pulsed true for one tick when lockout ends — $effect uses this to focus the first PIN input */
+  let lockoutEnded = $state(false);
+
+  $effect(() => {
+    if (lockoutEnded) {
+      lockoutEnded = false;
+      if (deviceLinked) unlockInputs[0]?.focus();
+      else if (linkMode) linkInputs[0]?.focus();
+    }
+  });
+
   /** Set to `true` after the component mounts — enables entrance animation */
   let mounted = $state(false);
 
@@ -357,8 +368,8 @@
    * @param ms - The `retryAfterMs` value from the server response
    */
   function startRetryCountdown(ms: number) {
-    retryCountdown = Math.ceil(ms / 1000);
     if (retryTimer) clearInterval(retryTimer);
+    retryCountdown = Math.ceil(ms / 1000);
     retryTimer = setInterval(() => {
       retryCountdown--;
       if (retryCountdown <= 0) {
@@ -368,9 +379,7 @@
           clearInterval(retryTimer);
           retryTimer = null;
         }
-        setTimeout(() => {
-          unlockInputs[0]?.focus();
-        }, 50);
+        lockoutEnded = true;
       }
     }, 1000);
   }
