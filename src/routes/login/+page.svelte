@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/stores';
   import {
@@ -367,6 +368,9 @@
           clearInterval(retryTimer);
           retryTimer = null;
         }
+        tick().then(() => {
+          unlockInputs[0]?.focus();
+        });
       }
     }, 1000);
   }
@@ -663,12 +667,19 @@
         error = result.error;
         if (result.retryAfterMs) {
           startRetryCountdown(result.retryAfterMs);
+        } else {
+          setTimeout(() => {
+            if (retryCountdown === 0) error = null;
+          }, 2500);
         }
         shaking = true;
         setTimeout(() => {
           shaking = false;
         }, 500);
         unlockDigits = ['', '', '', '', '', ''];
+        unlockInputs.forEach((inp) => {
+          if (inp) inp.value = '';
+        });
         loading = false;
         await tick();
         if (unlockInputs[0]) unlockInputs[0].focus();
@@ -688,11 +699,17 @@
       return;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : 'Incorrect code';
+      setTimeout(() => {
+        if (retryCountdown === 0) error = null;
+      }, 2500);
       shaking = true;
       setTimeout(() => {
         shaking = false;
       }, 500);
       unlockDigits = ['', '', '', '', '', ''];
+      unlockInputs.forEach((inp) => {
+        if (inp) inp.value = '';
+      });
     }
     loading = false;
     if (error) {
@@ -736,12 +753,19 @@
         error = result.error;
         if (result.retryAfterMs) {
           startRetryCountdown(result.retryAfterMs);
+        } else {
+          setTimeout(() => {
+            if (retryCountdown === 0) error = null;
+          }, 2500);
         }
         shaking = true;
         setTimeout(() => {
           shaking = false;
         }, 500);
         linkDigits = Array(remoteUser.codeLength).fill('');
+        linkInputs.forEach((inp) => {
+          if (inp) inp.value = '';
+        });
         linkLoading = false;
         await tick();
         if (linkInputs[0]) linkInputs[0].focus();
@@ -760,11 +784,17 @@
       return;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : 'Incorrect code';
+      setTimeout(() => {
+        if (retryCountdown === 0) error = null;
+      }, 2500);
       shaking = true;
       setTimeout(() => {
         shaking = false;
       }, 500);
       linkDigits = Array(remoteUser.codeLength).fill('');
+      linkInputs.forEach((inp) => {
+        if (inp) inp.value = '';
+      });
     }
     linkLoading = false;
     if (error) {
@@ -1042,29 +1072,6 @@
           </div>
         </div>
 
-        {#if error}
-          <p class="error-msg">{error}</p>
-        {/if}
-
-        {#if retryCountdown > 0}
-          <div class="lockout-row">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.75"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            <span>Locked · try again in {formatCountdown(retryCountdown)}</span>
-          </div>
-        {/if}
-
         {#if loading}
           <div class="unlock-loading">
             <span class="spinner"></span>
@@ -1113,29 +1120,6 @@
           </div>
         </div>
 
-        {#if error}
-          <p class="error-msg">{error}</p>
-        {/if}
-
-        {#if retryCountdown > 0}
-          <div class="lockout-row">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.75"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            <span>Locked · try again in {formatCountdown(retryCountdown)}</span>
-          </div>
-        {/if}
-
         {#if linkLoading}
           <div class="unlock-loading">
             <span class="spinner"></span>
@@ -1143,6 +1127,44 @@
           </div>
         {/if}
       </div>
+    </div>
+  {/if}
+
+  <!-- Bottom Status Banner -->
+  {#if retryCountdown > 0}
+    <div class="bottom-banner lockout" transition:fade={{ duration: 250 }}>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+      <span>Locked · try again in {formatCountdown(retryCountdown)}</span>
+    </div>
+  {:else if error}
+    <div class="bottom-banner error-banner" transition:fade={{ duration: 250 }}>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <span>{error}</span>
     </div>
   {/if}
 </div>
@@ -1975,29 +1997,6 @@
     border: 1px solid rgba(251, 113, 133, 0.12);
   }
 
-  .lockout-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border-radius: 100px;
-    background: rgba(232, 185, 74, 0.08);
-    border: 1px solid rgba(232, 185, 74, 0.2);
-    color: var(--login-gem-primary);
-    font-size: 0.8125rem;
-    font-family: var(
-      --font-body,
-      'SF Pro Text',
-      -apple-system,
-      BlinkMacSystemFont,
-      'Segoe UI',
-      system-ui,
-      sans-serif
-    );
-    margin: 4px 0 0;
-  }
-
   .unlock-loading {
     display: flex;
     align-items: center;
@@ -2392,5 +2391,49 @@
     .card-icon {
       animation: none;
     }
+  }
+
+  /* ================================================================= */
+  /*                     BOTTOM STATUS BANNER                          */
+  /* ================================================================= */
+
+  .bottom-banner {
+    position: fixed;
+    bottom: max(32px, calc(env(safe-area-inset-bottom) + 20px));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border-radius: 100px;
+    font-size: 0.8125rem;
+    font-family: var(
+      --font-body,
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      system-ui,
+      sans-serif
+    );
+    font-weight: 600;
+    white-space: nowrap;
+    backdrop-filter: blur(16px);
+    z-index: 200;
+  }
+
+  .bottom-banner.error-banner {
+    background: rgba(251, 113, 133, 0.12);
+    color: var(--login-error, #fb7185);
+    border: 1px solid rgba(251, 113, 133, 0.22);
+    box-shadow: 0 4px 20px rgba(251, 113, 133, 0.1);
+  }
+
+  .bottom-banner.lockout {
+    background: rgba(232, 185, 74, 0.1);
+    color: var(--login-gem-primary, #e8b94a);
+    border: 1px solid rgba(232, 185, 74, 0.25);
+    box-shadow: 0 4px 20px rgba(232, 185, 74, 0.08);
   }
 </style>
