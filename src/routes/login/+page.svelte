@@ -19,7 +19,8 @@
     completeDeviceVerification,
     pollDeviceVerification,
     fetchRemoteGateConfig,
-    linkSingleUserDevice
+    linkSingleUserDevice,
+    checkPersistentLockout
   } from 'stellar-drive/auth';
   import { sendDeviceVerification } from 'stellar-drive/auth';
   import { isDemoMode } from 'stellar-drive/demo';
@@ -229,6 +230,12 @@
     /* ── Initial resolution complete — show the appropriate card ──── */
     resolving = false;
 
+    /* ── Check for a persistent PIN lockout from a previous session ──── */
+    const lockoutMs = await checkPersistentLockout();
+    if (lockoutMs > 0) {
+      startRetryCountdown(lockoutMs);
+    }
+
     /* ── Listen for auth confirmation from the `/confirm` page ──── */
     try {
       authChannel = new BroadcastChannel('radiant-auth-channel');
@@ -362,6 +369,19 @@
         }
       }
     }, 1000);
+  }
+
+  /**
+   * Format a countdown in seconds as a human-readable string.
+   * e.g. 45 → "45s", 125 → "2m 5s", 3661 → "1h 1m"
+   */
+  function formatCountdown(totalSeconds: number): string {
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    if (h > 0) return s > 0 ? `${h}h ${m}m ${s}s` : `${h}h ${m}m`;
+    return `${m}m ${s}s`;
   }
 
   // =============================================================================
@@ -1027,7 +1047,22 @@
         {/if}
 
         {#if retryCountdown > 0}
-          <p class="countdown-msg">Try again in {retryCountdown}s</p>
+          <div class="lockout-row">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Locked · try again in {formatCountdown(retryCountdown)}</span>
+          </div>
         {/if}
 
         {#if loading}
@@ -1083,7 +1118,22 @@
         {/if}
 
         {#if retryCountdown > 0}
-          <p class="countdown-msg">Try again in {retryCountdown}s</p>
+          <div class="lockout-row">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Locked · try again in {formatCountdown(retryCountdown)}</span>
+          </div>
         {/if}
 
         {#if linkLoading}
@@ -1925,7 +1975,17 @@
     border: 1px solid rgba(251, 113, 133, 0.12);
   }
 
-  .countdown-msg {
+  .lockout-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 100px;
+    background: rgba(232, 185, 74, 0.08);
+    border: 1px solid rgba(232, 185, 74, 0.2);
+    color: var(--login-gem-primary);
+    font-size: 0.8125rem;
     font-family: var(
       --font-body,
       'SF Pro Text',
@@ -1935,9 +1995,6 @@
       system-ui,
       sans-serif
     );
-    font-size: 0.8125rem;
-    color: var(--login-text-muted);
-    text-align: center;
     margin: 4px 0 0;
   }
 

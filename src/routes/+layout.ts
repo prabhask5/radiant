@@ -102,8 +102,12 @@ if (browser) {
     onAuthStateChange: (event, session) => {
       debug('log', '[layout] onAuthStateChange:', event, session?.user?.email ?? '(no session)');
       if (event === 'SIGNED_IN' && session) {
-        if (!window.location.pathname.startsWith('/login')) {
-          goto(window.location.pathname, { invalidateAll: true });
+        const path = window.location.pathname;
+        /* Skip navigation on /login (handles its own flow) and /confirm
+           (verifyOtp fires SIGNED_IN inside the confirm tab — navigating
+           away would interrupt the broadcast-then-close flow mid-flight). */
+        if (!path.startsWith('/login') && !path.startsWith('/confirm')) {
+          goto(path, { invalidateAll: true });
         }
       }
     },

@@ -40,7 +40,10 @@
       }
 
       status = 'success';
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      /* Hand off immediately — broadcastAuthConfirmed has a 500 ms internal
+         delay before attempting window.close(), so the user briefly sees the
+         "success" state.  Skip the extra 800 ms delay: it creates a race
+         window where the SIGNED_IN auth-state change can interrupt the flow. */
     }
 
     const tabResult = await broadcastAuthConfirmed(CHANNEL_NAME, type || 'signup');
