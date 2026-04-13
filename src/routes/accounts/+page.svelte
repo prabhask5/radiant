@@ -364,21 +364,28 @@
         const utilization = limit > 0 ? Math.min((owed / limit) * 100, 100) : null;
         map.set(acct.id, { utilization, pctChange: null });
       } else {
-        // Transaction-based % change: use pure transaction sums for both sides
-        // so that manual_balance_override display values don't skew the metric.
-        //   currentTxnBalance = sum(all non-excluded transactions)
-        //   priorTxnBalance   = sum(non-excluded transactions with date < lastMonthStr)
-        //   pctChange         = monthTxnSum / |priorTxnBalance| * 100
+        // Balance-anchored % change: use the real posted balance (balance_ledger)
+        // as the current anchor, then reconstruct what it was a month ago by
+        // subtracting the net of posted transactions since lastMonthStr.
+        // Pending transactions are excluded so they don't distort the prior
+        // balance estimate (pending credits/debits haven't cleared yet).
+        //   currentBalance = balance_ledger (posted balance from bank)
+        //   monthTxnNet    = sum(posted, non-excluded transactions >= lastMonthStr)
+        //   priorBalance   = currentBalance - monthTxnNet
+        //   pctChange      = monthTxnNet / |priorBalance| * 100
+        const currentBalance = parseFloat(acct.balance_ledger ?? '0') || 0;
+        if (!acct.balance_ledger) {
+          map.set(acct.id, { utilization: null, pctChange: null });
+          continue;
+        }
+
         const acctTxns = txns.filter((t) => t.account_id === acct.id && !t.is_excluded);
-
-        const currentTxnBalance = acctTxns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
-        const monthTxnSum = acctTxns
-          .filter((t) => t.date >= lastMonthStr)
+        const monthTxnNet = acctTxns
+          .filter((t) => t.date >= lastMonthStr && t.status === 'posted')
           .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
-        const priorTxnBalance = currentTxnBalance - monthTxnSum;
+        const priorBalance = currentBalance - monthTxnNet;
 
-        const pctChange =
-          priorTxnBalance !== 0 ? (monthTxnSum / Math.abs(priorTxnBalance)) * 100 : null;
+        const pctChange = priorBalance !== 0 ? (monthTxnNet / Math.abs(priorBalance)) * 100 : null;
 
         map.set(acct.id, { utilization: null, pctChange });
       }

@@ -170,18 +170,20 @@
     if (nav.from?.url.pathname !== nav.to?.url.pathname) {
       document.body.scrollTop = 0;
     }
+    // Kick off Teller + ML sync on every page navigation (including initial load).
+    // autoSyncEnrollments has its own mutex so concurrent calls are safe.
+    if (data.authMode !== 'none') {
+      startBackgroundSync((count) => {
+        addToast(`Synced ${count} new transaction${count !== 1 ? 's' : ''}`, 'sapphire');
+      });
+    }
   });
 
   // Load local data (IndexedDB) before showing pages — fast, no network.
-  // Then immediately kick off Teller + ML sync in the background.
   $effect(() => {
     if (data.authMode !== 'none') {
       initializeApp().then(() => {
         dataReady = true;
-        // Fire background sync immediately — doesn't block page render
-        startBackgroundSync((count) => {
-          addToast(`Synced ${count} new transaction${count !== 1 ? 's' : ''}`, 'sapphire');
-        });
       });
     }
   });

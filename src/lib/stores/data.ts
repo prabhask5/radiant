@@ -732,8 +732,6 @@ export function initializeApp(): Promise<void> {
   return initPromise;
 }
 
-let backgroundSyncStarted = false;
-
 /**
  * Start Teller sync + ML processing in the background. Fires immediately
  * after `initializeApp()` resolves (no artificial delay) but does NOT
@@ -751,9 +749,6 @@ let backgroundSyncStarted = false;
 export async function startBackgroundSync(
   onNewTransactions?: (count: number) => void
 ): Promise<void> {
-  if (backgroundSyncStarted) return;
-  backgroundSyncStarted = true;
-
   // Wait for local data to be loaded first
   await initializeApp();
 
