@@ -364,20 +364,21 @@
         const utilization = limit > 0 ? Math.min((owed / limit) * 100, 100) : null;
         map.set(acct.id, { utilization, pctChange: null });
       } else {
-        // Balance-anchored % change: use the real posted balance (balance_ledger)
-        // as the current anchor, then reconstruct what it was a month ago by
-        // subtracting the net of posted transactions since lastMonthStr.
+        // Balance-anchored % change: use the displayed balance as the current anchor,
+        // then reconstruct what it was a month ago by subtracting the net of posted
+        // transactions since lastMonthStr. Matches the balance shown in the UI.
         // Pending transactions are excluded so they don't distort the prior
         // balance estimate (pending credits/debits haven't cleared yet).
-        //   currentBalance = balance_ledger (posted balance from bank)
+        //   currentBalance = balance_available ?? balance_ledger (same as display)
         //   monthTxnNet    = sum(posted, non-excluded transactions >= lastMonthStr)
         //   priorBalance   = currentBalance - monthTxnNet
         //   pctChange      = monthTxnNet / |priorBalance| * 100
-        const currentBalance = parseFloat(acct.balance_ledger ?? '0') || 0;
-        if (!acct.balance_ledger) {
+        const displayBalance = acct.balance_available ?? acct.balance_ledger;
+        if (!displayBalance) {
           map.set(acct.id, { utilization: null, pctChange: null });
           continue;
         }
+        const currentBalance = parseFloat(displayBalance) || 0;
 
         const acctTxns = txns.filter((t) => t.account_id === acct.id && !t.is_excluded);
         const monthTxnNet = acctTxns
@@ -718,10 +719,9 @@
     showFeedback('success', `Reconnected to ${enrollment.enrollment.institution.name}. Syncing...`);
 
     try {
-      // Swap in the fresh access token (status cleared to 'connected' after sync)
-      await enrollmentsStore.updateAccessToken(localEnrollmentId, enrollment.accessToken);
-
-      // Fetch fresh data with the new token
+      // Fetch fresh data with the new token before committing it to the DB.
+      // Token is only saved after sync succeeds — if sync fails, the enrollment
+      // keeps its old (expired) token and the user can try reconnecting again.
       const response = await fetch('/api/teller/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -736,7 +736,8 @@
       const rawData = await response.json();
       const syncResult = await processTellerSyncData(rawData, localEnrollmentId);
 
-      // Flip status back to 'connected' now that sync succeeded
+      // Sync succeeded — now commit the new token and flip status to 'connected'
+      await enrollmentsStore.updateAccessToken(localEnrollmentId, enrollment.accessToken);
       await enrollmentsStore.updateStatus(localEnrollmentId, 'connected');
 
       await Promise.all([
@@ -790,7 +791,7 @@
         institution_name: enrollment.enrollment.institution.name,
         institution_id: '',
         access_token: enrollment.accessToken,
-        status: 'connected',
+        status: 'syncing',
         last_synced_at: null,
         error_message: null
       });
@@ -817,10 +818,14 @@
         transactions: rawData.transactions?.length ?? 0
       });
 
-      // Process data client-side: IndexedDB + sync queue (offline-first)
-      const syncResult = await processTellerSyncData(rawData, localEnrollmentId);
+      // Process data client-side: IndexedDB + sync queue (offline-first).
+      // isInitialSync: true — restores any soft-deleted tombstones from a prior
+      // disconnect so the user gets full history even if re-adding within 7 days.
+      const syncResult = await processTellerSyncData(rawData, localEnrollmentId, {
+        isInitialSync: true
+      });
 
-      // Update enrollment last_synced_at
+      // Flip status to 'connected' now that sync succeeded
       await enrollmentsStore.updateStatus(localEnrollmentId, 'connected');
 
       // Refresh stores to pick up new data
@@ -943,6 +948,24 @@
     disconnecting = true;
     debug('log', '[ACCOUNTS] disconnectEnrollment —', enrollmentId);
     try {
+      // Revoke on Teller's side first so webhooks stop firing for this enrollment
+      const enrollment = enrollments.find((e) => e.id === enrollmentId);
+      if (enrollment?.access_token && enrollment?.enrollment_id) {
+        try {
+          await fetch('/api/teller/enrollment', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              accessToken: enrollment.access_token,
+              enrollmentId: enrollment.enrollment_id
+            })
+          });
+        } catch (err) {
+          // Non-fatal — proceed with local removal even if Teller revocation fails
+          debug('warn', '[ACCOUNTS] Teller enrollment revocation failed (non-fatal):', err);
+        }
+      }
+
       // Cascade: delete all accounts (and their transactions) for this enrollment
       const enrollmentAccounts = accounts.filter((a) => a.enrollment_id === enrollmentId);
       debug(

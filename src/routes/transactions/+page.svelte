@@ -153,6 +153,10 @@
 
     return allTransactions
       .filter((t) => {
+        // Hide user-deleted Teller transactions (permanently excluded, kept as
+        // "do not re-import" markers — never shown in the UI)
+        if (t.user_deleted) return false;
+
         // Date range
         if (t.date < rangeStart || t.date > rangeEnd) return false;
 

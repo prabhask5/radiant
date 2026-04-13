@@ -26,6 +26,7 @@ import { remoteChangesStore } from 'stellar-drive/stores';
 import { debug } from 'stellar-drive/utils';
 import { isDemoMode } from 'stellar-drive/demo';
 import type { Account, TellerEnrollment } from '$lib/types';
+import { getTellerTxnUpdateFields } from '$lib/teller/fields';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS & MUTEX
@@ -47,7 +48,7 @@ let autoSyncInProgress: Promise<number> | null = null;
    PROCESS TELLER SYNC DATA
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** Shape of Teller-managed fields we track for change detection. */
+/** Local transaction record shape for dedup checks (extends shared TellerTxnFields). */
 interface LocalTellerTxn {
   id: string;
   status: string;
@@ -59,6 +60,8 @@ interface LocalTellerTxn {
   type: string | null;
   running_balance: string | null;
   deleted?: boolean;
+  user_deleted?: boolean;
+  account_id?: string;
 }
 
 /** Teller-managed account fields we track for change detection. */
@@ -96,49 +99,16 @@ async function getFreshTellerTxnMap(): Promise<Map<string, LocalTellerTxn>> {
         teller_category: (t.teller_category as string | null) ?? null,
         type: (t.type as string | null) ?? null,
         running_balance: (t.running_balance as string | null) ?? null,
-        deleted: t.deleted as boolean | undefined
+        deleted: t.deleted as boolean | undefined,
+        user_deleted: t.user_deleted as boolean | undefined,
+        account_id: t.account_id as string | undefined
       });
     }
   }
   return map;
 }
 
-/**
- * Build an update fields object for Teller-managed properties that changed.
- * Returns null if nothing changed (avoids unnecessary writes).
- * Never touches user-editable fields (category_id, notes, is_excluded, etc.).
- */
-function getTellerUpdateFields(
-  local: LocalTellerTxn,
-  tellerTxn: Record<string, unknown>
-): Record<string, unknown> | null {
-  const details = tellerTxn.details as
-    | { counterparty?: { name?: string; type?: string }; category?: string }
-    | undefined;
-
-  const incoming = {
-    amount: tellerTxn.amount as string,
-    status: tellerTxn.status as string,
-    description: tellerTxn.description as string,
-    running_balance: ((tellerTxn.running_balance as string) ?? null) as string | null,
-    counterparty_name: (details?.counterparty?.name ?? null) as string | null,
-    counterparty_type: (details?.counterparty?.type ?? null) as string | null,
-    teller_category: (details?.category ?? null) as string | null,
-    type: ((tellerTxn.type as string) ?? null) as string | null
-  };
-
-  const changed: Record<string, unknown> = {};
-  let hasChanges = false;
-
-  for (const key of Object.keys(incoming) as Array<keyof typeof incoming>) {
-    if (incoming[key] !== local[key]) {
-      changed[key] = incoming[key];
-      hasChanges = true;
-    }
-  }
-
-  return hasChanges ? changed : null;
-}
+// getTellerTxnUpdateFields is imported from '$lib/teller/fields' — shared with webhook server
 
 /**
  * Build an update fields object for Teller-managed account properties that changed.
@@ -204,16 +174,25 @@ export function processTellerSyncData(
     accounts: Array<Record<string, unknown>>;
     transactions: Array<Record<string, unknown>>;
   },
-  localEnrollmentId: string
+  localEnrollmentId: string,
+  options?: {
+    /**
+     * When true (enrollment creation / forced re-import), soft-deleted transactions
+     * are restored instead of skipped. This allows a bank to be re-added within the
+     * tombstone TTL window (default 10 years for Radiant) without losing history.
+     * In normal auto-sync this must be false so user-deleted transactions stay gone.
+     */
+    isInitialSync?: boolean;
+  }
 ): Promise<TellerSyncResult> {
   // If a sync is already in progress, wait for it then run ours
   if (syncInProgress) {
     return (syncInProgress as Promise<unknown>).then(() =>
-      processTellerSyncDataInternal(rawData, localEnrollmentId)
+      processTellerSyncDataInternal(rawData, localEnrollmentId, options)
     ) as Promise<TellerSyncResult>;
   }
 
-  const task = processTellerSyncDataInternal(rawData, localEnrollmentId);
+  const task = processTellerSyncDataInternal(rawData, localEnrollmentId, options);
   syncInProgress = task as unknown as Promise<number>;
   task.finally(() => {
     syncInProgress = null;
@@ -226,8 +205,10 @@ async function processTellerSyncDataInternal(
     accounts: Array<Record<string, unknown>>;
     transactions: Array<Record<string, unknown>>;
   },
-  localEnrollmentId: string
+  localEnrollmentId: string,
+  options?: { isInitialSync?: boolean }
 ): Promise<TellerSyncResult> {
+  const isInitialSync = options?.isInitialSync ?? false;
   debug('log', '[TELLER-SYNC] processTellerSyncData — enrollmentId:', localEnrollmentId);
 
   // Build local lookup maps from IndexedDB
@@ -296,6 +277,7 @@ async function processTellerSyncDataInternal(
   }> = [];
   let skippedExisting = 0;
   let updatedCount = 0;
+  let newTxnCount = 0;
 
   for (const tellerTxn of rawData.transactions) {
     const tellerTxnId = tellerTxn.id as string;
@@ -306,9 +288,32 @@ async function processTellerSyncDataInternal(
     const existing = existingTxnMap.get(tellerTxnId);
 
     if (existing) {
-      if (existing.deleted) {
-        // User explicitly deleted — respect their decision
+      if (existing.user_deleted) {
+        // User explicitly deleted this transaction — never re-import, even on
+        // initial enrollment sync. The record persists as a permanent "do not
+        // re-import" marker (no tombstone TTL).
         skippedExisting++;
+        continue;
+      }
+
+      if (existing.deleted) {
+        if (isInitialSync) {
+          // Initial enrollment sync: restore the tombstone (cascade-deleted when
+          // enrollment was disconnected). Flips deleted: false and refreshes Teller
+          // fields — no new record created, existing UUID is reused.
+          const updateFields = getTellerTxnUpdateFields(existing, tellerTxn) ?? {};
+          ops.push({
+            type: 'update',
+            table: 'transactions',
+            id: existing.id,
+            fields: { ...updateFields, deleted: false, account_id: accountId }
+          });
+          remoteChangesStore.recordLocalChange(existing.id, 'transactions', 'update');
+          newTxnCount++; // counts as new from the user's perspective
+        } else {
+          // Normal auto-sync: respect the tombstone.
+          skippedExisting++;
+        }
         continue;
       }
 
@@ -316,7 +321,7 @@ async function processTellerSyncDataInternal(
       // This covers: pending→posted, pending amount/description changes
       // (e.g. restaurant tip, gas pre-auth), description enrichment, etc.
       // Posted transactions are immutable in Teller so this is a no-op for them.
-      const updateFields = getTellerUpdateFields(existing, tellerTxn);
+      const updateFields = getTellerTxnUpdateFields(existing, tellerTxn);
       if (updateFields) {
         ops.push({
           type: 'update',
@@ -337,7 +342,6 @@ async function processTellerSyncDataInternal(
 
   // Second freshness check: re-read IndexedDB right before writing to catch
   // any transactions that arrived via webhook/realtime during the Teller fetch
-  let newTxnCount = 0;
   if (candidateTxns.length > 0) {
     const freshMap = await getFreshTellerTxnMap();
     const trulyNew = candidateTxns.filter((c) => !freshMap.has(c.tellerTxnId));
@@ -525,17 +529,11 @@ async function autoSyncEnrollmentsInternal(
         // Success
         const rawData = await response.json();
         const result = await processTellerSyncData(rawData, enrollment.id);
-        const hasDataChanges =
-          result.newTransactions > 0 ||
-          result.updatedTransactions > 0 ||
-          result.newAccounts > 0 ||
-          result.updatedAccounts > 0;
         totalNew += result.newTransactions + result.updatedTransactions;
-        // Update last_synced_at only when data actually changed, or when
-        // clearing a prior non-connected status (e.g. error → connected).
-        if (hasDataChanges || enrollment.status !== 'connected') {
-          await updateStatus(enrollment.id, 'connected', true);
-        }
+        // Always update status + last_synced_at so:
+        //   - Error/disconnected state always clears after a successful sync (#7)
+        //   - last_synced_at always reflects when sync actually ran (#6)
+        await updateStatus(enrollment.id, 'connected', true);
         debug(
           'log',
           `[TELLER-SYNC] Auto-sync complete: ${enrollment.institution_name} — ${result.newTransactions} new, ${result.updatedTransactions} transaction updates, ${result.updatedAccounts} account updates`

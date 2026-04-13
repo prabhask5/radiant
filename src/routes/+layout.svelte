@@ -166,16 +166,21 @@
   // revalidation or tab/window focus, which SvelteKit can trigger afterNavigate for).
   // Must target document.body directly — html has overflow:hidden so window.scrollTo
   // targets document.documentElement which cannot scroll and is a guaranteed no-op.
+  const NAV_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+  const NAV_SYNC_KEY = 'radiant_last_nav_sync';
+
   afterNavigate((nav) => {
     if (nav.from?.url.pathname !== nav.to?.url.pathname) {
       document.body.scrollTop = 0;
     }
-    // Kick off Teller + ML sync on every page navigation (including initial load).
-    // autoSyncEnrollments has its own mutex so concurrent calls are safe.
     if (data.authMode !== 'none') {
-      startBackgroundSync((count) => {
-        addToast(`Synced ${count} new transaction${count !== 1 ? 's' : ''}`, 'sapphire');
-      });
+      const last = parseInt(localStorage.getItem(NAV_SYNC_KEY) ?? '0', 10);
+      if (Date.now() - last >= NAV_SYNC_INTERVAL_MS) {
+        localStorage.setItem(NAV_SYNC_KEY, String(Date.now()));
+        startBackgroundSync((count) => {
+          addToast(`Synced ${count} new transaction${count !== 1 ? 's' : ''}`, 'sapphire');
+        });
+      }
     }
   });
 

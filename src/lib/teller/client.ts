@@ -340,6 +340,23 @@ export async function deleteAccount(accessToken: string, accountId: string): Pro
   console.log(`[TELLER] Deleted account ${accountId} (status ${status})`);
 }
 
+/**
+ * Delete (revoke) a Teller enrollment, stopping all future webhook events.
+ *
+ * @param accessToken - The enrollment's access token.
+ * @param enrollmentId - The Teller enrollment ID (e.g., `enr_xxx`).
+ * @throws {TellerApiError} If the Teller API returns an unexpected non-2xx/204 response.
+ */
+export async function deleteEnrollment(accessToken: string, enrollmentId: string): Promise<void> {
+  console.log(`[TELLER] Deleting enrollment ${enrollmentId}`);
+  const { status } = await tellerRequest<void>(
+    `${TELLER_API_BASE}/enrollments/${enrollmentId}`,
+    accessToken,
+    'DELETE'
+  );
+  console.log(`[TELLER] Deleted enrollment ${enrollmentId} (status ${status})`);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    ERROR HANDLING
    ═══════════════════════════════════════════════════════════════════════════ */

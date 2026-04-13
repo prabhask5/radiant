@@ -35,6 +35,7 @@ import {
   getAccountBalances,
   TellerApiError
 } from '$lib/teller/client';
+import { getTellerTxnUpdateFields } from '$lib/teller/fields';
 import type { RequestHandler } from './$types';
 
 interface ExistingAccountRow {
@@ -207,6 +208,12 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
     return;
   }
 
+  if (enrollments.length > 1) {
+    console.log(
+      `[TELLER] WARNING: multiple enrollments found for ${payload.enrollment_id} — using first`
+    );
+  }
+
   const enrollment = enrollments[0];
   const { id: localEnrollmentId, user_id: userId, access_token: accessToken } = enrollment;
 
@@ -245,8 +252,10 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       (existingAccounts ?? []).map((a: ExistingAccountRow) => [a.teller_account_id, a])
     );
 
-    // Build account updates only for rows whose Teller-managed fields changed.
+    // Build account inserts (new) and updates (changed fields) for this enrollment.
+    const accountInserts: Record<string, unknown>[] = [];
     const accountUpdates: Array<{ id: string; fields: Record<string, unknown> }> = [];
+    let newAccountCount = 0;
     let updatedAccountCount = 0;
     for (const account of tellerAccounts) {
       let balances = { available: null as string | null, ledger: null as string | null };
@@ -258,11 +267,42 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
         );
       }
 
-      const id = acctIdMap.get(account.id) ?? crypto.randomUUID();
-      acctIdMap.set(account.id, id);
       const existing = existingAccountMap.get(account.id);
-      if (!existing) continue;
 
+      if (!existing) {
+        // New account Teller is reporting that we've never seen — create it.
+        // This can happen when a bank auto-opens a sub-account (e.g. linked savings).
+        const id = crypto.randomUUID();
+        acctIdMap.set(account.id, id);
+        accountInserts.push({
+          id,
+          user_id: userId,
+          enrollment_id: localEnrollmentId,
+          teller_account_id: account.id,
+          institution_name: account.institution.name,
+          name: account.name,
+          type: account.type,
+          subtype: account.subtype,
+          currency: account.currency ?? null,
+          last_four: account.last_four ?? null,
+          status: account.status,
+          balance_available: balances.available,
+          balance_ledger: balances.ledger,
+          balance_updated_at: timestamp,
+          source: 'teller',
+          is_hidden: false,
+          manual_balance_override: null,
+          manual_credit_limit: null,
+          created_at: timestamp,
+          updated_at: timestamp,
+          deleted: false,
+          _version: 1
+        });
+        newAccountCount++;
+        continue;
+      }
+
+      const id = acctIdMap.get(account.id)!;
       const updateFields = getWebhookAccountUpdateFields(
         existing,
         {
@@ -282,6 +322,15 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
       if (updateFields) {
         accountUpdates.push({ id, fields: updateFields });
         updatedAccountCount++;
+      }
+    }
+
+    if (accountInserts.length > 0) {
+      const { error: insertError } = await admin.from('accounts').insert(accountInserts);
+      if (insertError) {
+        console.log(`[TELLER] Webhook new account insert error: ${insertError.message}`);
+      } else {
+        console.log(`[TELLER] Webhook: created ${accountInserts.length} new account(s)`);
       }
     }
 
@@ -316,12 +365,13 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
     // Fetch all Teller-managed fields for change detection (not just status).
     const accountIds = [...acctIdMap.values()];
     const txnSelectFields =
-      'id, teller_transaction_id, deleted, status, amount, description, running_balance, counterparty_name, counterparty_type, teller_category, type';
+      'id, teller_transaction_id, deleted, user_deleted, status, amount, description, running_balance, counterparty_name, counterparty_type, teller_category, type';
 
     interface ExistingTxnRow {
       id: string;
       teller_transaction_id: string;
       deleted: boolean;
+      user_deleted: boolean;
       status: string;
       amount: string;
       description: string;
@@ -339,8 +389,11 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
         .select(txnSelectFields)
         .in('account_id', accountIds)
         .gte('date', bufferDate);
+      // #8: filter null teller_transaction_id to avoid null key collisions in the map
       txnIdMap = new Map(
-        (existingTxns ?? []).map((t: ExistingTxnRow) => [t.teller_transaction_id, t])
+        (existingTxns ?? [])
+          .filter((t: ExistingTxnRow) => t.teller_transaction_id)
+          .map((t: ExistingTxnRow) => [t.teller_transaction_id, t])
       );
     } else {
       const { data: existingTxns } = await admin
@@ -348,7 +401,9 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
         .select(txnSelectFields)
         .in('account_id', accountIds);
       txnIdMap = new Map(
-        (existingTxns ?? []).map((t: ExistingTxnRow) => [t.teller_transaction_id, t])
+        (existingTxns ?? [])
+          .filter((t: ExistingTxnRow) => t.teller_transaction_id)
+          .map((t: ExistingTxnRow) => [t.teller_transaction_id, t])
       );
     }
 
@@ -381,49 +436,37 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
         for (const txn of allTxns) {
           const existing = txnIdMap.get(txn.id);
 
+          if (existing?.user_deleted) {
+            // User explicitly deleted — permanent, never re-import
+            skippedExisting++;
+            continue;
+          }
+
           if (existing?.deleted) {
-            // User-deleted transaction — respect their decision
+            // Tombstoned (cascade delete from enrollment disconnect) — skip;
+            // will be restored on next enrollment creation sync (isInitialSync: true)
             skippedExisting++;
             continue;
           }
 
           if (existing) {
-            // Build update with only the fields that actually changed.
-            // Covers: pending→posted, pending amount/description changes
-            // (restaurant tips, gas pre-auths), description enrichment, etc.
-            // Never touches user-editable fields (category_id, notes, etc.).
-            const changed: Record<string, unknown> = {};
-            let hasChanges = false;
-            const incoming = {
-              amount: txn.amount,
-              status: txn.status,
-              description: txn.description,
-              running_balance: txn.running_balance ?? null,
-              counterparty_name: txn.details?.counterparty?.name || null,
-              counterparty_type: txn.details?.counterparty?.type || null,
-              teller_category: txn.details?.category || null,
-              type: txn.type ?? null
-            };
-            for (const [key, val] of Object.entries(incoming)) {
-              if (val !== existing[key as keyof ExistingTxnRow]) {
-                changed[key] = val;
-                hasChanges = true;
-              }
-            }
-
-            if (hasChanges) {
-              changed.id = existing.id;
-              changed.updated_at = timestamp;
-              updateRows.push(changed);
+            // Use shared field comparison utility (#14) — same logic as autoSync
+            const changed = getTellerTxnUpdateFields(
+              existing,
+              txn as unknown as Record<string, unknown>
+            );
+            if (changed) {
+              updateRows.push({ ...changed, id: existing.id, updated_at: timestamp });
             } else {
               skippedExisting++;
             }
             continue;
           }
 
-          // Truly new transaction — insert
+          // Truly new transaction — insert (#13: explicit user_id)
           insertRows.push({
             id: crypto.randomUUID(),
+            user_id: userId,
             account_id: accountId,
             teller_transaction_id: txn.id,
             amount: txn.amount,
@@ -436,6 +479,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
             type: txn.type,
             running_balance: txn.running_balance,
             is_excluded: false,
+            user_deleted: false,
             category_source: null,
             notes: null,
             created_at: timestamp,
@@ -493,7 +537,7 @@ async function handleTransactionsProcessed(payload: { enrollment_id: string }) {
     }
 
     console.log(
-      `[TELLER] Webhook sync complete: ${updatedAccountCount} account updates, ${insertRows.length} new transactions, ${updateRows.length} transaction updates, ${skippedExisting} skipped existing`
+      `[TELLER] Webhook sync complete: ${newAccountCount} new accounts, ${updatedAccountCount} account updates, ${insertRows.length} new transactions, ${updateRows.length} transaction updates, ${skippedExisting} skipped existing`
     );
   } catch (err) {
     if (err instanceof TellerApiError && err.status === 401) {

@@ -337,20 +337,40 @@ function createTransactionsStore() {
 
     async deleteTransaction(transactionId: string) {
       debug('log', '[DATA] transactions — deleteTransaction', { transactionId });
-      await remoteChangesStore.markPendingDelete(transactionId, 'transactions');
-      await engineDelete('transactions', transactionId);
+      const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
+      const txn = allTxns.find((t) => t.id === transactionId);
+      if (txn?.teller_transaction_id) {
+        // Teller-sourced: mark user_deleted permanently so autoSync never re-imports.
+        // We intentionally keep the record (no tombstone) — it acts as a permanent
+        // "do not re-import" marker. The record is hidden from the UI via user_deleted filter.
+        remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
+        await engineUpdate('transactions', transactionId, { user_deleted: true });
+      } else {
+        // Non-Teller (CSV import, manual): normal soft-delete tombstone.
+        await remoteChangesStore.markPendingDelete(transactionId, 'transactions');
+        await engineDelete('transactions', transactionId);
+      }
       await store.load();
       debug('log', '[DATA] transactions — deleteTransaction complete', { transactionId });
     },
     async bulkDelete(ids: string[]) {
       debug('log', '[DATA] transactions — bulkDelete', { count: ids.length });
-      await Promise.all(ids.map((id) => remoteChangesStore.markPendingDelete(id, 'transactions')));
-      const ops: BatchOperation[] = ids.map((id) => ({
-        type: 'delete' as const,
-        table: 'transactions',
-        id
-      }));
-      await engineBatchWrite(ops);
+      const allTxns = (await engineGetAll('transactions')) as unknown as Transaction[];
+      const txnMap = new Map(allTxns.map((t) => [t.id, t]));
+
+      const tellerIds = ids.filter((id) => txnMap.get(id)?.teller_transaction_id);
+      const nonTellerIds = ids.filter((id) => !txnMap.get(id)?.teller_transaction_id);
+
+      const ops: BatchOperation[] = [];
+      for (const id of tellerIds) {
+        remoteChangesStore.recordLocalChange(id, 'transactions', 'update');
+        ops.push({ type: 'update', table: 'transactions', id, fields: { user_deleted: true } });
+      }
+      for (const id of nonTellerIds) {
+        await remoteChangesStore.markPendingDelete(id, 'transactions');
+        ops.push({ type: 'delete', table: 'transactions', id });
+      }
+      if (ops.length > 0) await engineBatchWrite(ops);
       await store.load();
       debug('log', '[DATA] transactions — bulkDelete complete', { count: ids.length });
     },

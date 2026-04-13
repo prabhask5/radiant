@@ -131,7 +131,8 @@ export const schema: SchemaDefinition = {
       is_recurring: 'boolean',
       category_source: 'string?',
       notes: 'string?',
-      csv_import_hash: 'string?'
+      csv_import_hash: 'string?',
+      user_deleted: 'boolean'
     },
     uniqueConstraints: [
       { columns: ['teller_transaction_id'], where: 'teller_transaction_id is not null' },
