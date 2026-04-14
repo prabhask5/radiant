@@ -31,6 +31,7 @@
 import { browser } from '$app/environment';
 import { redirect } from '@sveltejs/kit';
 import { goto } from '$app/navigation';
+import { ROUTES } from '$lib/routes';
 import { initEngine, supabase, probeNetworkReachability, getConfig } from 'stellar-drive/config';
 import { debug } from 'stellar-drive/utils';
 import { lockSingleUser } from 'stellar-drive/auth';
@@ -106,7 +107,7 @@ if (browser) {
         /* Skip navigation on /login (handles its own flow) and /confirm
            (verifyOtp fires SIGNED_IN inside the confirm tab — navigating
            away would interrupt the broadcast-then-close flow mid-flight). */
-        if (!path.startsWith('/login') && !path.startsWith('/confirm')) {
+        if (!path.startsWith(ROUTES.LOGIN) && !path.startsWith(ROUTES.CONFIRM)) {
           goto(path, { invalidateAll: true });
         }
       }
@@ -114,7 +115,7 @@ if (browser) {
     onAuthKicked: async () => {
       debug('warn', '[layout] Auth kicked — locking single user and redirecting to /login');
       await lockSingleUser();
-      goto('/login');
+      goto(ROUTES.LOGIN);
     }
   });
 }
@@ -124,7 +125,7 @@ if (browser) {
 // =============================================================================
 
 /** Routes accessible without authentication. */
-const PUBLIC_ROUTES = ['/policy', '/login', '/demo', '/confirm', '/setup'];
+const PUBLIC_ROUTES = [ROUTES.POLICY, ROUTES.LOGIN, ROUTES.DEMO, ROUTES.CONFIRM, ROUTES.SETUP];
 
 // =============================================================================
 //                            LOAD FUNCTION
@@ -177,33 +178,33 @@ export const load: LayoutLoad = async ({ url }): Promise<RootLayoutData> => {
       const tellerConfigured = !!config?.extra?.PUBLIC_TELLER_APP_ID;
       if (
         (!serviceRoleConfigured || !tellerConfigured) &&
-        !url.pathname.startsWith('/setup') &&
-        !url.pathname.startsWith('/policy')
+        !url.pathname.startsWith(ROUTES.SETUP) &&
+        !url.pathname.startsWith(ROUTES.POLICY)
       ) {
         debug('log', '[layout] Missing required env vars — redirecting to /setup', {
           serviceRoleConfigured,
           tellerConfigured
         });
-        redirect(307, '/setup');
+        redirect(307, ROUTES.SETUP);
       }
     }
 
     if (result.authMode === 'none') {
       if (
         !result.serverConfigured &&
-        !url.pathname.startsWith('/setup') &&
-        !url.pathname.startsWith('/policy')
+        !url.pathname.startsWith(ROUTES.SETUP) &&
+        !url.pathname.startsWith(ROUTES.POLICY)
       ) {
         debug('log', '[layout] Server not configured — redirecting to /setup');
-        redirect(307, '/setup');
+        redirect(307, ROUTES.SETUP);
       } else if (result.serverConfigured) {
         const isPublicRoute = PUBLIC_ROUTES.some((r) => url.pathname.startsWith(r));
         if (!isPublicRoute) {
           const returnUrl = url.pathname + url.search;
           const loginUrl =
             returnUrl && returnUrl !== '/' && isSafeRedirect(returnUrl)
-              ? `/login?redirect=${encodeURIComponent(returnUrl)}`
-              : '/login';
+              ? `${ROUTES.LOGIN}?redirect=${encodeURIComponent(returnUrl)}`
+              : ROUTES.LOGIN;
           debug('log', '[layout] Unauthenticated on protected route — redirecting to', loginUrl);
           redirect(307, loginUrl);
         }

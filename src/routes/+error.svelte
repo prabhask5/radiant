@@ -8,6 +8,7 @@
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
+  import { ROUTES } from '$lib/routes';
 
   let isOffline = $state(false);
 
@@ -34,7 +35,7 @@
   }
 
   function handleGoHome() {
-    goto('/');
+    goto(ROUTES.HOME);
   }
 </script>
 

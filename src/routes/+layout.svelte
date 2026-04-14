@@ -21,12 +21,10 @@
   import '../app.css';
 
   /* ── Svelte Lifecycle & Transitions ── */
-  import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
 
   /* ── SvelteKit Utilities ── */
   import { page } from '$app/stores';
-  import { browser } from '$app/environment';
   import { goto, afterNavigate } from '$app/navigation';
 
   /* ── Stellar Engine — Auth & Stores ── */
@@ -52,6 +50,9 @@
 
   /* ── Types ── */
   import type { LayoutData } from './+layout';
+
+  /* ── Route Constants ── */
+  import { ROUTES } from '$lib/routes';
 
   // =============================================================================
   //  Props
@@ -194,10 +195,10 @@
   });
 
   // =============================================================================
-  //  Lifecycle — Mount
+  //  Lifecycle — Event Listeners & Service Worker
   // =============================================================================
 
-  onMount(() => {
+  $effect(() => {
     // ── Chunk Error Handler ────────────────────────────────────────────────
     // When navigating offline to a page whose JS chunks aren't cached,
     // the dynamic import fails and shows a cryptic error. Catch and show a friendly message.
@@ -285,21 +286,15 @@
         }, 500); // Cache assets quickly to reduce window for uncached refreshes
       });
     }
-  });
 
-  // =============================================================================
-  //  Lifecycle — Destroy
-  // =============================================================================
-
-  onDestroy(() => {
-    if (browser) {
+    return () => {
       // Cleanup chunk error handler
       if (chunkErrorHandler) {
         window.removeEventListener('unhandledrejection', chunkErrorHandler);
       }
       // Cleanup sign out listener
       window.removeEventListener('radiant:signout', handleSignOut);
-    }
+    };
   });
 
   // =============================================================================
@@ -327,7 +322,7 @@
 
     // Client-side navigate to login — keeps the layout mounted so the
     // sign-out overlay persists seamlessly (no flicker between pages).
-    await goto('/login', { invalidateAll: true });
+    await goto(ROUTES.LOGIN, { invalidateAll: true });
 
     // Dismiss the overlay now that the login page has rendered underneath
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -442,7 +437,7 @@
     <header class="island-header">
       <!-- Left: Radiant brand icon + name -->
       <div class="island-left">
-        <a href="/" class="island-brand-link">
+        <a href={ROUTES.HOME} class="island-brand-link">
           <span class="island-brand">
             <svg class="island-logo" viewBox="0 0 512 512" fill="none">
               <defs>
@@ -493,7 +488,7 @@
     <nav class="nav-desktop">
       <div class="nav-inner">
         <!-- ── Brand ── -->
-        <a href="/" class="nav-brand">
+        <a href={ROUTES.HOME} class="nav-brand">
           <span class="brand-icon">
             <svg width="28" height="28" viewBox="0 0 512 512" fill="none">
               <defs>
@@ -614,7 +609,7 @@
         <!-- ── Right Actions — sync status + logout ── -->
         <div class="nav-actions">
           <SyncStatus />
-          <a href="/profile" class="user-menu user-menu-link">
+          <a href={ROUTES.PROFILE} class="user-menu user-menu-link">
             <span class="user-avatar">
               {avatarInitial}
             </span>
@@ -739,12 +734,12 @@
 
         <!-- ── Profile Tab — avatar with first-letter initial ── -->
         <a
-          href="/profile"
+          href={ROUTES.PROFILE}
           class="tab-item tab-profile"
-          class:active={isActive('/profile')}
+          class:active={isActive(ROUTES.PROFILE)}
           style="--tab-index: 5;"
         >
-          {#if isActive('/profile')}
+          {#if isActive(ROUTES.PROFILE)}
             <span class="tab-active-indicator"></span>
           {/if}
           <span class="tab-glow"></span>

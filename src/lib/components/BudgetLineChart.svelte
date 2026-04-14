@@ -16,8 +16,6 @@
   //                              IMPORTS
   // ══════════════════════════════════════════════════════════════════════════
 
-  import { onMount } from 'svelte';
-
   // ══════════════════════════════════════════════════════════════════════════
   //                              PROPS
   // ══════════════════════════════════════════════════════════════════════════
@@ -77,14 +75,17 @@
     return () => ro.disconnect();
   });
 
-  // Trigger entrance animation on mount — use onMount to avoid
-  // re-running on reactive changes during re-navigation
-  onMount(() => {
-    requestAnimationFrame(() => {
+  // Trigger entrance animation after first paint — double rAF defers until
+  // the browser has rendered the initial (unmounted) state, ensuring the
+  // CSS transition plays. $effect runs once here because the body reads no
+  // reactive state, so it won't re-trigger on prop changes.
+  $effect(() => {
+    const id = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         mounted = true;
       });
     });
+    return () => cancelAnimationFrame(id);
   });
 
   // ══════════════════════════════════════════════════════════════════════════

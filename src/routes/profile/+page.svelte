@@ -33,6 +33,7 @@
   import type { TrustedDevice } from 'stellar-drive/types';
   import type { DiagnosticsSnapshot } from 'stellar-drive/types';
   import { onMount, onDestroy } from 'svelte';
+  import { ROUTES } from '$lib/routes';
 
   /** Whether the app is in demo mode — shows a simplified read-only profile. */
   const inDemoMode = $derived(isDemoMode());
@@ -525,7 +526,7 @@
 
   /** Navigate back to the home view. */
   function goBack() {
-    goto('/');
+    goto(ROUTES.HOME);
   }
 
   /**
@@ -1132,7 +1133,7 @@
           onclick={() => showDemoBlocked('Not available in demo mode')}>Update Configuration</button
         >
       {:else}
-        <a href="/setup" class="btn-action setup-link">Update Configuration</a>
+        <a href={ROUTES.SETUP} class="btn-action setup-link">Update Configuration</a>
       {/if}
     </section>
 
@@ -1496,7 +1497,7 @@
     <!-- ================================================================= -->
     <!--                   DEMO LINK (Mobile only)                        -->
     <!-- ================================================================= -->
-    <a href="/demo" class="btn-demo-link">
+    <a href={ROUTES.DEMO} class="btn-demo-link">
       <svg
         width="16"
         height="16"
@@ -1537,7 +1538,7 @@
     <!--                   FOOTER                                          -->
     <!-- ================================================================= -->
     <footer class="profile-footer">
-      <a href="/policy" class="footer-link">Privacy Policy</a>
+      <a href={ROUTES.POLICY} class="footer-link">Privacy Policy</a>
     </footer>
   </div>
 </div>

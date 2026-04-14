@@ -13,6 +13,7 @@
   import { page } from '$app/stores';
   import { handleEmailConfirmation, broadcastAuthConfirmed } from 'stellar-drive/kit';
   import { isDemoMode } from 'stellar-drive/demo';
+  import { ROUTES } from '$lib/routes';
 
   let status: 'verifying' | 'success' | 'error' | 'redirecting' | 'can_close' = 'verifying';
   let errorMessage = '';
@@ -21,7 +22,7 @@
 
   onMount(async () => {
     if (isDemoMode()) {
-      goto('/', { replaceState: true });
+      goto(ROUTES.HOME, { replaceState: true });
       return;
     }
     const tokenHash = $page.url.searchParams.get('token_hash');
@@ -59,7 +60,7 @@
     const type = $page.url.searchParams.get('type') || 'signup';
     const result = await broadcastAuthConfirmed(CHANNEL_NAME, type);
     if (result === 'no_broadcast') {
-      goto('/', { replaceState: true });
+      goto(ROUTES.HOME, { replaceState: true });
     } else {
       setTimeout(() => {
         status = 'can_close';
@@ -121,7 +122,7 @@
       </div>
       <h2>Verification Failed</h2>
       <p>{errorMessage}</p>
-      <button class="btn btn-primary" onclick={() => goto('/login', { replaceState: true })}>
+      <button class="btn btn-primary" onclick={() => goto(ROUTES.LOGIN, { replaceState: true })}>
         Back to Login
       </button>
     {:else if status === 'can_close'}

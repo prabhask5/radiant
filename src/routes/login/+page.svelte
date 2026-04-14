@@ -26,6 +26,7 @@
   import { sendDeviceVerification } from 'stellar-drive/auth';
   import { isDemoMode } from 'stellar-drive/demo';
   import { isSafeRedirect } from 'stellar-drive/utils';
+  import { ROUTES } from '$lib/routes';
 
   // ==========================================================================
   //                        LAYOUT / PAGE DATA
@@ -38,7 +39,7 @@
   const redirectUrl = $derived.by(() => {
     const param = $page.url.searchParams.get('redirect');
     if (param && isSafeRedirect(param)) return param;
-    return '/';
+    return ROUTES.HOME;
   });
 
   // ==========================================================================
@@ -209,7 +210,7 @@
 
     /* ── Demo mode → redirect to home ──── */
     if (isDemoMode()) {
-      goto('/', { replaceState: true });
+      goto(ROUTES.HOME, { replaceState: true });
       return;
     }
 
@@ -260,7 +261,7 @@
             const result = await completeSingleUserSetup();
             if (!result.error) {
               showConfirmationModal = false;
-              goto('/', { invalidateAll: true });
+              goto(ROUTES.HOME, { invalidateAll: true });
             } else {
               error = result.error;
               showConfirmationModal = false;
@@ -633,7 +634,7 @@
         return;
       }
       /* No confirmation needed → go straight to the app (keep loading=true to avoid flash) */
-      goto('/', { invalidateAll: true });
+      goto(ROUTES.HOME, { invalidateAll: true });
       return;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : 'Setup failed. Please try again.';

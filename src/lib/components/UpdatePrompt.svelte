@@ -19,7 +19,6 @@
   //                                IMPORTS
   // ==========================================================================
 
-  import { onMount, onDestroy } from 'svelte';
   import { monitorSwLifecycle, handleSwUpdate } from 'stellar-drive/kit';
 
   // ==========================================================================
@@ -32,23 +31,17 @@
   /** Guard flag to prevent double-reload */
   let reloading = false;
 
-  /** Cleanup function returned by monitorSwLifecycle */
-  let cleanup: (() => void) | null = null;
-
   // ==========================================================================
   //                      SERVICE WORKER MONITORING
   // ==========================================================================
 
-  onMount(() => {
-    cleanup = monitorSwLifecycle({
+  $effect(() => {
+    const cleanup = monitorSwLifecycle({
       onUpdateAvailable: () => {
         showPrompt = true;
       }
     });
-  });
-
-  onDestroy(() => {
-    cleanup?.();
+    return () => cleanup?.();
   });
 
   // ==========================================================================

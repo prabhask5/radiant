@@ -42,6 +42,20 @@ import { get } from 'svelte/store';
 let mlSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
 /**
+ * Build a `refresh()` method for a collection store.
+ *
+ * Each store's refresh body is identical except for the label string logged
+ * to the debug console. Extracting it here eliminates the repetition.
+ */
+function makeRefresh(store: { load: () => Promise<void> }, label: string) {
+  return async function refresh() {
+    debug('log', `[DATA] ${label} — refreshing`);
+    await store.load();
+    debug('log', `[DATA] ${label} — refresh complete`);
+  };
+}
+
+/**
  * Run ML sync directly (non-debounced). Awaitable — resolves when
  * categorization + recurring detection are complete.
  */
@@ -102,11 +116,7 @@ function createAccountsStore() {
 
   return {
     ...store,
-    async refresh() {
-      debug('log', '[DATA] accounts — refreshing');
-      await store.load();
-      debug('log', '[DATA] accounts — refresh complete');
-    },
+    refresh: makeRefresh(store, 'accounts'),
     async createManualAccount(
       data: Omit<
         Account,
@@ -256,11 +266,7 @@ function createTransactionsStore() {
 
   return {
     ...store,
-    async refresh() {
-      debug('log', '[DATA] transactions — refreshing');
-      await store.load();
-      debug('log', '[DATA] transactions — refresh complete');
-    },
+    refresh: makeRefresh(store, 'transactions'),
 
     /* ── User-editable field updates ── */
 
@@ -549,11 +555,7 @@ function createCategoriesStore() {
         scheduleMLSync();
       }
     },
-    async refresh() {
-      debug('log', '[DATA] categories — refreshing');
-      await store.load();
-      debug('log', '[DATA] categories — refresh complete');
-    }
+    refresh: makeRefresh(store, 'categories')
   };
 }
 
@@ -635,11 +637,7 @@ function createEnrollmentsStore() {
       await store.load();
       debug('log', '[DATA] teller_enrollments — remove complete', { id });
     },
-    async refresh() {
-      debug('log', '[DATA] teller_enrollments — refreshing');
-      await store.load();
-      debug('log', '[DATA] teller_enrollments — refresh complete');
-    }
+    refresh: makeRefresh(store, 'teller_enrollments')
   };
 }
 
@@ -667,11 +665,7 @@ function createRecurringTransactionsStore() {
 
   return {
     ...store,
-    async refresh() {
-      debug('log', '[DATA] recurring_transactions — refreshing');
-      await store.load();
-      debug('log', '[DATA] recurring_transactions — refresh complete');
-    },
+    refresh: makeRefresh(store, 'recurring_transactions'),
     async create(data: Omit<RecurringTransaction, SystemKeys>) {
       const id = generateId();
       debug('log', '[DATA] recurring_transactions — create', { id, name: data.name });

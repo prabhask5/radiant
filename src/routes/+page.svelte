@@ -12,8 +12,8 @@
   //                                IMPORTS
   // ==========================================================================
 
-  /* ── Svelte ── */
-  import { onMount } from 'svelte';
+  /* ── Route Constants ── */
+  import { ROUTES } from '$lib/routes';
 
   /* ── Stellar Engine — Auth & Stores ── */
   import { resolveFirstName } from 'stellar-drive/auth';
@@ -343,7 +343,7 @@
   //                           LIFECYCLE
   // ==========================================================================
 
-  onMount(() => {
+  $effect(() => {
     requestAnimationFrame(() => {
       mounted = true;
     });
@@ -398,7 +398,7 @@
     <div class="budget-card">
       <div class="budget-card-header">
         <span class="budget-card-label">Budget Progress</span>
-        <a href="/budget" class="budget-card-link">{hasBudget ? 'Details' : 'Set up'}</a>
+        <a href={ROUTES.BUDGET} class="budget-card-link">{hasBudget ? 'Details' : 'Set up'}</a>
       </div>
       {#if !dataLoaded}
         <BudgetLineChart

@@ -7,7 +7,8 @@
  */
 
 import { redirect } from '@sveltejs/kit';
+import { ROUTES } from '$lib/routes';
 
 export function load() {
-  redirect(302, '/');
+  redirect(302, ROUTES.HOME);
 }

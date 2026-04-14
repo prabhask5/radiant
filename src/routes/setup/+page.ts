@@ -13,6 +13,7 @@
 
 import { browser } from '$app/environment';
 import { redirect } from '@sveltejs/kit';
+import { ROUTES } from '$lib/routes';
 import { getConfig } from 'stellar-drive/config';
 import { getValidSession } from 'stellar-drive/auth';
 import type { PageLoad } from './$types';
@@ -43,7 +44,7 @@ export const load: PageLoad = async () => {
   // Fully configured → require authentication to reconfigure
   const session = await getValidSession();
   if (!session?.user) {
-    redirect(307, '/login');
+    redirect(307, ROUTES.LOGIN);
   }
   return { isFirstSetup: false };
 };
