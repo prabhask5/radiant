@@ -102,29 +102,46 @@
 
   const chartCutoff = $derived.by(() => {
     const now = new Date();
+
+    // Compute the earliest-transaction cutoff (used by ALL and as a floor for other ranges).
+    const txns = $transactionsStore ?? [];
+    let allCutoff: Date;
+    if (txns.length === 0) {
+      allCutoff = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    } else {
+      let earliest = txns[0].date;
+      for (const t of txns) {
+        if (t.date < earliest) earliest = t.date;
+      }
+      allCutoff = new Date(earliest + 'T00:00:00');
+    }
+
+    if (chartRange === 'all') return allCutoff;
+
+    let computed: Date;
     switch (chartRange) {
       case '1w':
-        return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        computed = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        break;
       case '1m':
-        return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        computed = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        break;
       case '3m':
-        return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        computed = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        break;
       case '6m':
-        return new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        computed = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        break;
       case '1y':
-        return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-      default: {
-        // ALL — go back to earliest transaction date
-        const txns = $transactionsStore ?? [];
-        if (txns.length === 0)
-          return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        let earliest = txns[0].date;
-        for (const t of txns) {
-          if (t.date < earliest) earliest = t.date;
-        }
-        return new Date(earliest + 'T00:00:00');
-      }
+        computed = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        break;
+      default:
+        computed = allCutoff;
     }
+
+    // Clamp: if the range extends past all available data, show from the earliest
+    // transaction instead — avoids a meaningless flat line before any data exists.
+    return computed < allCutoff ? allCutoff : computed;
   });
 
   /**
@@ -187,12 +204,21 @@
     allDates.add(todayStr);
 
     for (const acct of accts) {
-      const currentBal =
+      // txnComputedBal: anchor for historical reconstruction — always from
+      // balance_ledger/available (the transaction-computed stored balance).
+      const txnComputedBal =
         parseFloat(
           acct.type === 'credit'
             ? (acct.balance_ledger ?? acct.balance_available ?? '0.00')
             : (acct.balance_available ?? acct.balance_ledger ?? '0.00')
         ) || 0;
+
+      // todayBal: what to show at today's point. manual_balance_override is a
+      // true override — it shifts today's snapshot and creates a visible step
+      // between the transaction-computed trajectory and the override value.
+      const todayBal = acct.manual_balance_override
+        ? parseFloat(acct.manual_balance_override) || 0
+        : txnComputedBal;
 
       const acctTxns = txns
         .filter((t) => t.account_id === acct.id && !t.is_excluded)
@@ -200,7 +226,7 @@
         .sort((a, b) => a.date.localeCompare(b.date));
 
       const totalTxnSum = acctTxns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
-      let running = currentBal - totalTxnSum;
+      let running = txnComputedBal - totalTxnSum;
 
       let i = 0;
       while (i < acctTxns.length && acctTxns[i].date < cutoffStr) {
@@ -222,7 +248,8 @@
         }
       }
 
-      snapshots.set(todayStr, currentBal);
+      // Force today to the override (if set) — creates the step-at-today delta.
+      snapshots.set(todayStr, todayBal);
       timelines.push({ isDebt: acct.type === 'credit', snapshots, balAtCutoff });
     }
 

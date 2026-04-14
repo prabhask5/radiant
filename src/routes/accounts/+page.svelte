@@ -351,8 +351,9 @@
 
     for (const acct of accounts) {
       if (acct.type === 'credit') {
-        // Utilization = balance owed / credit limit
-        const owed = parseFloat(acct.balance_ledger ?? '0') || 0;
+        // Utilization = balance owed / credit limit.
+        // manual_balance_override takes precedence when set (true override).
+        const owed = parseFloat(acct.manual_balance_override ?? acct.balance_ledger ?? '0') || 0;
         let limit = 0;
         if (acct.manual_credit_limit) {
           limit = parseFloat(acct.manual_credit_limit) || 0;
@@ -373,7 +374,10 @@
         //   monthTxnNet    = sum(posted, non-excluded transactions >= lastMonthStr)
         //   priorBalance   = currentBalance - monthTxnNet
         //   pctChange      = monthTxnNet / |priorBalance| * 100
-        const displayBalance = acct.balance_available ?? acct.balance_ledger;
+        // manual_balance_override is the true current balance when set — use it
+        // as the anchor so pctChange reflects what the user actually sees.
+        const displayBalance =
+          acct.manual_balance_override ?? acct.balance_available ?? acct.balance_ledger;
         if (!displayBalance) {
           map.set(acct.id, { utilization: null, pctChange: null });
           continue;
@@ -412,32 +416,49 @@
 
   let chartRange = $state('1m');
 
-  /** Cutoff date for the selected time range. */
+  /** Cutoff date for the selected time range, clamped to the earliest transaction. */
   const chartCutoff = $derived.by(() => {
     const now = new Date();
+
+    // Compute the earliest-transaction cutoff (used by ALL and as a floor for other ranges).
+    const txns = $transactionsStore ?? [];
+    let allCutoff: Date;
+    if (txns.length === 0) {
+      allCutoff = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    } else {
+      let earliest = txns[0].date;
+      for (const t of txns) {
+        if (t.date < earliest) earliest = t.date;
+      }
+      allCutoff = new Date(earliest + 'T00:00:00');
+    }
+
+    if (chartRange === 'all') return allCutoff;
+
+    let computed: Date;
     switch (chartRange) {
       case '1w':
-        return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        computed = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        break;
       case '1m':
-        return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        computed = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        break;
       case '3m':
-        return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        computed = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        break;
       case '6m':
-        return new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        computed = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        break;
       case '1y':
-        return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-      default: {
-        // ALL — go back to earliest transaction date
-        const txns = $transactionsStore ?? [];
-        if (txns.length === 0)
-          return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        let earliest = txns[0].date;
-        for (const t of txns) {
-          if (t.date < earliest) earliest = t.date;
-        }
-        return new Date(earliest + 'T00:00:00');
-      }
+        computed = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        break;
+      default:
+        computed = allCutoff;
     }
+
+    // Clamp: if the range extends past all available data, show from the earliest
+    // transaction instead — avoids a meaningless flat line before any data exists.
+    return computed < allCutoff ? allCutoff : computed;
   });
 
   /**
@@ -1536,6 +1557,13 @@
         'txns)'
       );
       await accountsStore.updateBalance(csvImportAccountId!, balance.toFixed(2));
+
+      // For manual accounts, clear any manual balance override so the
+      // transaction-computed balance becomes the source of truth going forward.
+      const importedAcct = accounts.find((a) => a.id === csvImportAccountId);
+      if (importedAcct?.source === 'manual' && importedAcct.manual_balance_override) {
+        await accountsStore.updateAccount(csvImportAccountId!, { manual_balance_override: null });
+      }
 
       showFeedback(
         'success',

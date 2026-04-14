@@ -62,8 +62,10 @@
   let wrapperEl: HTMLDivElement | undefined = $state(undefined);
   let containerW = $state(0);
   let mounted = $state(false);
+  /** True once the initial stagger entrance has fully completed — after this, data-change
+   * morphs use zero delay so both dashArray and dashOffset animate together. */
+  let entranceDone = $state(false);
   let hoveredIndex: number | null = $state(null);
-  let tooltipPos = $state({ x: 0, y: 0 });
 
   // Unique ID prefix for SVG defs (multiple charts on same page)
   const uid = Math.random().toString(36).slice(2, 8);
@@ -84,9 +86,16 @@
   // Trigger entrance animation on mount
   $effect(() => {
     mounted = false;
+    entranceDone = false;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         mounted = true;
+        // Zero out stagger delays after the last segment finishes animating in,
+        // so subsequent data-change morphs are clean and simultaneous.
+        const lastDelay = (segments.length - 1) * STAGGER_MS;
+        setTimeout(() => {
+          entranceDone = true;
+        }, lastDelay + 850);
       });
     });
   });
@@ -144,48 +153,13 @@
   //                     HOVER / TOOLTIP INTERACTION
   // ══════════════════════════════════════════════════════════════════════════
 
-  function onSegmentEnter(index: number, event: PointerEvent | MouseEvent) {
+  function onSegmentEnter(index: number) {
     hoveredIndex = index;
-    updateTooltipPos(event);
-  }
-
-  function onSegmentMove(event: PointerEvent | MouseEvent) {
-    updateTooltipPos(event);
   }
 
   function onSegmentLeave() {
     hoveredIndex = null;
   }
-
-  function updateTooltipPos(event: PointerEvent | MouseEvent) {
-    if (!wrapperEl) return;
-    const rect = wrapperEl.getBoundingClientRect();
-    tooltipPos = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    };
-  }
-
-  const hoveredSegment = $derived(
-    hoveredIndex !== null && hoveredIndex < segments.length ? segments[hoveredIndex] : null
-  );
-
-  const tipStyle = $derived.by(() => {
-    if (!hoveredSegment || !wrapperEl) return '';
-    const tipW = 160;
-    const tipH = 70;
-    const rect = wrapperEl.getBoundingClientRect();
-    const viewX = rect.left + tooltipPos.x;
-    const viewY = rect.top + tooltipPos.y;
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
-    let x = viewX;
-    if (x + tipW / 2 > vw - 12) x = vw - tipW / 2 - 12;
-    if (x - tipW / 2 < 12) x = tipW / 2 + 12;
-    // Bottom of tooltip sits 16px above cursor; flip below if too close to top
-    let y = viewY - 16;
-    if (y - tipH < 8) y = viewY + tipH + 8;
-    return `left: ${x}px; top: ${y}px;`;
-  });
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -270,7 +244,7 @@
                 filter="url(#{uid}-glow{seg.index})"
                 class="segment-glow"
                 class:glow-active={hoveredIndex === seg.index}
-                style="transition-delay: {seg.delay}ms;"
+                style="transition-delay: {entranceDone ? 0 : seg.delay}ms;"
                 transform="rotate(-90 {CENTER} {CENTER})"
               />
 
@@ -287,12 +261,11 @@
                 stroke-linecap="butt"
                 class="segment-arc"
                 class:hovered={hoveredIndex === seg.index}
-                style="transition-delay: {seg.delay}ms;"
+                style="transition-delay: {entranceDone ? 0 : seg.delay}ms;"
                 transform="rotate(-90 {CENTER} {CENTER})"
                 role="img"
                 aria-label="{seg.label}: {seg.value}"
-                onpointerenter={(e) => onSegmentEnter(seg.index, e)}
-                onpointermove={onSegmentMove}
+                onpointerenter={() => onSegmentEnter(seg.index)}
                 onpointerleave={onSegmentLeave}
               />
             {/each}
@@ -320,23 +293,6 @@
             </div>
           {/if}
         </div>
-
-        <!-- Tooltip -->
-        {#if hoveredSegment}
-          <div class="pie-tip" style={tipStyle}>
-            <div class="tip-row">
-              <span class="tip-swatch" style="background: {hoveredSegment.color};"></span>
-              {#if hoveredSegment.icon}
-                <span class="tip-icon">{hoveredSegment.icon}</span>
-              {/if}
-              <span class="tip-label">{hoveredSegment.label}</span>
-              <span class="tip-val">{formatValue(hoveredSegment.value)}</span>
-            </div>
-            <div class="tip-pct">
-              {((hoveredSegment.value / total) * 100).toFixed(1)}%
-            </div>
-          </div>
-        {/if}
       {/if}
     </div>
 
@@ -348,7 +304,7 @@
             class="legend-item"
             class:legend-active={hoveredIndex === i}
             style="--li-delay: {i * STAGGER_MS}ms"
-            onpointerenter={(e) => onSegmentEnter(i, e)}
+            onpointerenter={() => onSegmentEnter(i)}
             onpointerleave={onSegmentLeave}
           >
             <span
@@ -537,7 +493,8 @@
   .segment-arc {
     cursor: pointer;
     transition:
-      stroke-dasharray 0.8s var(--gc-spring),
+      stroke-dasharray 0.65s var(--gc-spring),
+      stroke-dashoffset 0.65s var(--gc-spring),
       stroke-width 0.25s ease,
       filter 0.25s ease;
     /* Minimum touch target ensured by stroke-width (28px on rendered SVG) */
@@ -552,7 +509,9 @@
     opacity: 0;
     pointer-events: none;
     /* No opacity transition — glow must be immediate on hover */
-    transition: stroke-dasharray 0.8s var(--gc-spring);
+    transition:
+      stroke-dasharray 0.65s var(--gc-spring),
+      stroke-dashoffset 0.65s var(--gc-spring);
   }
 
   .segment-glow.glow-active {
@@ -619,67 +578,6 @@
     text-transform: uppercase;
     line-height: 1.2;
     margin-top: 1px;
-  }
-
-  /* ────────────────────────────────────────────────────────────────────────
-     TOOLTIP
-     ──────────────────────────────────────────────────────────────────────── */
-  .pie-tip {
-    position: fixed;
-    transform: translateX(-50%) translateY(-100%);
-    /* Fully opaque — no backdrop-filter so text behind never bleeds through */
-    background: #0f0d0a;
-    border: 1px solid rgba(180, 150, 80, 0.22);
-    border-radius: 10px;
-    padding: 10px 14px;
-    pointer-events: none;
-    box-shadow:
-      0 12px 40px rgba(0, 0, 0, 0.7),
-      0 0 0 0.5px rgba(180, 150, 80, 0.1) inset;
-    z-index: 9999;
-    white-space: nowrap;
-    min-width: 120px;
-  }
-
-  .tip-row {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 0.72rem;
-    color: var(--gc-text);
-    line-height: 1.65;
-  }
-
-  .tip-swatch {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .tip-icon {
-    font-size: 0.82rem;
-    flex-shrink: 0;
-  }
-
-  .tip-label {
-    color: var(--gc-muted);
-    margin-right: auto;
-    padding-right: 10px;
-  }
-
-  .tip-val {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-  }
-
-  .tip-pct {
-    font-size: 0.6rem;
-    color: var(--gc-dim);
-    letter-spacing: 0.04em;
-    margin-top: 2px;
-    text-align: right;
   }
 
   /* ────────────────────────────────────────────────────────────────────────

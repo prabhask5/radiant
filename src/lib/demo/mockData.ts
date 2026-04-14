@@ -312,8 +312,11 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       last_four: null,
       status: 'open',
       source: 'manual',
-      balance_available: null,
-      balance_ledger: null,
+      // balance_available/ledger match the override so txnComputedBal = override —
+      // no spurious step artifact on the chart. The star ✦ badge still shows
+      // because manual_balance_override is set.
+      balance_available: '15000.00',
+      balance_ledger: '15000.00',
       balance_updated_at: now(),
       manual_balance_override: '15000.00',
       is_hidden: false
@@ -332,15 +335,16 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       last_four: null,
       status: 'open',
       source: 'manual',
-      balance_available: null,
-      balance_ledger: null,
+      balance_available: '42800.00',
+      balance_ledger: '42800.00',
       balance_updated_at: now(),
       manual_balance_override: '42800.00',
       is_hidden: false
     },
     {
       // Manual credit card — shows Manual badge on a credit-type account,
-      // and credit limit tracking for fully manual accounts
+      // and credit limit tracking for fully manual accounts.
+      // balance_available = limit - owed (matching Teller credit card convention).
       ...base(ACCT_MANUAL_CREDIT),
       enrollment_id: null,
       teller_account_id: null,
@@ -352,8 +356,8 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       last_four: '8823',
       status: 'open',
       source: 'manual',
-      balance_available: null,
-      balance_ledger: null,
+      balance_available: '4660.00',
+      balance_ledger: '340.00',
       balance_updated_at: now(),
       manual_balance_override: '340.00',
       manual_credit_limit: '5000.00',
