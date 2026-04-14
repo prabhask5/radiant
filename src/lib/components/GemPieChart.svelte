@@ -3,9 +3,9 @@
 
   Generic reusable pie chart for Radiant Finance. Renders animated donut
   segments with grow-in spring animations, glass-morphism center label,
-  interactive hover/tap tooltips, and crystalline shimmer effects.
+  interactive hover/tap highlights, and crystalline shimmer effects.
 
-  Design language: obsidian surfaces, citrine accents, glass-morphism tooltips,
+  Design language: obsidian surfaces, citrine accents, glass-morphism,
   spring-curve animations, mobile-first touch targets.
 -->
 <script lang="ts">
@@ -50,10 +50,10 @@
 
   const SVG_SIZE = 200;
   const CENTER = SVG_SIZE / 2;
-  const RADIUS = 70;
-  const STROKE_WIDTH = 28;
+  const RADIUS = 72;
+  const STROKE_WIDTH = 26;
   const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-  const STAGGER_MS = 60;
+  const STAGGER_MS = 45;
 
   // ══════════════════════════════════════════════════════════════════════════
   //                         COMPONENT STATE
@@ -66,6 +66,9 @@
    * morphs use zero delay so both dashArray and dashOffset animate together. */
   let entranceDone = $state(false);
   let hoveredIndex: number | null = $state(null);
+  /** True when the primary pointer is coarse (touch device) — switches from
+   * hover to tap-to-toggle interaction model. */
+  let isTouchDevice = $state(false);
 
   // Unique ID prefix for SVG defs (multiple charts on same page)
   const uid = Math.random().toString(36).slice(2, 8);
@@ -81,6 +84,18 @@
     });
     ro.observe(wrapperEl);
     return () => ro.disconnect();
+  });
+
+  // Detect touch/coarse-pointer device
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(pointer: coarse)');
+    isTouchDevice = mql.matches;
+    const handler = (e: MediaQueryListEvent) => {
+      isTouchDevice = e.matches;
+    };
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
   });
 
   // Trigger entrance animation on mount
@@ -118,18 +133,30 @@
 
   /**
    * Compute each segment's stroke-dasharray and stroke-dashoffset values.
-   * Each segment is a portion of the circumference, offset to start where
-   * the previous segment ended. We rotate -90deg so the first segment
-   * starts at 12 o'clock.
+   *
+   * Applies a per-segment minimum fraction floor so tiny slices always have a
+   * tappable arc. The floor scales down with segment count so it doesn't
+   * distort charts with many categories. Display fractions are normalised back
+   * to sum to 1; true fractions are preserved for percentage display.
    */
   const segmentRender = $derived.by(() => {
     if (!hasData) return [];
 
+    // Adaptive floor: 4% for small charts, shrinks so ≤ 25 segments are usable
+    const minFraction = Math.min(0.04, 0.6 / Math.max(segments.length, 1));
+
+    // True fractions from data
+    const trueFractions = segments.map((s) => s.value / total);
+
+    // Apply floor and normalise so display fractions still sum to 1
+    const floored = trueFractions.map((f) => Math.max(f, minFraction));
+    const flooredSum = floored.reduce((a, b) => a + b, 0);
+    const displayFractions = floored.map((f) => f / flooredSum);
+
     let accumulated = 0;
     return segments.map((seg, i) => {
-      const fraction = seg.value / total;
-      const dashLength = fraction * CIRCUMFERENCE;
-      // Gap between segments (1px visual gap)
+      const displayFrac = displayFractions[i];
+      const dashLength = displayFrac * CIRCUMFERENCE;
       const gap = segments.length > 1 ? 2 : 0;
       const effectiveDash = Math.max(0, dashLength - gap);
       const offset = -accumulated + gap / 2;
@@ -138,10 +165,9 @@
       return {
         ...seg,
         index: i,
-        fraction,
+        fraction: trueFractions[i], // true fraction for display
         dashArray: `${effectiveDash} ${CIRCUMFERENCE - effectiveDash}`,
         dashOffset: offset,
-        // For grow-in animation: start fully hidden
         dashArrayHidden: `0 ${CIRCUMFERENCE}`,
         dashOffsetHidden: offset,
         delay: i * STAGGER_MS
@@ -150,15 +176,27 @@
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  //                     HOVER / TOOLTIP INTERACTION
+  //                     INTERACTION HANDLERS
   // ══════════════════════════════════════════════════════════════════════════
 
-  function onSegmentEnter(index: number) {
+  /** Desktop hover — enter */
+  function onHoverEnter(index: number) {
     hoveredIndex = index;
   }
 
-  function onSegmentLeave() {
+  /** Desktop hover — leave */
+  function onHoverLeave() {
     hoveredIndex = null;
+  }
+
+  /** Mobile tap — toggle highlight for a segment/legend index */
+  function onTap(index: number) {
+    hoveredIndex = hoveredIndex === index ? null : index;
+  }
+
+  /** Mobile tap on SVG background — dismiss any active highlight */
+  function onSvgBackgroundTap(e: MouseEvent) {
+    if ((e.target as Element).tagName === 'svg') hoveredIndex = null;
   }
 </script>
 
@@ -218,6 +256,7 @@
             class="pie-svg"
             role="img"
             aria-label={title || 'Pie chart'}
+            onclick={isTouchDevice ? onSvgBackgroundTap : undefined}
           >
             <defs>
               <!-- Glow filters for each segment -->
@@ -230,7 +269,7 @@
 
             <!-- Segment arcs -->
             {#each segmentRender as seg (seg.index)}
-              <!-- Glow layer (visible on hover) -->
+              <!-- Glow layer (visible on active) -->
               <circle
                 cx={CENTER}
                 cy={CENTER}
@@ -264,13 +303,14 @@
                 style="transition-delay: {entranceDone ? 0 : seg.delay}ms;"
                 transform="rotate(-90 {CENTER} {CENTER})"
                 role="img"
-                aria-label="{seg.label}: {seg.value}"
-                onpointerenter={() => onSegmentEnter(seg.index)}
-                onpointerleave={onSegmentLeave}
+                aria-label="{seg.label}: {formatValue(seg.value)}"
+                onpointerenter={!isTouchDevice ? () => onHoverEnter(seg.index) : undefined}
+                onpointerleave={!isTouchDevice ? onHoverLeave : undefined}
+                onclick={isTouchDevice ? () => onTap(seg.index) : undefined}
               />
             {/each}
 
-            <!-- Inner circle mask for non-donut mode is handled by fill -->
+            <!-- Inner circle mask for non-donut mode -->
             {#if !donut}
               <circle
                 cx={CENTER}
@@ -303,9 +343,10 @@
           <button
             class="legend-item"
             class:legend-active={hoveredIndex === i}
-            style="--li-delay: {i * STAGGER_MS}ms"
-            onpointerenter={() => onSegmentEnter(i)}
-            onpointerleave={onSegmentLeave}
+            style="--li-delay: {i * STAGGER_MS}ms; --seg-color: {seg.color};"
+            onpointerenter={!isTouchDevice ? () => onHoverEnter(i) : undefined}
+            onpointerleave={!isTouchDevice ? onHoverLeave : undefined}
+            onclick={isTouchDevice ? () => onTap(i) : undefined}
           >
             <span
               class="legend-dot"
@@ -497,18 +538,16 @@
       stroke-dashoffset 0.65s var(--gc-spring),
       stroke-width 0.25s ease,
       filter 0.25s ease;
-    /* Minimum touch target ensured by stroke-width (28px on rendered SVG) */
   }
 
   .segment-arc.hovered {
-    stroke-width: 32;
-    filter: drop-shadow(0 0 8px currentColor);
+    stroke-width: 34;
+    filter: drop-shadow(0 0 10px currentColor);
   }
 
   .segment-glow {
     opacity: 0;
     pointer-events: none;
-    /* No opacity transition — glow must be immediate on hover */
     transition:
       stroke-dasharray 0.65s var(--gc-spring),
       stroke-dashoffset 0.65s var(--gc-spring);
@@ -521,10 +560,10 @@
   @keyframes glowPulse {
     0%,
     100% {
-      opacity: 0.15;
+      opacity: 0.2;
     }
     50% {
-      opacity: 0.35;
+      opacity: 0.45;
     }
   }
 
@@ -586,10 +625,31 @@
   .chart-legend {
     position: relative;
     z-index: 1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 12px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px 8px;
     margin-top: 14px;
+    max-height: 260px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Subtle fade-out at the bottom when scrollable */
+    -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(180, 150, 80, 0.2) transparent;
+  }
+
+  .chart-legend::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .chart-legend::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .chart-legend::-webkit-scrollbar-thumb {
+    background: rgba(180, 150, 80, 0.2);
+    border-radius: 2px;
   }
 
   .legend-item {
@@ -605,10 +665,28 @@
     cursor: pointer;
     font-family: inherit;
     -webkit-tap-highlight-color: transparent;
+    position: relative;
+    overflow: hidden;
     transition:
-      background 0.2s ease,
-      border-color 0.2s ease;
-    min-height: 44px;
+      background 0.22s ease,
+      border-color 0.22s ease,
+      transform 0.22s var(--gc-spring),
+      box-shadow 0.22s ease;
+    min-height: 38px;
+  }
+
+  /* Left-edge accent bar */
+  .legend-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--seg-color, transparent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
   }
 
   .gem-pie.mounted .legend-item {
@@ -617,22 +695,42 @@
     transition:
       opacity 0.4s ease,
       transform 0.4s var(--gc-spring),
-      background 0.2s ease,
-      border-color 0.2s ease;
+      background 0.22s ease,
+      border-color 0.22s ease,
+      box-shadow 0.22s ease;
     transition-delay: var(--li-delay);
   }
 
   .legend-item:hover,
   .legend-item.legend-active {
-    background: var(--gc-frost);
-    border-color: var(--gc-border);
+    background: color-mix(in srgb, var(--seg-color, transparent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--seg-color, transparent) 35%, transparent);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--seg-color, transparent) 10%, transparent);
+    transform: translateY(-1px);
   }
 
+  .legend-item:hover::before,
+  .legend-item.legend-active::before {
+    opacity: 1;
+  }
+
+  /* Dot: grows and brightens on active */
   .legend-dot {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     flex-shrink: 0;
+    transition:
+      transform 0.22s var(--gc-spring),
+      box-shadow 0.22s ease;
+  }
+
+  .legend-item:hover .legend-dot,
+  .legend-item.legend-active .legend-dot {
+    transform: scale(1.5);
+    box-shadow:
+      0 0 10px var(--seg-color),
+      0 0 20px color-mix(in srgb, var(--seg-color) 40%, transparent) !important;
   }
 
   .legend-icon {
@@ -644,6 +742,12 @@
     font-size: 0.68rem;
     color: var(--gc-muted);
     letter-spacing: 0.02em;
+    transition: color 0.18s ease;
+  }
+
+  .legend-item:hover .legend-label,
+  .legend-item.legend-active .legend-label {
+    color: var(--gc-text);
   }
 
   .legend-value {
@@ -654,6 +758,12 @@
     letter-spacing: -0.01em;
     margin-left: auto;
     padding-left: 8px;
+    transition: color 0.18s ease;
+  }
+
+  .legend-item:hover .legend-value,
+  .legend-item.legend-active .legend-value {
+    color: color-mix(in srgb, var(--seg-color) 70%, var(--gc-text));
   }
 
   /* ────────────────────────────────────────────────────────────────────────

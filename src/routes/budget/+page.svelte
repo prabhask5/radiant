@@ -113,14 +113,10 @@
   let showRecurringModal = $state(false);
   let recurringForm = $state({
     name: '',
-    amount: '',
-    category_id: '',
-    frequency: 'monthly' as 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly',
-    account_id: '',
-    next_date: '',
     merchant_pattern: ''
   });
   let recurringFormSaving = $state(false);
+  let editingRecurringItem = $state<RecurringTransaction | null>(null);
 
   /** Editing Recurring */
   let editingRecurringId = $state<string | null>(null);
@@ -450,6 +446,59 @@
     categories.reduce((s: number, c: Category) => s + (parseFloat(c.budget_amount) || 0), 0)
   );
 
+  // ── Recurring form helpers ──────────────────────────────────────────────────
+
+  function detectFrequency(
+    txns: Transaction[]
+  ): 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly' {
+    if (txns.length < 2) return 'monthly';
+    const dates = txns.map((t) => new Date(t.date).getTime()).sort((a, b) => a - b);
+    const gaps: number[] = [];
+    for (let i = 1; i < dates.length; i++) {
+      gaps.push((dates[i] - dates[i - 1]) / 86_400_000);
+    }
+    gaps.sort((a, b) => a - b);
+    const median = gaps[Math.floor(gaps.length / 2)];
+    if (median <= 10) return 'weekly';
+    if (median <= 20) return 'biweekly';
+    if (median <= 50) return 'monthly';
+    if (median <= 120) return 'quarterly';
+    return 'yearly';
+  }
+
+  function frequencyDays(freq: string): number {
+    return { weekly: 7, biweekly: 14, monthly: 30, quarterly: 91, yearly: 365 }[freq] ?? 30;
+  }
+
+  function estimateNextDate(txns: Transaction[], freq: string): string {
+    if (!txns.length) return '';
+    const lastDate = [...txns].sort((a, b) => (a.date < b.date ? 1 : -1))[0].date;
+    const d = new Date(lastDate);
+    d.setDate(d.getDate() + frequencyDays(freq));
+    return d.toISOString().split('T')[0];
+  }
+
+  function mostCommonCategoryId(txns: Transaction[]): string | null {
+    const counts: Record<string, number> = {};
+    for (const t of txns) {
+      if (t.category_id) counts[t.category_id] = (counts[t.category_id] ?? 0) + 1;
+    }
+    const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    return best ? best[0] : null;
+  }
+
+  const derivedRecurring = $derived.by(() => {
+    const txns = patternPreviewTxns;
+    if (!txns.length) return null;
+    const amounts = txns.map((t) => Math.abs(parseFloat(t.amount))).filter(Boolean);
+    const avgAmount = amounts.length ? amounts.reduce((s, a) => s + a, 0) / amounts.length : 0;
+    const freq = detectFrequency(txns);
+    const catId = mostCommonCategoryId(txns);
+    const cat = catId ? (categories ?? []).find((c) => c.id === catId) : null;
+    const nextDate = estimateNextDate(txns, freq);
+    return { avgAmount, freq, catId, catLabel: cat ? `${cat.icon} ${cat.name}` : null, nextDate };
+  });
+
   /** Open the add recurring modal. */
   function openRecurringModal(editId?: string) {
     if (editId) {
@@ -459,31 +508,21 @@
       const item = allRecurring.find((r: RecurringTransaction) => r.id === editId);
       if (item) {
         editingRecurringId = editId;
+        editingRecurringItem = item;
         recurringForm = {
           name: item.name,
-          amount: item.amount,
-          category_id: item.category_id ?? '',
-          frequency: item.frequency as typeof recurringForm.frequency,
-          account_id: item.account_id ?? '',
-          next_date: item.next_date ?? '',
           merchant_pattern: item.merchant_pattern ?? ''
         };
-        // Load preview for existing pattern
         if (item.merchant_pattern) {
           loadPatternPreview(item.merchant_pattern);
+        } else {
+          patternPreviewTxns = [];
         }
       }
     } else {
       editingRecurringId = null;
-      recurringForm = {
-        name: '',
-        amount: '',
-        category_id: '',
-        frequency: 'monthly',
-        account_id: '',
-        next_date: '',
-        merchant_pattern: ''
-      };
+      editingRecurringItem = null;
+      recurringForm = { name: '', merchant_pattern: '' };
       patternPreviewTxns = [];
     }
     showRecurringModal = true;
@@ -491,34 +530,43 @@
 
   /** Save recurring transaction (create or update). */
   async function saveRecurring() {
-    if (!recurringForm.name.trim() || !recurringForm.amount.trim()) return;
+    if (!recurringForm.name.trim()) return;
     recurringFormSaving = true;
     try {
       const rawPattern = recurringForm.merchant_pattern.trim();
       const pattern = rawPattern ? normalizeMerchant(rawPattern) || null : null;
+
+      // Derive amount/frequency/category/next_date from matched transactions;
+      // fall back to previously stored values when editing with no new preview.
+      const derived = derivedRecurring;
+      const fallback = editingRecurringItem;
+      const amount = derived ? derived.avgAmount.toFixed(2) : (fallback?.amount ?? '0.00');
+      const frequency = (derived?.freq ?? fallback?.frequency ?? 'monthly') as
+        | 'weekly'
+        | 'biweekly'
+        | 'monthly'
+        | 'quarterly'
+        | 'yearly';
+      const category_id = derived ? (derived.catId ?? null) : (fallback?.category_id ?? null);
+      const next_date = derived?.nextDate || fallback?.next_date || null;
+
+      const existing = editingRecurringId
+        ? ($recurringTransactionsStore ?? []).find(
+            (r: RecurringTransaction) => r.id === editingRecurringId
+          )
+        : null;
+
       const data = {
         name: recurringForm.name.trim(),
-        amount: recurringForm.amount.trim(),
-        category_id: recurringForm.category_id || null,
-        frequency: recurringForm.frequency,
-        source: editingRecurringId
-          ? (($recurringTransactionsStore ?? []).find(
-              (r: RecurringTransaction) => r.id === editingRecurringId
-            )?.source ?? 'manual')
-          : ('manual' as const),
-        status: editingRecurringId
-          ? (($recurringTransactionsStore ?? []).find(
-              (r: RecurringTransaction) => r.id === editingRecurringId
-            )?.status ?? 'active')
-          : ('active' as const),
-        account_id: recurringForm.account_id || null,
+        amount,
+        category_id,
+        frequency,
+        source: existing?.source ?? ('manual' as const),
+        status: existing?.status ?? ('active' as const),
+        account_id: null,
         merchant_pattern: pattern,
-        last_detected_date: editingRecurringId
-          ? (($recurringTransactionsStore ?? []).find(
-              (r: RecurringTransaction) => r.id === editingRecurringId
-            )?.last_detected_date ?? null)
-          : null,
-        next_date: recurringForm.next_date || null
+        last_detected_date: existing?.last_detected_date ?? null,
+        next_date
       };
 
       if (editingRecurringId) {
@@ -917,7 +965,7 @@
         <GemPieChart
           segments={pieSegments}
           formatValue={(v) => formatCurrency(v)}
-          height={200}
+          height={240}
           donut={true}
           centerLabel="Spent"
           centerValue={formatCurrencyCompact(totalSpent)}
@@ -1396,67 +1444,72 @@
           {/if}
         </div>
 
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label" for="rec-amount">Amount</label>
-            <div class="form-input-wrap">
-              <span class="form-dollar">$</span>
-              <input
-                id="rec-amount"
-                type="number"
-                class="form-input with-prefix"
-                bind:value={recurringForm.amount}
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                inputmode="decimal"
-              />
+        {#if derivedRecurring}
+          <div class="derived-info">
+            <div class="derived-info-header">Derived from matched transactions</div>
+            <div class="derived-info-grid">
+              <div class="derived-info-item">
+                <span class="derived-info-label">Avg Amount</span>
+                <span class="derived-info-value">{formatCurrency(derivedRecurring.avgAmount)}</span>
+              </div>
+              <div class="derived-info-item">
+                <span class="derived-info-label">Frequency</span>
+                <span class="derived-info-value" style="text-transform: capitalize"
+                  >{derivedRecurring.freq}</span
+                >
+              </div>
+              {#if derivedRecurring.catLabel}
+                <div class="derived-info-item">
+                  <span class="derived-info-label">Category</span>
+                  <span class="derived-info-value">{derivedRecurring.catLabel}</span>
+                </div>
+              {/if}
+              {#if derivedRecurring.nextDate}
+                <div class="derived-info-item">
+                  <span class="derived-info-label">Next Est.</span>
+                  <span class="derived-info-value"
+                    >{formatShortDate(derivedRecurring.nextDate)}</span
+                  >
+                </div>
+              {/if}
             </div>
           </div>
-
-          <div class="form-group">
-            <label class="form-label" for="rec-freq">Frequency</label>
-            <select id="rec-freq" class="form-select" bind:value={recurringForm.frequency}>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Biweekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="yearly">Yearly</option>
-            </select>
+        {:else if editingRecurringItem}
+          {@const fallbackCat = editingRecurringItem.category_id
+            ? (categories ?? []).find((c) => c.id === editingRecurringItem!.category_id)
+            : null}
+          <div class="derived-info derived-info-fallback">
+            <div class="derived-info-header">Stored values</div>
+            <div class="derived-info-grid">
+              <div class="derived-info-item">
+                <span class="derived-info-label">Amount</span>
+                <span class="derived-info-value"
+                  >{formatCurrency(parseFloat(editingRecurringItem.amount))}</span
+                >
+              </div>
+              <div class="derived-info-item">
+                <span class="derived-info-label">Frequency</span>
+                <span class="derived-info-value" style="text-transform: capitalize"
+                  >{editingRecurringItem.frequency}</span
+                >
+              </div>
+              {#if fallbackCat}
+                <div class="derived-info-item">
+                  <span class="derived-info-label">Category</span>
+                  <span class="derived-info-value">{fallbackCat.icon} {fallbackCat.name}</span>
+                </div>
+              {/if}
+              {#if editingRecurringItem.next_date}
+                <div class="derived-info-item">
+                  <span class="derived-info-label">Next Est.</span>
+                  <span class="derived-info-value"
+                    >{formatShortDate(editingRecurringItem.next_date)}</span
+                  >
+                </div>
+              {/if}
+            </div>
           </div>
-        </div>
-
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label" for="rec-category">Category</label>
-            <select id="rec-category" class="form-select" bind:value={recurringForm.category_id}>
-              <option value="">None</option>
-              {#each categories as cat (cat.id)}
-                <option value={cat.id}>{cat.icon} {cat.name}</option>
-              {/each}
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="rec-account">Account</label>
-            <select id="rec-account" class="form-select" bind:value={recurringForm.account_id}>
-              <option value="">None</option>
-              {#each accounts as acct (acct.id)}
-                <option value={acct.id}>{acct.name}</option>
-              {/each}
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="rec-next">Next Date</label>
-          <input
-            id="rec-next"
-            type="date"
-            class="form-input"
-            bind:value={recurringForm.next_date}
-          />
-        </div>
+        {/if}
       </div>
 
       <div class="sheet-footer">
@@ -1474,9 +1527,7 @@
         <button
           class="save-budget-btn"
           onclick={saveRecurring}
-          disabled={recurringFormSaving ||
-            !recurringForm.name.trim() ||
-            !recurringForm.amount.trim()}
+          disabled={recurringFormSaving || !recurringForm.name.trim()}
         >
           {#if recurringFormSaving}
             Saving...
@@ -1664,21 +1715,15 @@
             <p class="detail-empty">No matching transactions found.</p>
           {:else}
             {#each monthGroups as group (group.month)}
-              <div class="detail-month-group">
-                <div class="detail-month-header">
-                  <span class="detail-month-label">{group.label}</span>
-                  <span class="detail-month-total">{formatCurrency(group.total)}</span>
+              {#each group.txns as t (t.id)}
+                <div class="detail-txn-row">
+                  <span class="detail-txn-date">{formatShortDate(t.date)}</span>
+                  <span class="detail-txn-desc">{t.description}</span>
+                  <span class="detail-txn-amount"
+                    >{formatCurrency(Math.abs(parseFloat(t.amount)))}</span
+                  >
                 </div>
-                {#each group.txns as t (t.id)}
-                  <div class="detail-txn-row">
-                    <span class="detail-txn-date">{formatShortDate(t.date)}</span>
-                    <span class="detail-txn-desc">{t.description}</span>
-                    <span class="detail-txn-amount"
-                      >{formatCurrency(Math.abs(parseFloat(t.amount)))}</span
-                    >
-                  </div>
-                {/each}
-              </div>
+              {/each}
             {/each}
           {/if}
         </div>
@@ -3151,8 +3196,7 @@
     color: var(--text-dim);
   }
 
-  .form-input,
-  .form-select {
+  .form-input {
     height: 44px;
     padding: 0 12px;
     border-radius: 10px;
@@ -3170,23 +3214,8 @@
     color: var(--text-dim);
   }
 
-  .form-input:focus,
-  .form-select:focus {
+  .form-input:focus {
     border-color: var(--citrine);
-  }
-
-  .form-select {
-    -webkit-appearance: none;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23706450' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    padding-right: 32px;
-  }
-
-  .form-select option {
-    background: var(--bg-raised);
-    color: var(--text);
   }
 
   .form-input-wrap {
@@ -3228,10 +3257,45 @@
     opacity: 0.7;
   }
 
-  .form-row-2 {
+  /* Derived info panel in recurring modal */
+  .derived-info {
+    background: var(--surface-2, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-top: 4px;
+  }
+  .derived-info-fallback {
+    opacity: 0.6;
+  }
+  .derived-info-header {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3, rgba(255, 255, 255, 0.35));
+    margin-bottom: 10px;
+  }
+  .derived-info-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 8px 16px;
+  }
+  .derived-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .derived-info-label {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--text-3, rgba(255, 255, 255, 0.35));
+    letter-spacing: 0.03em;
+  }
+  .derived-info-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-1, rgba(255, 255, 255, 0.85));
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
@@ -3723,38 +3787,6 @@
     text-align: center;
     padding: 20px 0;
     font-style: italic;
-  }
-
-  .detail-month-group {
-    margin-bottom: 14px;
-  }
-
-  .detail-month-group:last-child {
-    margin-bottom: 0;
-  }
-
-  .detail-month-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 6px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .detail-month-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .detail-month-total {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
   }
 
   .detail-txn-row {

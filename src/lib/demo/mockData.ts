@@ -1430,6 +1430,294 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       null,
       CAT_CREDIT_CARD_PAYMENT,
       'posted'
+    ),
+
+    // ── Additional April transactions — enough to trigger "load more" (>50) ──
+    txn(
+      '80',
+      ACCT_CHASE_CREDIT,
+      '14.29',
+      daysAgo(1),
+      'STARBUCKS #4821',
+      'Starbucks',
+      'organization',
+      CAT_COFFEE,
+      'posted'
+    ),
+    txn(
+      '81',
+      ACCT_BOFA_CREDIT,
+      '67.43',
+      daysAgo(1),
+      'TARGET #0412',
+      'Target',
+      'organization',
+      CAT_SHOPPING,
+      'posted'
+    ),
+    txn(
+      '82',
+      ACCT_CHASE_CREDIT,
+      '11.50',
+      daysAgo(2),
+      'SWEETGREEN DOWNTOWN',
+      'Sweetgreen',
+      'organization',
+      CAT_DINING,
+      'posted'
+    ),
+    txn(
+      '83',
+      ACCT_BOFA_CHECKING,
+      '-85.00',
+      daysAgo(2),
+      'VENMO TRANSFER',
+      null,
+      null,
+      CAT_TRANSFER,
+      'posted'
+    ),
+    txn(
+      '84',
+      ACCT_CHASE_CHECKING,
+      '-42.00',
+      daysAgo(3),
+      'CVSPHARMA #2241',
+      'CVS Pharmacy',
+      'organization',
+      CAT_PHARMACY,
+      'posted'
+    ),
+    txn(
+      '85',
+      ACCT_CHASE_CREDIT,
+      '9.99',
+      daysAgo(3),
+      'APPLE.COM/BILL',
+      'Apple',
+      'organization',
+      CAT_STREAMING,
+      'posted'
+    ),
+    txn(
+      '86',
+      ACCT_BOFA_CREDIT,
+      '28.75',
+      daysAgo(4),
+      'SHAKE SHACK #182',
+      'Shake Shack',
+      'organization',
+      CAT_DINING,
+      'posted'
+    ),
+    txn(
+      '87',
+      ACCT_CHASE_CREDIT,
+      '52.14',
+      daysAgo(4),
+      'WHOLE FOODS MKT #421',
+      'Whole Foods',
+      'organization',
+      CAT_GROCERIES,
+      'posted'
+    ),
+    txn(
+      '88',
+      ACCT_BOFA_CHECKING,
+      '-30.00',
+      daysAgo(5),
+      'PARKWHIZ PARKING',
+      'ParkWhiz',
+      'organization',
+      CAT_RIDESHARE,
+      'posted'
+    ),
+    txn(
+      '89',
+      ACCT_CHASE_CREDIT,
+      '4.75',
+      daysAgo(5),
+      'BLUE BOTTLE COFFEE',
+      'Blue Bottle',
+      'organization',
+      CAT_COFFEE,
+      'posted'
+    ),
+    txn(
+      '90',
+      ACCT_BOFA_CREDIT,
+      '19.99',
+      daysAgo(6),
+      'HULU SUBSCRIPTION',
+      'Hulu',
+      'organization',
+      CAT_STREAMING,
+      'posted'
+    ),
+    txn(
+      '91',
+      ACCT_CHASE_CHECKING,
+      '-120.00',
+      daysAgo(6),
+      'ELECTRIC BILL - CON ED',
+      'ConEdison',
+      'organization',
+      CAT_UTILITIES,
+      'posted'
+    ),
+    txn(
+      '92',
+      ACCT_CHASE_CREDIT,
+      '38.60',
+      daysAgo(7),
+      "TRADER JOE'S #14",
+      "Trader Joe's",
+      'organization',
+      CAT_GROCERIES,
+      'posted'
+    ),
+    txn(
+      '93',
+      ACCT_BOFA_CREDIT,
+      '15.49',
+      daysAgo(7),
+      'CHIPOTLE ONLINE ORDER',
+      'Chipotle',
+      'organization',
+      CAT_DINING,
+      'posted'
+    ),
+    txn(
+      '94',
+      ACCT_CHASE_CHECKING,
+      '-55.00',
+      daysAgo(8),
+      'SHELL OIL 12847',
+      'Shell',
+      'organization',
+      CAT_GAS_FUEL,
+      'posted'
+    ),
+    txn(
+      '95',
+      ACCT_BOFA_CREDIT,
+      '88.32',
+      daysAgo(8),
+      'NORDSTROM RACK #88',
+      'Nordstrom Rack',
+      'organization',
+      CAT_SHOPPING,
+      'posted'
+    ),
+    txn(
+      '96',
+      ACCT_CHASE_CREDIT,
+      '22.00',
+      daysAgo(9),
+      'LYFT *RIDE',
+      'Lyft',
+      'organization',
+      CAT_RIDESHARE,
+      'posted'
+    ),
+    txn(
+      '97',
+      ACCT_BOFA_CHECKING,
+      '-200.00',
+      daysAgo(9),
+      'ATM WITHDRAWAL',
+      null,
+      null,
+      CAT_TRANSFER,
+      'posted'
+    ),
+    txn(
+      '98',
+      ACCT_CHASE_CREDIT,
+      '6.50',
+      daysAgo(10),
+      "DUNKIN' #1034",
+      "Dunkin'",
+      'organization',
+      CAT_COFFEE,
+      'posted'
+    ),
+    txn(
+      '99',
+      ACCT_BOFA_CREDIT,
+      '44.89',
+      daysAgo(10),
+      'COSTCO GAS #472',
+      'Costco',
+      'organization',
+      CAT_GAS_FUEL,
+      'posted'
+    ),
+    txn(
+      '100',
+      ACCT_CHASE_CREDIT,
+      '13.49',
+      daysAgo(11),
+      'PANERA BREAD #2841',
+      'Panera Bread',
+      'organization',
+      CAT_DINING,
+      'posted'
+    ),
+    txn(
+      '101',
+      ACCT_BOFA_CREDIT,
+      '31.20',
+      daysAgo(11),
+      'RITE AID #4421',
+      'Rite Aid',
+      'organization',
+      CAT_PHARMACY,
+      'posted'
+    ),
+    txn(
+      '102',
+      ACCT_CHASE_CREDIT,
+      '79.00',
+      daysAgo(12),
+      'PELOTON MEMBERSHIP',
+      'Peloton',
+      'organization',
+      CAT_GYM_FITNESS,
+      'posted'
+    ),
+    txn(
+      '103',
+      ACCT_BOFA_CREDIT,
+      '25.60',
+      daysAgo(12),
+      'FIVE GUYS #891',
+      'Five Guys',
+      'organization',
+      CAT_DINING,
+      'posted'
+    ),
+    txn(
+      '104',
+      ACCT_CHASE_CREDIT,
+      '47.30',
+      daysAgo(13),
+      'KROGER #2241',
+      'Kroger',
+      'organization',
+      CAT_GROCERIES,
+      'posted'
+    ),
+    txn(
+      '105',
+      ACCT_BOFA_CHECKING,
+      '-18.00',
+      daysAgo(13),
+      'UBER *EATS',
+      'Uber Eats',
+      'organization',
+      CAT_DINING,
+      'posted'
     )
   ]);
 
