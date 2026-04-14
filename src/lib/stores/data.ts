@@ -131,7 +131,7 @@ function createAccountsStore() {
       const id = generateId();
       debug('log', '[DATA] accounts — createManualAccount', { id });
       remoteChangesStore.recordLocalChange(id, 'accounts', 'create');
-      await engineCreate('accounts', {
+      const created = await engineCreate('accounts', {
         id,
         ...data,
         enrollment_id: null,
@@ -140,17 +140,16 @@ function createAccountsStore() {
         manual_balance_override: null,
         manual_credit_limit: null
       });
-      await store.load();
+      store.mutate((items) => [...items, created as unknown as Account]);
       debug('log', '[DATA] accounts — createManualAccount complete', { id });
       return id;
     },
     async updateBalance(accountId: string, balance: string) {
-      const account = (await engineGetAll('accounts')).find(
-        (row) => row.id === accountId && !row.deleted
-      ) as Account | undefined;
+      const account = (get(store) as Account[]).find((a) => a.id === accountId && !a.deleted);
       if (!account) return;
 
       remoteChangesStore.recordLocalChange(accountId, 'accounts', 'update');
+      let updated: Record<string, unknown> | undefined;
       if (account.type === 'credit') {
         const ledgerDelta = parseFloat(balance) - parseFloat(account.balance_ledger as string);
         const updatedBalanceAvailable =
@@ -160,7 +159,7 @@ function createAccountsStore() {
           balance_ledger: balance,
           balance_available: updatedBalanceAvailable.toFixed(2)
         });
-        await engineUpdate('accounts', accountId, {
+        updated = await engineUpdate('accounts', accountId, {
           balance_ledger: balance,
           balance_available: updatedBalanceAvailable.toFixed(2),
           balance_updated_at: now()
@@ -171,20 +170,26 @@ function createAccountsStore() {
           balance_ledger: balance,
           balance_available: balance
         });
-        await engineUpdate('accounts', accountId, {
+        updated = await engineUpdate('accounts', accountId, {
           balance_ledger: balance,
           balance_available: balance,
           balance_updated_at: now()
         });
       }
-      await store.load();
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) => (item.id === accountId ? (updated as unknown as Account) : item))
+        );
       debug('log', '[DATA] accounts — updateBalance complete', { accountId });
     },
     async updateAccount(accountId: string, fields: Partial<Account>) {
       debug('log', '[DATA] accounts — updateAccount', { accountId, fields });
       remoteChangesStore.recordLocalChange(accountId, 'accounts', 'update');
-      await engineUpdate('accounts', accountId, fields);
-      await store.load();
+      const updated = await engineUpdate('accounts', accountId, fields);
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) => (item.id === accountId ? (updated as unknown as Account) : item))
+        );
       debug('log', '[DATA] accounts — updateAccount complete', { accountId });
     },
     async deleteAccount(accountId: string) {
@@ -236,7 +241,7 @@ function createAccountsStore() {
 
       await remoteChangesStore.markPendingDelete(accountId, 'accounts');
       await engineDelete('accounts', accountId);
-      await store.load();
+      store.mutate((items) => items.filter((item) => item.id !== accountId));
       debug('log', '[DATA] accounts — deleteAccount complete', { accountId });
     }
   };
@@ -273,15 +278,25 @@ function createTransactionsStore() {
     async updateDescription(transactionId: string, description: string) {
       debug('log', '[DATA] transactions — updateDescription', { transactionId });
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'rename');
-      await engineUpdate('transactions', transactionId, { description });
-      await store.load();
+      const updated = await engineUpdate('transactions', transactionId, { description });
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) =>
+            item.id === transactionId ? (updated as unknown as Transaction) : item
+          )
+        );
       debug('log', '[DATA] transactions — updateDescription complete', { transactionId });
     },
     async updateDate(transactionId: string, date: string) {
       debug('log', '[DATA] transactions — updateDate', { transactionId, date });
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
-      await engineUpdate('transactions', transactionId, { date });
-      await store.load();
+      const updated = await engineUpdate('transactions', transactionId, { date });
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) =>
+            item.id === transactionId ? (updated as unknown as Transaction) : item
+          )
+        );
       debug('log', '[DATA] transactions — updateDate complete', { transactionId });
     },
     async updateCategory(transactionId: string, categoryId: string | null) {
@@ -292,17 +307,22 @@ function createTransactionsStore() {
         '(1 sync op queued: manual category write)'
       );
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
-      await engineUpdate('transactions', transactionId, {
+      const updated = await engineUpdate('transactions', transactionId, {
         category_id: categoryId,
         category_source: 'manual'
       });
-      await store.load();
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) =>
+            item.id === transactionId ? (updated as unknown as Transaction) : item
+          )
+        );
 
       // Propagate to similar transactions (works for both assigning and un-assigning)
       debug('log', '[DATA] transactions — starting propagation...');
       const result = await propagateCategory(transactionId, categoryId);
       if (result.propagatedCount > 0) {
-        await store.load();
+        await store.refresh();
         debug(
           'log',
           `[DATA] transactions — propagated to ${result.propagatedCount} similar (${result.propagatedCount} more sync ops queued)`
@@ -320,22 +340,39 @@ function createTransactionsStore() {
     async toggleExcluded(transactionId: string, excluded: boolean) {
       debug('log', '[DATA] transactions — toggleExcluded', { transactionId, excluded });
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'toggle');
-      await engineUpdate('transactions', transactionId, { is_excluded: excluded });
-      await store.load();
+      const updated = await engineUpdate('transactions', transactionId, { is_excluded: excluded });
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) =>
+            item.id === transactionId ? (updated as unknown as Transaction) : item
+          )
+        );
       debug('log', '[DATA] transactions — toggleExcluded complete', { transactionId });
     },
     async updateNotes(transactionId: string, notes: string) {
       debug('log', '[DATA] transactions — updateNotes', { transactionId });
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
-      await engineUpdate('transactions', transactionId, { notes });
-      await store.load();
+      const updated = await engineUpdate('transactions', transactionId, { notes });
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) =>
+            item.id === transactionId ? (updated as unknown as Transaction) : item
+          )
+        );
       debug('log', '[DATA] transactions — updateNotes complete', { transactionId });
     },
     async updateRecurring(transactionId: string, isRecurring: boolean) {
       debug('log', '[DATA] transactions — updateRecurring', { transactionId, isRecurring });
       remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
-      await engineUpdate('transactions', transactionId, { is_recurring: isRecurring });
-      await store.load();
+      const updated = await engineUpdate('transactions', transactionId, {
+        is_recurring: isRecurring
+      });
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) =>
+            item.id === transactionId ? (updated as unknown as Transaction) : item
+          )
+        );
       debug('log', '[DATA] transactions — updateRecurring complete', { transactionId });
     },
 
@@ -351,12 +388,15 @@ function createTransactionsStore() {
         // "do not re-import" marker. The record is hidden from the UI via user_deleted filter.
         remoteChangesStore.recordLocalChange(transactionId, 'transactions', 'update');
         await engineUpdate('transactions', transactionId, { user_deleted: true });
+        store.mutate((items) =>
+          items.map((item) => (item.id === transactionId ? { ...item, user_deleted: true } : item))
+        );
       } else {
         // Non-Teller (CSV import, manual): normal soft-delete tombstone.
         await remoteChangesStore.markPendingDelete(transactionId, 'transactions');
         await engineDelete('transactions', transactionId);
+        store.mutate((items) => items.filter((item) => item.id !== transactionId));
       }
-      await store.load();
       debug('log', '[DATA] transactions — deleteTransaction complete', { transactionId });
     },
     async bulkDelete(ids: string[]) {
@@ -377,7 +417,13 @@ function createTransactionsStore() {
         ops.push({ type: 'delete', table: 'transactions', id });
       }
       if (ops.length > 0) await engineBatchWrite(ops);
-      await store.load();
+      const tellerIdSet = new Set(tellerIds);
+      const nonTellerIdSet = new Set(nonTellerIds);
+      store.mutate((items) =>
+        items
+          .filter((item) => !nonTellerIdSet.has(item.id))
+          .map((item) => (tellerIdSet.has(item.id) ? { ...item, user_deleted: true } : item))
+      );
       debug('log', '[DATA] transactions — bulkDelete complete', { count: ids.length });
     },
 
@@ -449,9 +495,34 @@ function createTransactionsStore() {
 
       if (newTxns.length === 0) return { inserted: 0, skipped: transactions.length };
 
+      const newRecords: Transaction[] = [];
       const ops: BatchOperation[] = newTxns.map((t) => {
         const id = generateId();
         remoteChangesStore.recordLocalChange(id, 'transactions', 'create');
+        const timestamp = now();
+        newRecords.push({
+          id,
+          account_id: accountId,
+          teller_transaction_id: null,
+          amount: t.amount,
+          date: t.date,
+          description: t.description,
+          counterparty_name: null,
+          counterparty_type: null,
+          teller_category: null,
+          category_id: null,
+          status: 'posted',
+          type: null,
+          running_balance: null,
+          is_excluded: false,
+          is_recurring: false,
+          category_source: null,
+          notes: null,
+          csv_import_hash: t.csv_import_hash,
+          created_at: timestamp,
+          updated_at: timestamp,
+          deleted: false
+        } as unknown as Transaction);
         return {
           type: 'create' as const,
           table: 'transactions',
@@ -479,7 +550,7 @@ function createTransactionsStore() {
       });
 
       await engineBatchWrite(ops);
-      await store.load();
+      store.mutate((items) => [...items, ...(newRecords as Transaction[])]);
       debug('log', '[DATA] transactions — bulkCreateFromCSV complete', {
         inserted: newTxns.length
       });
@@ -515,16 +586,19 @@ function createCategoriesStore() {
       const id = generateId();
       debug('log', '[DATA] categories — create', { id });
       remoteChangesStore.recordLocalChange(id, 'categories', 'create');
-      await engineCreate('categories', { id, ...data });
-      await store.load();
+      const created = await engineCreate('categories', { id, ...data });
+      store.mutate((items) => [...items, created as unknown as Category]);
       debug('log', '[DATA] categories — create complete', { id });
       return id;
     },
     async update(id: string, data: Partial<Category>) {
       debug('log', '[DATA] categories — update', { id });
       remoteChangesStore.recordLocalChange(id, 'categories', 'update');
-      await engineUpdate('categories', id, data);
-      await store.load();
+      const updated = await engineUpdate('categories', id, data);
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) => (item.id === id ? (updated as unknown as Category) : item))
+        );
       debug('log', '[DATA] categories — update complete', { id });
     },
     async remove(id: string) {
@@ -547,7 +621,7 @@ function createCategoriesStore() {
 
       await remoteChangesStore.markPendingDelete(id, 'categories');
       await engineDelete('categories', id);
-      await store.load();
+      store.mutate((items) => items.filter((item) => item.id !== id));
       debug('log', '[DATA] categories — remove complete', { id });
 
       // Re-process the now-uncategorized transactions via ML sync
@@ -587,16 +661,16 @@ function createEnrollmentsStore() {
       const id = generateId();
       debug('log', '[DATA] teller_enrollments — create', { id });
       remoteChangesStore.recordLocalChange(id, 'teller_enrollments', 'create');
-      await engineCreate('teller_enrollments', { id, ...data });
-      await store.load();
+      const created = await engineCreate('teller_enrollments', { id, ...data });
+      store.mutate((items) => [...items, created as unknown as TellerEnrollment]);
       debug('log', '[DATA] teller_enrollments — create complete', { id });
       return id;
     },
     async updateStatus(id: string, status: string, errorMessage?: string, force = false) {
       debug('log', '[DATA] teller_enrollments — updateStatus', { id, status, force });
-      const existing = (await engineGetAll('teller_enrollments')).find(
+      const existing = (get(store) as TellerEnrollment[]).find(
         (row) => row.id === id && !row.deleted
-      ) as TellerEnrollment | undefined;
+      );
 
       const normalizedError = errorMessage || null;
       if (
@@ -619,22 +693,28 @@ function createEnrollmentsStore() {
       if (status === 'connected') {
         fields.last_synced_at = now();
       }
-      await engineUpdate('teller_enrollments', id, fields);
-      await store.load();
+      const updated = await engineUpdate('teller_enrollments', id, fields);
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) => (item.id === id ? (updated as unknown as TellerEnrollment) : item))
+        );
       debug('log', '[DATA] teller_enrollments — updateStatus complete', { id, status });
     },
     async updateAccessToken(id: string, accessToken: string) {
       debug('log', '[DATA] teller_enrollments — updateAccessToken', { id });
       remoteChangesStore.recordLocalChange(id, 'teller_enrollments', 'update');
-      await engineUpdate('teller_enrollments', id, { access_token: accessToken });
-      await store.load();
+      const updated = await engineUpdate('teller_enrollments', id, { access_token: accessToken });
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) => (item.id === id ? (updated as unknown as TellerEnrollment) : item))
+        );
       debug('log', '[DATA] teller_enrollments — updateAccessToken complete', { id });
     },
     async remove(id: string) {
       debug('log', '[DATA] teller_enrollments — remove', { id });
       await remoteChangesStore.markPendingDelete(id, 'teller_enrollments');
       await engineDelete('teller_enrollments', id);
-      await store.load();
+      store.mutate((items) => items.filter((item) => item.id !== id));
       debug('log', '[DATA] teller_enrollments — remove complete', { id });
     },
     refresh: makeRefresh(store, 'teller_enrollments')
@@ -670,16 +750,21 @@ function createRecurringTransactionsStore() {
       const id = generateId();
       debug('log', '[DATA] recurring_transactions — create', { id, name: data.name });
       remoteChangesStore.recordLocalChange(id, 'recurring_transactions', 'create');
-      await engineCreate('recurring_transactions', { id, ...data });
-      await store.load();
+      const created = await engineCreate('recurring_transactions', { id, ...data });
+      store.mutate((items) => [...items, created as unknown as RecurringTransaction]);
       debug('log', '[DATA] recurring_transactions — create complete', { id });
       return id;
     },
     async update(id: string, data: Partial<RecurringTransaction>) {
       debug('log', '[DATA] recurring_transactions — update', { id });
       remoteChangesStore.recordLocalChange(id, 'recurring_transactions', 'update');
-      await engineUpdate('recurring_transactions', id, data);
-      await store.load();
+      const updated = await engineUpdate('recurring_transactions', id, data);
+      if (updated)
+        store.mutate((items) =>
+          items.map((item) =>
+            item.id === id ? (updated as unknown as RecurringTransaction) : item
+          )
+        );
       debug('log', '[DATA] recurring_transactions — update complete', { id });
     },
     async remove(id: string) {
@@ -689,7 +774,7 @@ function createRecurringTransactionsStore() {
       // Re-run full recurring sync to recompute is_recurring flags correctly.
       await remoteChangesStore.markPendingDelete(id, 'recurring_transactions');
       await engineDelete('recurring_transactions', id);
-      await store.load();
+      store.mutate((items) => items.filter((item) => item.id !== id));
 
       // Schedule ML sync to re-sync is_recurring flags immediately
       // (the sync will clear stale flags and re-mark valid ones)

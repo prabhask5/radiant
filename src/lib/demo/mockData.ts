@@ -104,10 +104,6 @@ const CAT_ENTERTAINMENT = 'demo-cat-entertainment';
 const CAT_STREAMING = 'demo-cat-streaming';
 const CAT_HEALTH_INSURANCE = 'demo-cat-health-insurance';
 const CAT_CAR_INSURANCE = 'demo-cat-car-insurance';
-const CAT_SALARY = 'demo-cat-salary';
-const CAT_FREELANCE = 'demo-cat-freelance';
-const CAT_TRANSFER = 'demo-cat-transfer';
-const CAT_CREDIT_CARD_PAYMENT = 'demo-cat-credit-card-payment';
 const CAT_PHARMACY = 'demo-cat-pharmacy';
 const CAT_GYM_FITNESS = 'demo-cat-gym-fitness';
 
@@ -498,38 +494,6 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       color: '#22c55e',
       budget_amount: '60',
       order: 14
-    },
-    {
-      ...base(CAT_SALARY),
-      name: 'Salary',
-      icon: '💰',
-      color: '#22c55e',
-      budget_amount: '0',
-      order: 15
-    },
-    {
-      ...base(CAT_FREELANCE),
-      name: 'Freelance',
-      icon: '💼',
-      color: '#10b981',
-      budget_amount: '0',
-      order: 16
-    },
-    {
-      ...base(CAT_TRANSFER),
-      name: 'Transfer',
-      icon: '🔄',
-      color: '#94a3b8',
-      budget_amount: '0',
-      order: 17
-    },
-    {
-      ...base(CAT_CREDIT_CARD_PAYMENT),
-      name: 'Credit Card Payment',
-      icon: '💳',
-      color: '#64748b',
-      budget_amount: '0',
-      order: 18
     }
   ]);
 
@@ -550,7 +514,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_SALARY,
+      null,
       'posted'
     ),
     txn(
@@ -561,7 +525,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_SALARY,
+      null,
       'posted'
     ),
     txn(
@@ -572,7 +536,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_SALARY,
+      null,
       'posted'
     ),
     txn(
@@ -583,7 +547,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Freelance Payment - Design Work',
       'DesignCo',
       'organization',
-      CAT_FREELANCE,
+      null,
       'posted',
       null,
       'Side project UI redesign'
@@ -596,7 +560,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_SALARY,
+      null,
       'posted'
     ),
 
@@ -1257,7 +1221,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'TRANSFER TO SAVINGS',
       null,
       null,
-      CAT_TRANSFER,
+      null,
       'posted'
     ),
     txn(
@@ -1268,7 +1232,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'TRANSFER FROM CHECKING',
       null,
       null,
-      CAT_TRANSFER,
+      null,
       'posted'
     ),
 
@@ -1281,7 +1245,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'PAYMENT THANK YOU',
       'Chase',
       'organization',
-      CAT_CREDIT_CARD_PAYMENT,
+      null,
       'posted'
     ),
     txn(
@@ -1292,7 +1256,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'ONLINE PAYMENT THANK YOU',
       'Bank of America',
       'organization',
-      CAT_CREDIT_CARD_PAYMENT,
+      null,
       'posted'
     ),
 
@@ -1305,7 +1269,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Transfer from Chase Checking',
       null,
       null,
-      CAT_TRANSFER,
+      null,
       'posted'
     ),
     txn(
@@ -1316,7 +1280,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Initial deposit — emergency fund',
       null,
       null,
-      CAT_TRANSFER,
+      null,
       'posted',
       null,
       '6-month emergency fund goal'
@@ -1331,7 +1295,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'Direct Deposit - ACME Corp',
       'ACME Corp',
       'organization',
-      CAT_SALARY,
+      null,
       'posted'
     ),
     txn(
@@ -1355,7 +1319,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'VENMO *JOHN DOE',
       'Venmo',
       'organization',
-      CAT_TRANSFER,
+      null,
       'posted',
       null,
       'Splitting rent with roommate — exclude from totals',
@@ -1393,7 +1357,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'CITI PAYMENT THANK YOU',
       null,
       null,
-      CAT_CREDIT_CARD_PAYMENT,
+      null,
       'posted'
     ),
 
@@ -1428,7 +1392,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'FIDELITY VISA PAYMENT',
       null,
       null,
-      CAT_CREDIT_CARD_PAYMENT,
+      null,
       'posted'
     ),
 
@@ -1474,7 +1438,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'VENMO TRANSFER',
       null,
       null,
-      CAT_TRANSFER,
+      null,
       'posted'
     ),
     txn(
@@ -1628,7 +1592,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'ATM WITHDRAWAL',
       null,
       null,
-      CAT_TRANSFER,
+      null,
       'posted'
     ),
     txn(
@@ -1849,7 +1813,7 @@ function txn(
   description: string,
   counterpartyName: string | null,
   counterpartyType: string | null,
-  categoryId: string,
+  categoryId: string | null,
   status: 'posted' | 'pending',
   csvHash: string | null = null,
   notes: string | null = null,

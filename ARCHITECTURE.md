@@ -1384,6 +1384,10 @@ Content-hashed filenames enable infinite cache TTL on immutable assets.
 | Delete transaction | < 5ms | 200-500ms (background) |
 | Bulk CSV import (100 rows) | ~50ms | 1-2s (background) |
 
+**Implementation**: All write operations in `src/lib/stores/data.ts` use `store.mutate()` immediately after each `engineCreate` / `engineUpdate` / `engineDelete` call — not `store.load()`. Both engine write functions return the full persisted record, which is applied directly to in-memory state. The UI reflects changes in < 1ms with no loading spinner and no IndexedDB round-trip.
+
+`store.refresh()` (no spinner, re-reads IndexedDB) is used selectively when a write cascades to other records: e.g., assigning a category triggers propagation across many transactions — `refresh()` ensures the full propagated result is visible after the background sync settles.
+
 ---
 
 ## 15. Deployment Architecture
@@ -1495,9 +1499,11 @@ Deterministic IDs (all prefixed with `demo-`) enable idempotent re-seeding:
 
 - **2 enrollments**: Chase, Bank of America
 - **5 accounts**: Chase Checking, Chase Savings, Chase Sapphire Preferred, BofA Checking, BofA Cash Rewards
-- **18 categories**: Groceries ($600), Dining ($300), Coffee ($80), Rent ($2200), Utilities ($250), etc.
-- **~60 transactions**: Spanning 90 days, realistic amounts, mix of posted/pending
+- **14 categories**: Groceries ($600), Dining ($300), Coffee ($80), Rent ($2200), Utilities ($250), etc.
+- **~80 transactions**: Spanning 90 days with 50+ in the current month to exercise load-more pagination; realistic amounts, mix of posted/pending
 - **8 recurring entries**: Netflix, Spotify, Rent, Equinox, OpenAI, PG&E, AT&T
+
+**Budget-only category rule**: Only spending/expense categories appear in demo seed data. Income, transfer, and payment transactions (salary, freelance income, bank transfers, credit card payments) are seeded with `category_id = null`. This prevents income entries from appearing in the budget page with a $0.00 limit. The rule applies to production data too: categories are for tracking spending budgets, not income flows.
 
 ### Activation Flow
 

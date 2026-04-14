@@ -1484,20 +1484,6 @@
     transform: translateX(-50%) scale(1);
   }
 
-  @keyframes gem-glow-pulse {
-    0%,
-    100% {
-      box-shadow:
-        0 0 8px rgba(212, 160, 57, 0.6),
-        0 0 16px rgba(212, 160, 57, 0.3);
-    }
-    50% {
-      box-shadow:
-        0 0 12px rgba(212, 160, 57, 0.8),
-        0 0 24px rgba(212, 160, 57, 0.5);
-    }
-  }
-
   /* ── Right Actions ── */
 
   .nav-actions {
