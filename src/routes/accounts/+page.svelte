@@ -201,23 +201,33 @@
 
     for (const account of accounts) {
       if (account.source === 'manual') {
-        // Group manual accounts by institution_name
-        const groupKey = `manual_${account.institution_name}`;
-        if (!groups.has(groupKey)) {
-          groups.set(groupKey, {
-            institutionName: account.institution_name,
-            enrollmentId: groupKey,
-            enrollmentStatus: 'manual',
-            lastSynced: null,
-            accounts: []
-          });
-        }
-        const g = groups.get(groupKey)!;
-        g.accounts.push(account);
-        // Track most recent balance_updated_at as the group's lastSynced
-        if (account.balance_updated_at) {
-          if (!g.lastSynced || account.balance_updated_at > g.lastSynced) {
-            g.lastSynced = account.balance_updated_at;
+        // If a Teller enrollment group already exists for this institution, join it
+        const tellerGroup = [...groups.values()].find(
+          (g) =>
+            g.enrollmentStatus !== 'manual' &&
+            g.institutionName.toLowerCase() === account.institution_name.toLowerCase()
+        );
+        if (tellerGroup) {
+          tellerGroup.accounts.push(account);
+        } else {
+          // Otherwise group manual accounts by institution_name
+          const groupKey = `manual_${account.institution_name}`;
+          if (!groups.has(groupKey)) {
+            groups.set(groupKey, {
+              institutionName: account.institution_name,
+              enrollmentId: groupKey,
+              enrollmentStatus: 'manual',
+              lastSynced: null,
+              accounts: []
+            });
+          }
+          const g = groups.get(groupKey)!;
+          g.accounts.push(account);
+          // Track most recent balance_updated_at as the group's lastSynced
+          if (account.balance_updated_at) {
+            if (!g.lastSynced || account.balance_updated_at > g.lastSynced) {
+              g.lastSynced = account.balance_updated_at;
+            }
           }
         }
       } else {
@@ -4890,7 +4900,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: 200;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4898,6 +4908,16 @@
     backdrop-filter: blur(12px);
     animation: backdrop-in 0.25s ease-out;
     padding: 1rem;
+    /* Offset for desktop nav so modal is centered in the visible content area */
+    padding-top: calc(var(--nav-height, 64px) + 1rem);
+  }
+
+  @media (max-width: 767px) {
+    .modal-backdrop {
+      /* On mobile: top island/header + bottom tab bar */
+      padding-top: calc(env(safe-area-inset-top, 47px) + 24px + 1rem);
+      padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 1rem);
+    }
   }
 
   @keyframes backdrop-in {
