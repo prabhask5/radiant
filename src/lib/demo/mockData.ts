@@ -76,6 +76,7 @@ function base(id: string) {
 const ENROLLMENT_CHASE = 'demo-enrollment-chase';
 const ENROLLMENT_BOFA = 'demo-enrollment-bofa';
 const ENROLLMENT_WF = 'demo-enrollment-wf'; // disconnected — triggers reconnect banner
+const ENROLLMENT_CITI = 'demo-enrollment-citi'; // error — triggers error reconnect banner
 
 // Accounts
 const ACCT_CHASE_CHECKING = 'demo-acct-chase-checking';
@@ -84,7 +85,10 @@ const ACCT_CHASE_CREDIT = 'demo-acct-chase-credit';
 const ACCT_BOFA_CHECKING = 'demo-acct-bofa-checking';
 const ACCT_BOFA_CREDIT = 'demo-acct-bofa-credit';
 const ACCT_WF_CHECKING = 'demo-acct-wf-checking'; // under disconnected enrollment
+const ACCT_CITI_CREDIT = 'demo-acct-citi-credit'; // under error enrollment
 const ACCT_MANUAL_SAVINGS = 'demo-acct-manual-savings'; // manual (no Teller link)
+const ACCT_MANUAL_BROKERAGE = 'demo-acct-manual-brokerage'; // second manual institution
+const ACCT_MANUAL_CREDIT = 'demo-acct-manual-credit'; // manual credit card
 const ACCT_BOFA_JOINT = 'demo-acct-bofa-joint'; // hidden account
 
 // Categories — deterministic demo IDs
@@ -146,7 +150,7 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       error_message: null
     },
     {
-      // Disconnected enrollment — exercises the reconnect banner / error state UI
+      // Disconnected enrollment — exercises the gold reconnect banner UI
       ...base(ENROLLMENT_WF),
       enrollment_id: 'enr_wf_demo_001',
       institution_name: 'Wells Fargo',
@@ -155,6 +159,17 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       status: 'disconnected',
       last_synced_at: new Date(Date.now() - 5 * 864e5).toISOString(),
       error_message: 'Session expired — reconnection required'
+    },
+    {
+      // Error enrollment — exercises the ruby/red error reconnect banner UI
+      ...base(ENROLLMENT_CITI),
+      enrollment_id: 'enr_citi_demo_001',
+      institution_name: 'Citi',
+      institution_id: 'citi',
+      access_token: 'demo-token-citi',
+      status: 'error',
+      last_synced_at: new Date(Date.now() - 2 * 864e5).toISOString(),
+      error_message: 'Bank returned an unexpected error — sync unavailable'
     }
   ]);
 
@@ -266,6 +281,25 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       is_hidden: false
     },
     {
+      // Account under the error Citi enrollment — exercises error banner + Teller account badge
+      ...base(ACCT_CITI_CREDIT),
+      enrollment_id: ENROLLMENT_CITI,
+      teller_account_id: 'acc_citi_cc_001',
+      institution_name: 'Citi',
+      name: 'Citi Double Cash',
+      type: 'credit',
+      subtype: 'credit_card',
+      currency: 'USD',
+      last_four: '7741',
+      status: 'open',
+      source: 'teller',
+      balance_available: '8250.00',
+      balance_ledger: '1750.00',
+      balance_updated_at: new Date(Date.now() - 2 * 864e5).toISOString(),
+      manual_credit_limit: '10000.00',
+      is_hidden: false
+    },
+    {
       // Manual account — no Teller link, balance set via manual_balance_override
       ...base(ACCT_MANUAL_SAVINGS),
       enrollment_id: null,
@@ -282,6 +316,47 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       balance_ledger: null,
       balance_updated_at: now(),
       manual_balance_override: '15000.00',
+      is_hidden: false
+    },
+    {
+      // Manual brokerage account — second manual institution (Fidelity), shows manual
+      // institution management (rename / delete) and Manual badge on institution + account
+      ...base(ACCT_MANUAL_BROKERAGE),
+      enrollment_id: null,
+      teller_account_id: null,
+      institution_name: 'Fidelity',
+      name: 'Roth IRA',
+      type: 'depository',
+      subtype: 'savings',
+      currency: 'USD',
+      last_four: null,
+      status: 'open',
+      source: 'manual',
+      balance_available: null,
+      balance_ledger: null,
+      balance_updated_at: now(),
+      manual_balance_override: '42800.00',
+      is_hidden: false
+    },
+    {
+      // Manual credit card — shows Manual badge on a credit-type account,
+      // and credit limit tracking for fully manual accounts
+      ...base(ACCT_MANUAL_CREDIT),
+      enrollment_id: null,
+      teller_account_id: null,
+      institution_name: 'Fidelity',
+      name: 'Fidelity Rewards Visa',
+      type: 'credit',
+      subtype: 'credit_card',
+      currency: 'USD',
+      last_four: '8823',
+      status: 'open',
+      source: 'manual',
+      balance_available: null,
+      balance_ledger: null,
+      balance_updated_at: now(),
+      manual_balance_override: '340.00',
+      manual_credit_limit: '5000.00',
       is_hidden: false
     },
     {
@@ -1281,6 +1356,76 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       null,
       'Splitting rent with roommate — exclude from totals',
       true
+    ),
+
+    // ── Citi error enrollment — a handful of transactions before sync broke ──
+    txn(
+      '74',
+      ACCT_CITI_CREDIT,
+      '89.40',
+      daysAgo(3),
+      'WHOLE FOODS MARKET',
+      'Whole Foods',
+      'organization',
+      CAT_GROCERIES,
+      'posted'
+    ),
+    txn(
+      '75',
+      ACCT_CITI_CREDIT,
+      '32.50',
+      daysAgo(5),
+      'CHIPOTLE ONLINE',
+      'Chipotle',
+      'organization',
+      CAT_DINING,
+      'posted'
+    ),
+    txn(
+      '76',
+      ACCT_CITI_CREDIT,
+      '-1750.00',
+      daysAgo(7),
+      'CITI PAYMENT THANK YOU',
+      null,
+      null,
+      CAT_CREDIT_CARD_PAYMENT,
+      'posted'
+    ),
+
+    // ── Fidelity manual accounts — occasional manual entries ─────────────
+    txn(
+      '77',
+      ACCT_MANUAL_CREDIT,
+      '55.20',
+      daysAgo(4),
+      'AMAZON.COM',
+      'Amazon',
+      'organization',
+      CAT_SHOPPING,
+      'posted'
+    ),
+    txn(
+      '78',
+      ACCT_MANUAL_CREDIT,
+      '18.75',
+      daysAgo(9),
+      'STARBUCKS',
+      'Starbucks',
+      'organization',
+      CAT_COFFEE,
+      'posted'
+    ),
+    txn(
+      '79',
+      ACCT_MANUAL_CREDIT,
+      '-340.00',
+      daysAgo(12),
+      'FIDELITY VISA PAYMENT',
+      null,
+      null,
+      CAT_CREDIT_CARD_PAYMENT,
+      'posted'
     )
   ]);
 

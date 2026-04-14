@@ -1886,7 +1886,16 @@
                     </button>
                   </div>
                 {:else}
-                  <h2 class="inst-name" use:truncateTooltip>{group.institutionName}</h2>
+                  <div class="inst-name-row">
+                    <h2 class="inst-name" use:truncateTooltip>{group.institutionName}</h2>
+                    <span
+                      class="inst-source-badge {group.enrollmentStatus === 'manual'
+                        ? 'source-manual'
+                        : 'source-teller'}"
+                    >
+                      {group.enrollmentStatus === 'manual' ? 'Manual' : 'Teller'}
+                    </span>
+                  </div>
                   {#if group.enrollmentStatus !== 'manual'}
                     <span class="inst-sync">{formatLastSync(group.lastSynced)}</span>
                   {/if}
@@ -1894,9 +1903,11 @@
               </div>
             </div>
             <div class="inst-actions">
-              <span class="status-badge {statusClass(group.enrollmentStatus)}">
-                {group.enrollmentStatus === 'manual' ? 'Manual' : group.enrollmentStatus}
-              </span>
+              {#if group.enrollmentStatus !== 'manual'}
+                <span class="status-badge {statusClass(group.enrollmentStatus)}">
+                  {group.enrollmentStatus}
+                </span>
+              {/if}
               {#if group.enrollmentStatus === 'manual'}
                 <!-- Manual institution actions -->
                 {#if confirmDeleteManualInst === group.institutionName}
@@ -2217,6 +2228,13 @@
                     {/if}
                     <span class="acct-type-badge type-{account.type}">
                       {subtypeLabel(account.subtype)}
+                    </span>
+                    <span
+                      class="acct-source-badge {account.source === 'manual'
+                        ? 'source-manual'
+                        : 'source-teller'}"
+                    >
+                      {account.source === 'manual' ? 'Manual' : 'Teller'}
                     </span>
                   </div>
                   <div class="acct-bottom">
@@ -3720,6 +3738,92 @@
     border-color: rgba(92, 140, 232, 0.2);
     font-size: 0.68rem;
     padding: 0.25rem 0.6rem;
+  }
+
+  /* ── Institution Name Row (name + source badge inline) ──────────────────── */
+  .inst-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  /* ── Institution Source Badge (Teller / Manual next to name) ────────────── */
+  .inst-source-badge {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 5px;
+    line-height: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .inst-source-badge::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .inst-source-badge.source-teller {
+    color: var(--amethyst);
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.22);
+    box-shadow:
+      0 0 8px rgba(167, 139, 250, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .inst-source-badge.source-manual {
+    color: #7ba4f0;
+    background: rgba(92, 140, 232, 0.1);
+    border: 1px solid rgba(92, 140, 232, 0.2);
+    box-shadow:
+      0 0 8px rgba(92, 140, 232, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  /* ── Per-Account Source Badge (Teller / Manual next to type badge) ──────── */
+  .acct-source-badge {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: 0.58rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    padding: 0.15rem 0.42rem;
+    border-radius: 4px;
+    line-height: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .acct-source-badge::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .acct-source-badge.source-teller {
+    color: var(--amethyst);
+    background: rgba(167, 139, 250, 0.09);
+    border: 1px solid rgba(167, 139, 250, 0.18);
+  }
+
+  .acct-source-badge.source-manual {
+    color: #7ba4f0;
+    background: rgba(92, 140, 232, 0.09);
+    border: 1px solid rgba(92, 140, 232, 0.18);
   }
 
   /* ── Reconnect Banner ───────────────────────────────────────────────────── */
