@@ -55,6 +55,7 @@
   import type { PieSegment } from '$lib/components/GemPieChart.svelte';
   import GemBarChart from '$lib/components/GemBarChart.svelte';
   import type { BarData, ThresholdConfig } from '$lib/components/GemBarChart.svelte';
+  import Modal from '$lib/components/Modal.svelte';
 
   /* ── Emoji Picker ── */
   import { EMOJI_GROUPS, CATEGORY_COLORS } from '$lib/emojiPicker';
@@ -1109,93 +1110,103 @@
      CATEGORY MANAGER MODAL
      ═══════════════════════════════════════════════════════════════════════════ -->
 {#if showCategoryModal}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="modal-overlay"
-    onclick={() => (showCategoryModal = false)}
-    onkeydown={(e) => e.key === 'Escape' && (showCategoryModal = false)}
+  <Modal
+    open={showCategoryModal}
+    onclose={() => (showCategoryModal = false)}
+    style="--modal-bg: var(--bg-raised); --modal-border: var(--border)"
   >
-    <div
-      class="modal-sheet"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.key === 'Escape' && (showCategoryModal = false)}
-      role="dialog"
-      tabindex="-1"
-      aria-label="Category Manager"
-    >
-      <div class="sheet-handle-bar">
-        <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-header-left">
+        {#if categoryFormMode !== 'list'}
+          <button class="sheet-back" onclick={() => (categoryFormMode = 'list')} aria-label="Back">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M12.5 15L7.5 10L12.5 5"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        {/if}
+        <h2 class="sheet-title">
+          {#if categoryFormMode === 'create'}New Category{:else if categoryFormMode === 'edit'}Edit
+            Category{:else}Budget Categories{/if}
+        </h2>
       </div>
+      <button class="sheet-close" onclick={() => (showCategoryModal = false)} aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path
+            d="M5 5L15 15M15 5L5 15"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+    </div>
 
-      <div class="sheet-header">
-        <div class="sheet-header-left">
-          {#if categoryFormMode !== 'list'}
-            <button
-              class="sheet-back"
-              onclick={() => (categoryFormMode = 'list')}
-              aria-label="Back"
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M12.5 15L7.5 10L12.5 5"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </button>
-          {/if}
-          <h2 class="sheet-title">
-            {#if categoryFormMode === 'create'}New Category{:else if categoryFormMode === 'edit'}Edit
-              Category{:else}Budget Categories{/if}
-          </h2>
-        </div>
-        <button class="sheet-close" onclick={() => (showCategoryModal = false)} aria-label="Close">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M5 5L15 15M15 5L5 15"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-            />
-          </svg>
-        </button>
-      </div>
-
-      <div class="sheet-body">
-        {#if categoryFormMode === 'list'}
-          <!-- Category List -->
-          {#if categories.length === 0}
-            <div class="cat-modal-empty">
-              <p>No categories yet. Create your first one to start budgeting.</p>
-            </div>
-          {:else}
-            <div class="cat-modal-list">
-              {#each categories as cat (cat.id)}
-                <div class="cat-modal-row">
-                  <div class="cat-modal-row-left">
-                    <div class="cat-icon-circle small" style="--cat-color: {cat.color}">
-                      <span class="cat-icon-emoji">{cat.icon}</span>
-                    </div>
-                    <div class="cat-modal-info">
-                      <span class="cat-modal-name">{cat.name}</span>
-                      {#if parseFloat(cat.budget_amount) > 0}
-                        <span class="cat-modal-budget"
-                          >{formatCurrency(parseFloat(cat.budget_amount))}/mo</span
-                        >
-                      {/if}
-                    </div>
+    <div class="sheet-body">
+      {#if categoryFormMode === 'list'}
+        <!-- Category List -->
+        {#if categories.length === 0}
+          <div class="cat-modal-empty">
+            <p>No categories yet. Create your first one to start budgeting.</p>
+          </div>
+        {:else}
+          <div class="cat-modal-list">
+            {#each categories as cat (cat.id)}
+              <div class="cat-modal-row">
+                <div class="cat-modal-row-left">
+                  <div class="cat-icon-circle small" style="--cat-color: {cat.color}">
+                    <span class="cat-icon-emoji">{cat.icon}</span>
                   </div>
-                  <div class="cat-modal-actions">
+                  <div class="cat-modal-info">
+                    <span class="cat-modal-name">{cat.name}</span>
+                    {#if parseFloat(cat.budget_amount) > 0}
+                      <span class="cat-modal-budget"
+                        >{formatCurrency(parseFloat(cat.budget_amount))}/mo</span
+                      >
+                    {/if}
+                  </div>
+                </div>
+                <div class="cat-modal-actions">
+                  <button
+                    class="recurring-edit-btn"
+                    onclick={() => startEditCategory(cat.id)}
+                    aria-label="Edit {cat.name}"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path
+                        d="M11.333 2a1.886 1.886 0 012.667 2.667L5.333 13.333 2 14l.667-3.333L11.333 2z"
+                        stroke="currentColor"
+                        stroke-width="1.2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  {#if confirmDeleteId === cat.id}
                     <button
-                      class="recurring-edit-btn"
-                      onclick={() => startEditCategory(cat.id)}
-                      aria-label="Edit {cat.name}"
+                      class="confirm-delete-btn"
+                      onclick={() => deleteCategory(cat.id)}
+                      disabled={saving}
+                    >
+                      Confirm
+                    </button>
+                    <button class="cancel-delete-btn" onclick={() => (confirmDeleteId = null)}>
+                      Cancel
+                    </button>
+                  {:else}
+                    <button
+                      class="recurring-delete-btn"
+                      onclick={() => (confirmDeleteId = cat.id)}
+                      aria-label="Delete {cat.name}"
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path
-                          d="M11.333 2a1.886 1.886 0 012.667 2.667L5.333 13.333 2 14l.667-3.333L11.333 2z"
+                          d="M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z"
                           stroke="currentColor"
                           stroke-width="1.2"
                           stroke-linecap="round"
@@ -1203,341 +1214,297 @@
                         />
                       </svg>
                     </button>
-                    {#if confirmDeleteId === cat.id}
-                      <button
-                        class="confirm-delete-btn"
-                        onclick={() => deleteCategory(cat.id)}
-                        disabled={saving}
-                      >
-                        Confirm
-                      </button>
-                      <button class="cancel-delete-btn" onclick={() => (confirmDeleteId = null)}>
-                        Cancel
-                      </button>
-                    {:else}
-                      <button
-                        class="recurring-delete-btn"
-                        onclick={() => (confirmDeleteId = cat.id)}
-                        aria-label="Delete {cat.name}"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                          <path
-                            d="M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z"
-                            stroke="currentColor"
-                            stroke-width="1.2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    {/if}
-                  </div>
+                  {/if}
                 </div>
-              {/each}
-            </div>
-          {/if}
-        {:else}
-          <!-- Create / Edit Form -->
-          <div class="form-group">
-            <label class="form-label" for="cat-name">Name</label>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      {:else}
+        <!-- Create / Edit Form -->
+        <div class="form-group">
+          <label class="form-label" for="cat-name">Name</label>
+          <input
+            id="cat-name"
+            type="text"
+            class="form-input"
+            bind:value={categoryForm.name}
+            placeholder="e.g. Groceries, Rent"
+          />
+        </div>
+
+        <div class="form-group" role="group" aria-label="Icon">
+          <span class="form-label">Icon</span>
+          <div class="emoji-picker">
+            {#each EMOJI_GROUPS as group (group.label)}
+              <div class="emoji-group">
+                <span class="emoji-group-label">{group.label}</span>
+                <div class="emoji-grid">
+                  {#each group.emojis as emoji (emoji)}
+                    <button
+                      class="emoji-btn"
+                      class:selected={categoryForm.icon === emoji}
+                      onclick={() => (categoryForm.icon = emoji)}
+                      type="button"
+                    >
+                      {emoji}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        <div class="form-group" role="group" aria-label="Color">
+          <span class="form-label">Color</span>
+          <div class="color-picker">
+            {#each CATEGORY_COLORS as color (color)}
+              <button
+                class="color-btn"
+                class:selected={categoryForm.color === color}
+                style="background-color: {color}"
+                onclick={() => (categoryForm.color = color)}
+                type="button"
+                aria-label="Color {color}"
+              ></button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cat-budget">Monthly Budget</label>
+          <div class="form-input-wrap">
+            <span class="form-dollar">$</span>
             <input
-              id="cat-name"
-              type="text"
-              class="form-input"
-              bind:value={categoryForm.name}
-              placeholder="e.g. Groceries, Rent"
+              id="cat-budget"
+              type="number"
+              class="form-input with-prefix"
+              bind:value={categoryForm.budget_amount}
+              placeholder="0"
+              min="0"
+              step="1"
+              inputmode="decimal"
             />
           </div>
+        </div>
 
-          <div class="form-group" role="group" aria-label="Icon">
-            <span class="form-label">Icon</span>
-            <div class="emoji-picker">
-              {#each EMOJI_GROUPS as group (group.label)}
-                <div class="emoji-group">
-                  <span class="emoji-group-label">{group.label}</span>
-                  <div class="emoji-grid">
-                    {#each group.emojis as emoji (emoji)}
-                      <button
-                        class="emoji-btn"
-                        class:selected={categoryForm.icon === emoji}
-                        onclick={() => (categoryForm.icon = emoji)}
-                        type="button"
-                      >
-                        {emoji}
-                      </button>
-                    {/each}
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-
-          <div class="form-group" role="group" aria-label="Color">
-            <span class="form-label">Color</span>
-            <div class="color-picker">
-              {#each CATEGORY_COLORS as color (color)}
-                <button
-                  class="color-btn"
-                  class:selected={categoryForm.color === color}
-                  style="background-color: {color}"
-                  onclick={() => (categoryForm.color = color)}
-                  type="button"
-                  aria-label="Color {color}"
-                ></button>
-              {/each}
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="cat-budget">Monthly Budget</label>
-            <div class="form-input-wrap">
-              <span class="form-dollar">$</span>
-              <input
-                id="cat-budget"
-                type="number"
-                class="form-input with-prefix"
-                bind:value={categoryForm.budget_amount}
-                placeholder="0"
-                min="0"
-                step="1"
-                inputmode="decimal"
-              />
-            </div>
-          </div>
-
-          {#if categoryFormMode === 'edit' && editingCategoryId}
-            <button
-              class="delete-category-inline"
-              onclick={() => deleteCategory(editingCategoryId!)}
-              disabled={saving}
-            >
-              Delete this category
-            </button>
-          {/if}
-        {/if}
-      </div>
-
-      <div class="sheet-footer">
-        {#if categoryFormMode === 'list'}
-          <div class="config-total-row">
-            <span class="config-total-label">Monthly Total</span>
-            <span class="config-total-value">{formatCurrency(categoryModalTotal)}</span>
-          </div>
-          <button class="save-budget-btn" onclick={startCreateCategory}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M8 3v10M3 8h10"
-                stroke="currentColor"
-                stroke-width="1.4"
-                stroke-linecap="round"
-              />
-            </svg>
-            Add Category
-          </button>
-        {:else}
+        {#if categoryFormMode === 'edit' && editingCategoryId}
           <button
-            class="save-budget-btn"
-            onclick={saveCategoryForm}
-            disabled={saving || !categoryForm.name.trim()}
+            class="delete-category-inline"
+            onclick={() => deleteCategory(editingCategoryId!)}
+            disabled={saving}
           >
-            {#if saving}Saving...{:else}{categoryFormMode === 'edit' ? 'Update' : 'Create'} Category{/if}
+            Delete this category
           </button>
         {/if}
-      </div>
+      {/if}
     </div>
-  </div>
+
+    <div class="sheet-footer">
+      {#if categoryFormMode === 'list'}
+        <div class="config-total-row">
+          <span class="config-total-label">Monthly Total</span>
+          <span class="config-total-value">{formatCurrency(categoryModalTotal)}</span>
+        </div>
+        <button class="save-budget-btn" onclick={startCreateCategory}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M8 3v10M3 8h10"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+            />
+          </svg>
+          Add Category
+        </button>
+      {:else}
+        <button
+          class="save-budget-btn"
+          onclick={saveCategoryForm}
+          disabled={saving || !categoryForm.name.trim()}
+        >
+          {#if saving}Saving...{:else}{categoryFormMode === 'edit' ? 'Update' : 'Create'} Category{/if}
+        </button>
+      {/if}
+    </div>
+  </Modal>
 {/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      ADD / EDIT RECURRING MODAL
      ═══════════════════════════════════════════════════════════════════════════ -->
 {#if showRecurringModal}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="modal-overlay"
-    onclick={() => (showRecurringModal = false)}
-    onkeydown={(e) => e.key === 'Escape' && (showRecurringModal = false)}
+  <Modal
+    open={showRecurringModal}
+    onclose={() => (showRecurringModal = false)}
+    style="--modal-bg: var(--bg-raised); --modal-border: var(--border)"
   >
-    <div
-      class="modal-sheet recurring-sheet"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.key === 'Escape' && (showRecurringModal = false)}
-      role="dialog"
-      tabindex="-1"
-      aria-label={editingRecurringId ? 'Edit Recurring Transaction' : 'Add Recurring Transaction'}
-    >
-      <div class="sheet-handle-bar">
-        <div class="sheet-handle"></div>
-      </div>
-
-      <div class="sheet-header">
-        <h2 class="sheet-title">
-          {editingRecurringId ? 'Edit Recurring' : 'Add Recurring'}
-        </h2>
-        <button class="sheet-close" onclick={() => (showRecurringModal = false)} aria-label="Close">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M5 5L15 15M15 5L5 15"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-            />
-          </svg>
-        </button>
-      </div>
-
-      <div class="sheet-body">
-        <div class="form-group">
-          <label class="form-label" for="rec-name">Display Name</label>
-          <input
-            id="rec-name"
-            type="text"
-            class="form-input"
-            bind:value={recurringForm.name}
-            placeholder="e.g. Netflix, Rent"
+    <div class="sheet-header">
+      <h2 class="sheet-title">
+        {editingRecurringId ? 'Edit Recurring' : 'Add Recurring'}
+      </h2>
+      <button class="sheet-close" onclick={() => (showRecurringModal = false)} aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path
+            d="M5 5L15 15M15 5L5 15"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
           />
-          <span class="form-hint">How this subscription appears in your list</span>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="rec-pattern">Transaction Name Match</label>
-          <input
-            id="rec-pattern"
-            type="text"
-            class="form-input"
-            bind:value={recurringForm.merchant_pattern}
-            placeholder="e.g. NETFLIX, PAYPAL *SPOTIFY"
-            oninput={(e) => {
-              const target = e.currentTarget as HTMLInputElement;
-              loadPatternPreview(target.value);
-            }}
-          />
-          <span class="form-hint">Enter the transaction description to match against</span>
-          {#if patternPreviewLoading}
-            <div class="pattern-preview-loading">Searching...</div>
-          {:else if recurringForm.merchant_pattern.trim() && patternPreviewTxns.length > 0}
-            <div class="pattern-preview">
-              <div class="pattern-preview-header">
-                <span class="pattern-preview-count"
-                  >{patternPreviewTxns.length} matching transaction{patternPreviewTxns.length === 1
-                    ? ''
-                    : 's'}</span
-                >
-              </div>
-              <div class="pattern-preview-list">
-                {#each patternPreviewTxns.slice(0, 8) as t (t.id)}
-                  <div class="pattern-preview-row">
-                    <span class="pattern-preview-date">{formatShortDate(t.date)}</span>
-                    <span class="pattern-preview-desc">{t.description}</span>
-                    <span class="pattern-preview-amt"
-                      >{formatCurrency(Math.abs(parseFloat(t.amount)))}</span
-                    >
-                  </div>
-                {/each}
-                {#if patternPreviewTxns.length > 8}
-                  <div class="pattern-preview-more">+{patternPreviewTxns.length - 8} more</div>
-                {/if}
-              </div>
-            </div>
-          {:else if recurringForm.merchant_pattern.trim()}
-            <div class="pattern-preview-empty">No matching transactions found</div>
-          {/if}
-        </div>
-
-        {#if derivedRecurring}
-          <div class="derived-info">
-            <div class="derived-info-header">Derived from matched transactions</div>
-            <div class="derived-info-grid">
-              <div class="derived-info-item">
-                <span class="derived-info-label">Avg Amount</span>
-                <span class="derived-info-value">{formatCurrency(derivedRecurring.avgAmount)}</span>
-              </div>
-              <div class="derived-info-item">
-                <span class="derived-info-label">Frequency</span>
-                <span class="derived-info-value" style="text-transform: capitalize"
-                  >{derivedRecurring.freq}</span
-                >
-              </div>
-              {#if derivedRecurring.catLabel}
-                <div class="derived-info-item">
-                  <span class="derived-info-label">Category</span>
-                  <span class="derived-info-value">{derivedRecurring.catLabel}</span>
-                </div>
-              {/if}
-              {#if derivedRecurring.nextDate}
-                <div class="derived-info-item">
-                  <span class="derived-info-label">Next Est.</span>
-                  <span class="derived-info-value"
-                    >{formatShortDate(derivedRecurring.nextDate)}</span
-                  >
-                </div>
-              {/if}
-            </div>
-          </div>
-        {:else if editingRecurringItem}
-          {@const fallbackCat = editingRecurringItem.category_id
-            ? (categories ?? []).find((c) => c.id === editingRecurringItem!.category_id)
-            : null}
-          <div class="derived-info derived-info-fallback">
-            <div class="derived-info-header">Stored values</div>
-            <div class="derived-info-grid">
-              <div class="derived-info-item">
-                <span class="derived-info-label">Amount</span>
-                <span class="derived-info-value"
-                  >{formatCurrency(parseFloat(editingRecurringItem.amount))}</span
-                >
-              </div>
-              <div class="derived-info-item">
-                <span class="derived-info-label">Frequency</span>
-                <span class="derived-info-value" style="text-transform: capitalize"
-                  >{editingRecurringItem.frequency}</span
-                >
-              </div>
-              {#if fallbackCat}
-                <div class="derived-info-item">
-                  <span class="derived-info-label">Category</span>
-                  <span class="derived-info-value">{fallbackCat.icon} {fallbackCat.name}</span>
-                </div>
-              {/if}
-              {#if editingRecurringItem.next_date}
-                <div class="derived-info-item">
-                  <span class="derived-info-label">Next Est.</span>
-                  <span class="derived-info-value"
-                    >{formatShortDate(editingRecurringItem.next_date)}</span
-                  >
-                </div>
-              {/if}
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <div class="sheet-footer">
-        {#if editingRecurringId}
-          <button
-            class="delete-recurring-btn"
-            onclick={() => {
-              if (editingRecurringId) removeRecurring(editingRecurringId);
-              showRecurringModal = false;
-            }}
-          >
-            Delete
-          </button>
-        {/if}
-        <button
-          class="save-budget-btn"
-          onclick={saveRecurring}
-          disabled={recurringFormSaving || !recurringForm.name.trim()}
-        >
-          {#if recurringFormSaving}
-            Saving...
-          {:else}
-            {editingRecurringId ? 'Update' : 'Add'}
-          {/if}
-        </button>
-      </div>
+        </svg>
+      </button>
     </div>
-  </div>
+
+    <div class="sheet-body">
+      <div class="form-group">
+        <label class="form-label" for="rec-name">Display Name</label>
+        <input
+          id="rec-name"
+          type="text"
+          class="form-input"
+          bind:value={recurringForm.name}
+          placeholder="e.g. Netflix, Rent"
+        />
+        <span class="form-hint">How this subscription appears in your list</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="rec-pattern">Transaction Name Match</label>
+        <input
+          id="rec-pattern"
+          type="text"
+          class="form-input"
+          bind:value={recurringForm.merchant_pattern}
+          placeholder="e.g. NETFLIX, PAYPAL *SPOTIFY"
+          oninput={(e) => {
+            const target = e.currentTarget as HTMLInputElement;
+            loadPatternPreview(target.value);
+          }}
+        />
+        <span class="form-hint">Enter the transaction description to match against</span>
+        {#if patternPreviewLoading}
+          <div class="pattern-preview-loading">Searching...</div>
+        {:else if recurringForm.merchant_pattern.trim() && patternPreviewTxns.length > 0}
+          <div class="pattern-preview">
+            <div class="pattern-preview-header">
+              <span class="pattern-preview-count"
+                >{patternPreviewTxns.length} matching transaction{patternPreviewTxns.length === 1
+                  ? ''
+                  : 's'}</span
+              >
+            </div>
+            <div class="pattern-preview-list">
+              {#each patternPreviewTxns.slice(0, 8) as t (t.id)}
+                <div class="pattern-preview-row">
+                  <span class="pattern-preview-date">{formatShortDate(t.date)}</span>
+                  <span class="pattern-preview-desc">{t.description}</span>
+                  <span class="pattern-preview-amt"
+                    >{formatCurrency(Math.abs(parseFloat(t.amount)))}</span
+                  >
+                </div>
+              {/each}
+              {#if patternPreviewTxns.length > 8}
+                <div class="pattern-preview-more">+{patternPreviewTxns.length - 8} more</div>
+              {/if}
+            </div>
+          </div>
+        {:else if recurringForm.merchant_pattern.trim()}
+          <div class="pattern-preview-empty">No matching transactions found</div>
+        {/if}
+      </div>
+
+      {#if derivedRecurring}
+        <div class="derived-info">
+          <div class="derived-info-header">Derived from matched transactions</div>
+          <div class="derived-info-grid">
+            <div class="derived-info-item">
+              <span class="derived-info-label">Avg Amount</span>
+              <span class="derived-info-value">{formatCurrency(derivedRecurring.avgAmount)}</span>
+            </div>
+            <div class="derived-info-item">
+              <span class="derived-info-label">Frequency</span>
+              <span class="derived-info-value" style="text-transform: capitalize"
+                >{derivedRecurring.freq}</span
+              >
+            </div>
+            {#if derivedRecurring.catLabel}
+              <div class="derived-info-item">
+                <span class="derived-info-label">Category</span>
+                <span class="derived-info-value">{derivedRecurring.catLabel}</span>
+              </div>
+            {/if}
+            {#if derivedRecurring.nextDate}
+              <div class="derived-info-item">
+                <span class="derived-info-label">Next Est.</span>
+                <span class="derived-info-value">{formatShortDate(derivedRecurring.nextDate)}</span>
+              </div>
+            {/if}
+          </div>
+        </div>
+      {:else if editingRecurringItem}
+        {@const fallbackCat = editingRecurringItem.category_id
+          ? (categories ?? []).find((c) => c.id === editingRecurringItem!.category_id)
+          : null}
+        <div class="derived-info derived-info-fallback">
+          <div class="derived-info-header">Stored values</div>
+          <div class="derived-info-grid">
+            <div class="derived-info-item">
+              <span class="derived-info-label">Amount</span>
+              <span class="derived-info-value"
+                >{formatCurrency(parseFloat(editingRecurringItem.amount))}</span
+              >
+            </div>
+            <div class="derived-info-item">
+              <span class="derived-info-label">Frequency</span>
+              <span class="derived-info-value" style="text-transform: capitalize"
+                >{editingRecurringItem.frequency}</span
+              >
+            </div>
+            {#if fallbackCat}
+              <div class="derived-info-item">
+                <span class="derived-info-label">Category</span>
+                <span class="derived-info-value">{fallbackCat.icon} {fallbackCat.name}</span>
+              </div>
+            {/if}
+            {#if editingRecurringItem.next_date}
+              <div class="derived-info-item">
+                <span class="derived-info-label">Next Est.</span>
+                <span class="derived-info-value"
+                  >{formatShortDate(editingRecurringItem.next_date)}</span
+                >
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <div class="sheet-footer recurring-footer">
+      {#if editingRecurringId}
+        <button
+          class="delete-recurring-btn"
+          onclick={() => {
+            if (editingRecurringId) removeRecurring(editingRecurringId);
+            showRecurringModal = false;
+          }}
+        >
+          Delete
+        </button>
+      {/if}
+      <button
+        class="save-budget-btn"
+        onclick={saveRecurring}
+        disabled={recurringFormSaving || !recurringForm.name.trim()}
+      >
+        {#if recurringFormSaving}
+          Saving...
+        {:else}
+          {editingRecurringId ? 'Update' : 'Add'}
+        {/if}
+      </button>
+    </div>
+  </Modal>
 {/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -1558,180 +1525,167 @@
   {@const avgPerMonth = monthGroups.length > 0 ? totalSpentAll / monthGroups.length : 0}
   {@const firstDate =
     detailTransactions.length > 0 ? detailTransactions[detailTransactions.length - 1].date : null}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="modal-overlay"
-    onclick={() => (showRecurringDetail = false)}
-    onkeydown={(e) => e.key === 'Escape' && (showRecurringDetail = false)}
+  <Modal
+    open={showRecurringDetail}
+    onclose={() => (showRecurringDetail = false)}
+    maxWidth="520px"
+    style="--modal-bg: var(--bg-raised); --modal-border: var(--border)"
   >
-    <div
-      class="modal-sheet detail-sheet"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.key === 'Escape' && (showRecurringDetail = false)}
-      role="dialog"
-      tabindex="-1"
-      aria-label="Recurring Transaction Details"
-    >
-      <div class="sheet-handle-bar">
-        <div class="sheet-handle"></div>
+    {#if detailItem}
+      <div class="detail-hero">
+        <div class="detail-hero-icon">
+          <div class="cat-icon-circle" style="--cat-color: {detailCat?.color ?? '#706450'}">
+            <span class="cat-icon-emoji">{detailCat?.icon ?? '?'}</span>
+          </div>
+        </div>
+        <div class="detail-hero-info">
+          <h2 class="detail-hero-name">{detailItem.name}</h2>
+          <div class="detail-hero-meta">
+            <span class="detail-hero-amount"
+              >{formatCurrency(detailItem.amount)}{formatFrequency(detailItem.frequency)}</span
+            >
+            {#if detailItem.source === 'auto-detected'}
+              <span class="auto-badge">auto-detected</span>
+            {:else}
+              <span class="manual-badge">manual</span>
+            {/if}
+            {#if detailItem.status === 'cancelling'}
+              <span class="cancelling-badge">cancelling</span>
+            {/if}
+          </div>
+        </div>
+        <button
+          class="sheet-close"
+          onclick={() => (showRecurringDetail = false)}
+          aria-label="Close"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M5 5L15 15M15 5L5 15"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
       </div>
 
-      {#if detailItem}
-        <div class="detail-hero">
-          <div class="detail-hero-icon">
-            <div class="cat-icon-circle" style="--cat-color: {detailCat?.color ?? '#706450'}">
-              <span class="cat-icon-emoji">{detailCat?.icon ?? '?'}</span>
-            </div>
-          </div>
-          <div class="detail-hero-info">
-            <h2 class="detail-hero-name">{detailItem.name}</h2>
-            <div class="detail-hero-meta">
-              <span class="detail-hero-amount"
-                >{formatCurrency(detailItem.amount)}{formatFrequency(detailItem.frequency)}</span
-              >
-              {#if detailItem.source === 'auto-detected'}
-                <span class="auto-badge">auto-detected</span>
-              {:else}
-                <span class="manual-badge">manual</span>
-              {/if}
-              {#if detailItem.status === 'cancelling'}
-                <span class="cancelling-badge">cancelling</span>
-              {/if}
-            </div>
-          </div>
-          <button
-            class="sheet-close"
-            onclick={() => (showRecurringDetail = false)}
-            aria-label="Close"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M5 5L15 15M15 5L5 15"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
+      <!-- Stats row -->
+      <div class="detail-stats">
+        <div class="detail-stat">
+          <span class="detail-stat-value">{formatCurrency(totalSpentAll)}</span>
+          <span class="detail-stat-label">Total Spent</span>
         </div>
-
-        <!-- Stats row -->
-        <div class="detail-stats">
-          <div class="detail-stat">
-            <span class="detail-stat-value">{formatCurrency(totalSpentAll)}</span>
-            <span class="detail-stat-label">Total Spent</span>
-          </div>
+        <div class="detail-stat-divider"></div>
+        <div class="detail-stat">
+          <span class="detail-stat-value">{formatCurrency(avgPerMonth)}</span>
+          <span class="detail-stat-label">Avg / Month</span>
+        </div>
+        <div class="detail-stat-divider"></div>
+        <div class="detail-stat">
+          <span class="detail-stat-value">{monthGroups.length}</span>
+          <span class="detail-stat-label">Months</span>
+        </div>
+        {#if firstDate}
           <div class="detail-stat-divider"></div>
           <div class="detail-stat">
-            <span class="detail-stat-value">{formatCurrency(avgPerMonth)}</span>
-            <span class="detail-stat-label">Avg / Month</span>
+            <span class="detail-stat-value">{formatShortDate(firstDate)}</span>
+            <span class="detail-stat-label">Since</span>
           </div>
-          <div class="detail-stat-divider"></div>
-          <div class="detail-stat">
-            <span class="detail-stat-value">{monthGroups.length}</span>
-            <span class="detail-stat-label">Months</span>
-          </div>
-          {#if firstDate}
-            <div class="detail-stat-divider"></div>
-            <div class="detail-stat">
-              <span class="detail-stat-value">{formatShortDate(firstDate)}</span>
-              <span class="detail-stat-label">Since</span>
-            </div>
-          {/if}
-        </div>
+        {/if}
+      </div>
 
-        <!-- Action buttons -->
-        <div class="detail-actions">
-          <button
-            class="detail-action-btn edit"
-            onclick={() => {
-              showRecurringDetail = false;
-              openRecurringModal(detailItem.id);
-            }}
+      <!-- Action buttons -->
+      <div class="detail-actions">
+        <button
+          class="detail-action-btn edit"
+          onclick={() => {
+            showRecurringDetail = false;
+            openRecurringModal(detailItem.id);
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M11.333 2a1.886 1.886 0 012.667 2.667L5.333 13.333 2 14l.667-3.333L11.333 2z"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          Edit
+        </button>
+        {#if cancelUrl}
+          <a
+            class="detail-action-btn cancel-link"
+            href={cancelUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onclick={(e) => e.stopPropagation()}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path
-                d="M11.333 2a1.886 1.886 0 012.667 2.667L5.333 13.333 2 14l.667-3.333L11.333 2z"
+                d="M6 2H3a1 1 0 00-1 1v3m12-4h-3m3 0v3m0 2v3a1 1 0 01-1 1h-3m-4 0H3a1 1 0 01-1-1v-3"
                 stroke="currentColor"
                 stroke-width="1.2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
               />
             </svg>
-            Edit
+            Cancel Page
+          </a>
+        {/if}
+        {#if detailItem.status === 'active'}
+          <button class="detail-action-btn warn" onclick={() => markCancelling(detailItem.id)}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" />
+              <path
+                d="M5.5 5.5l5 5M10.5 5.5l-5 5"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+              />
+            </svg>
+            Mark Cancelling
           </button>
-          {#if cancelUrl}
-            <a
-              class="detail-action-btn cancel-link"
-              href={cancelUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onclick={(e) => e.stopPropagation()}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M6 2H3a1 1 0 00-1 1v3m12-4h-3m3 0v3m0 2v3a1 1 0 01-1 1h-3m-4 0H3a1 1 0 01-1-1v-3"
-                  stroke="currentColor"
-                  stroke-width="1.2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-              Cancel Page
-            </a>
-          {/if}
-          {#if detailItem.status === 'active'}
-            <button class="detail-action-btn warn" onclick={() => markCancelling(detailItem.id)}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" />
-                <path
-                  d="M5.5 5.5l5 5M10.5 5.5l-5 5"
-                  stroke="currentColor"
-                  stroke-width="1.2"
-                  stroke-linecap="round"
-                />
-              </svg>
-              Mark Cancelling
-            </button>
-          {:else if detailItem.status === 'cancelling'}
-            <button class="detail-action-btn danger" onclick={() => markEnded(detailItem.id)}>
-              Confirm Cancelled
-            </button>
-            <button class="detail-action-btn subtle" onclick={() => reactivate(detailItem.id)}>
-              Reactivate
-            </button>
-          {/if}
-        </div>
+        {:else if detailItem.status === 'cancelling'}
+          <button class="detail-action-btn danger" onclick={() => markEnded(detailItem.id)}>
+            Confirm Cancelled
+          </button>
+          <button class="detail-action-btn subtle" onclick={() => reactivate(detailItem.id)}>
+            Reactivate
+          </button>
+        {/if}
+      </div>
 
-        <!-- Transaction History -->
-        <div class="detail-history">
-          <h3 class="detail-history-title">Transaction History</h3>
-          {#if detailLoading}
-            <div class="detail-loading">
-              <div class="detail-loading-spinner"></div>
-              Loading transactions...
-            </div>
-          {:else if monthGroups.length === 0}
-            <p class="detail-empty">No matching transactions found.</p>
-          {:else}
-            {#each monthGroups as group (group.month)}
-              {#each group.txns as t (t.id)}
-                <div class="detail-txn-row">
-                  <span class="detail-txn-date">{formatShortDate(t.date)}</span>
-                  <span class="detail-txn-desc">{t.description}</span>
-                  <span class="detail-txn-amount"
-                    >{formatCurrency(Math.abs(parseFloat(t.amount)))}</span
-                  >
-                </div>
-              {/each}
+      <!-- Transaction History -->
+      <div class="detail-history">
+        <h3 class="detail-history-title">Transaction History</h3>
+        {#if detailLoading}
+          <div class="detail-loading">
+            <div class="detail-loading-spinner"></div>
+            Loading transactions...
+          </div>
+        {:else if monthGroups.length === 0}
+          <p class="detail-empty">No matching transactions found.</p>
+        {:else}
+          {#each monthGroups as group (group.month)}
+            {#each group.txns as t (t.id)}
+              <div class="detail-txn-row">
+                <span class="detail-txn-date">{formatShortDate(t.date)}</span>
+                <span class="detail-txn-desc">{t.description}</span>
+                <span class="detail-txn-amount"
+                  >{formatCurrency(Math.abs(parseFloat(t.amount)))}</span
+                >
+              </div>
             {/each}
-          {/if}
-        </div>
-      {:else}
-        <div class="detail-empty">Recurring transaction not found.</div>
-      {/if}
-    </div>
-  </div>
+          {/each}
+        {/if}
+      </div>
+    {:else}
+      <div class="detail-empty">Recurring transaction not found.</div>
+    {/if}
+  </Modal>
 {/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -2769,58 +2723,6 @@
   /* ══════════════════════════════════════════════════════════════════════════
      MODAL OVERLAY + BOTTOM SHEET
      ══════════════════════════════════════════════════════════════════════════ */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-    animation: overlayFadeIn 0.25s ease-out;
-  }
-
-  @keyframes overlayFadeIn {
-    from {
-      opacity: 0;
-    }
-  }
-
-  .modal-sheet {
-    position: relative;
-    width: 100%;
-    max-width: 500px;
-    max-height: 85vh;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-raised);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow:
-      0 24px 48px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(180, 150, 80, 0.08);
-    animation: modalEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    overflow: hidden;
-  }
-
-  @keyframes modalEnter {
-    from {
-      opacity: 0;
-      transform: translateY(24px) scale(0.96);
-    }
-  }
-
-  .sheet-handle-bar {
-    display: none;
-  }
-
-  .sheet-handle {
-    display: none;
-  }
-
   .sheet-header {
     display: flex;
     align-items: center;
@@ -3156,7 +3058,7 @@
   /* ══════════════════════════════════════════════════════════════════════════
      RECURRING MODAL — Form
      ══════════════════════════════════════════════════════════════════════════ */
-  .recurring-sheet .sheet-footer {
+  .recurring-footer {
     flex-direction: row;
     gap: 8px;
   }
@@ -3484,10 +3386,6 @@
   /* ══════════════════════════════════════════════════════════════════════════
      DETAIL SHEET — Recurring transaction detail view
      ══════════════════════════════════════════════════════════════════════════ */
-  .detail-sheet {
-    max-width: 520px;
-  }
-
   .detail-hero {
     display: flex;
     align-items: flex-start;
@@ -3834,35 +3732,9 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
-     RESPONSIVE — Mobile Bottom Sheet for Detail View
+     RESPONSIVE — Mobile
      ══════════════════════════════════════════════════════════════════════════ */
   @media (max-width: 640px) {
-    .detail-sheet {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      max-width: 100%;
-      max-height: 92vh;
-      border-radius: 20px 20px 0 0;
-      animation: detailSheetSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-      margin: 0;
-    }
-
-    .detail-sheet .sheet-handle-bar {
-      display: flex;
-      justify-content: center;
-      padding: 10px 0 4px;
-    }
-
-    .detail-sheet .sheet-handle {
-      display: block;
-      width: 36px;
-      height: 4px;
-      border-radius: 2px;
-      background: rgba(160, 148, 120, 0.3);
-    }
-
     .detail-hero {
       padding: 1rem 1.25rem 0.75rem;
     }
@@ -3880,48 +3752,6 @@
     .detail-history {
       padding: 0 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
       max-height: 35vh;
-    }
-
-    /* Category/Add Recurring modal also bottom-sheet on mobile */
-    .modal-sheet {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      max-width: 100%;
-      max-height: 90vh;
-      border-radius: 20px 20px 0 0;
-      animation: detailSheetSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .modal-sheet .sheet-handle-bar {
-      display: flex;
-      justify-content: center;
-      padding: 10px 0 4px;
-    }
-
-    .modal-sheet .sheet-handle {
-      display: block;
-      width: 36px;
-      height: 4px;
-      border-radius: 2px;
-      background: rgba(160, 148, 120, 0.3);
-    }
-
-    .modal-overlay {
-      align-items: flex-end;
-      padding: 0;
-    }
-  }
-
-  @keyframes detailSheetSlideUp {
-    from {
-      opacity: 0;
-      transform: translateY(100%);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
     }
   }
 
@@ -3942,10 +3772,6 @@
       height: 32px;
     }
 
-    .modal-sheet {
-      max-height: 80vh;
-    }
-
     .emoji-grid {
       gap: 6px;
     }
@@ -3963,9 +3789,6 @@
      REDUCED MOTION
      ══════════════════════════════════════════════════════════════════════════ */
   @media (prefers-reduced-motion: reduce) {
-    .modal-overlay,
-    .modal-sheet,
-    .recurring-sheet,
     .emoji-btn,
     .save-budget-btn,
     .empty-cta,

@@ -41,6 +41,7 @@
   } from '$lib/utils/csv';
   import { processTellerSyncData } from '$lib/teller/autoSync';
   import { addToast } from '$lib/stores/toast';
+  import Modal from '$lib/components/Modal.svelte';
 
   // ==========================================================================
   //                           COMPONENT STATE
@@ -2499,165 +2500,162 @@
      ═══════════════════════════════════════════════════════════════════════════ -->
 
 {#if showManualModal}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="modal-backdrop"
-    onclick={() => (showManualModal = false)}
-    onkeydown={(e) => e.key === 'Escape' && (showManualModal = false)}
+  <Modal
+    open={showManualModal}
+    onclose={() => (showManualModal = false)}
+    maxWidth="460px"
+    style="--modal-bg: var(--surface-card); --modal-border: var(--border-subtle); --modal-overflow: auto"
   >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="modal-panel" onclick={(e) => e.stopPropagation()}>
-      <div class="modal-header">
-        <h2 class="modal-title">Add Manual Account</h2>
-        <button class="modal-close" onclick={() => (showManualModal = false)} aria-label="Close">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
-          >
-        </button>
-      </div>
-
-      <div class="modal-body">
-        <label class="form-label">
-          Institution Name
-          <div
-            class="inst-input-wrap"
-            class:inst-open={instDropdownOpen && instDropdownFiltered.length > 0}
-          >
-            <input
-              class="form-input"
-              type="text"
-              bind:value={manualInstitution}
-              bind:this={instInputEl}
-              placeholder="e.g. Chase, Fidelity"
-              autocomplete="off"
-              onfocus={() => (instDropdownOpen = true)}
-              onblur={() => setTimeout(() => (instDropdownOpen = false), 180)}
-            />
-            {#if instDropdownOpen && instDropdownFiltered.length > 0}
-              <div
-                class="inst-dropdown"
-                role="listbox"
-                aria-label="Existing institutions"
-                style={instDropdownStyle}
-              >
-                {#each instDropdownFiltered as name (name)}
-                  <button
-                    class="inst-dropdown-item"
-                    role="option"
-                    aria-selected={manualInstitution === name}
-                    onmousedown={() => {
-                      manualInstitution = name;
-                      instDropdownOpen = false;
-                    }}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="inst-dd-icon"
-                      ><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path
-                        d="M9 21v-4h6v4"
-                      /></svg
-                    >
-                    {name}
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </label>
-
-        <label class="form-label">
-          Account Name
-          <input
-            class="form-input"
-            type="text"
-            bind:value={manualName}
-            placeholder="e.g. Personal Checking"
-          />
-        </label>
-
-        <label class="form-label">
-          Account Number
-          <input
-            class="form-input"
-            type="text"
-            bind:value={manualLastFour}
-            placeholder="Last 4 digits (optional)"
-            maxlength="4"
-          />
-          <span class="form-hint">Only the last 4 digits are stored</span>
-        </label>
-
-        <div class="form-row">
-          <label class="form-label form-half">
-            Type
-            <select class="form-input" bind:value={manualType}>
-              <option value="depository">Depository</option>
-              <option value="credit">Credit</option>
-            </select>
-          </label>
-
-          <label class="form-label form-half">
-            Subtype
-            <select class="form-input" bind:value={manualSubtype}>
-              {#each manualSubtypes as st (st.value)}
-                <option value={st.value}>{st.label}</option>
-              {/each}
-            </select>
-          </label>
-        </div>
-
-        {#if manualType === 'credit'}
-          <label class="form-label">
-            Credit Limit
-            <input
-              class="form-input"
-              type="number"
-              step="0.01"
-              bind:value={manualCreditLimit}
-              placeholder="0.00"
-            />
-            <span class="form-hint">
-              Current balance will be derived from imported transactions.
-            </span>
-          </label>
-        {/if}
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn-ghost-sm" onclick={() => (showManualModal = false)}>Cancel</button>
-        <button
-          class="btn-primary"
-          onclick={createManualAccount}
-          disabled={creatingManual ||
-            !manualInstitution.trim() ||
-            !manualName.trim() ||
-            (manualType === 'credit' && manualCreditLimit === 0.0)}
+    <div class="modal-header">
+      <h2 class="modal-title">Add Manual Account</h2>
+      <button class="modal-close" onclick={() => (showManualModal = false)} aria-label="Close">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
         >
-          {#if creatingManual}
-            <div class="btn-spinner"></div>
-            Creating...
-          {:else}
-            Create Account
-          {/if}
-        </button>
-      </div>
+      </button>
     </div>
-  </div>
+
+    <div class="modal-body">
+      <label class="form-label">
+        Institution Name
+        <div
+          class="inst-input-wrap"
+          class:inst-open={instDropdownOpen && instDropdownFiltered.length > 0}
+        >
+          <input
+            class="form-input"
+            type="text"
+            bind:value={manualInstitution}
+            bind:this={instInputEl}
+            placeholder="e.g. Chase, Fidelity"
+            autocomplete="off"
+            onfocus={() => (instDropdownOpen = true)}
+            onblur={() => setTimeout(() => (instDropdownOpen = false), 180)}
+          />
+          {#if instDropdownOpen && instDropdownFiltered.length > 0}
+            <div
+              class="inst-dropdown"
+              role="listbox"
+              aria-label="Existing institutions"
+              style={instDropdownStyle}
+            >
+              {#each instDropdownFiltered as name (name)}
+                <button
+                  class="inst-dropdown-item"
+                  role="option"
+                  aria-selected={manualInstitution === name}
+                  onmousedown={() => {
+                    manualInstitution = name;
+                    instDropdownOpen = false;
+                  }}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="inst-dd-icon"
+                    ><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path
+                      d="M9 21v-4h6v4"
+                    /></svg
+                  >
+                  {name}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </label>
+
+      <label class="form-label">
+        Account Name
+        <input
+          class="form-input"
+          type="text"
+          bind:value={manualName}
+          placeholder="e.g. Personal Checking"
+        />
+      </label>
+
+      <label class="form-label">
+        Account Number
+        <input
+          class="form-input"
+          type="text"
+          bind:value={manualLastFour}
+          placeholder="Last 4 digits (optional)"
+          maxlength="4"
+        />
+        <span class="form-hint">Only the last 4 digits are stored</span>
+      </label>
+
+      <div class="form-row">
+        <label class="form-label form-half">
+          Type
+          <select class="form-input" bind:value={manualType}>
+            <option value="depository">Depository</option>
+            <option value="credit">Credit</option>
+          </select>
+        </label>
+
+        <label class="form-label form-half">
+          Subtype
+          <select class="form-input" bind:value={manualSubtype}>
+            {#each manualSubtypes as st (st.value)}
+              <option value={st.value}>{st.label}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+
+      {#if manualType === 'credit'}
+        <label class="form-label">
+          Credit Limit
+          <input
+            class="form-input"
+            type="number"
+            step="0.01"
+            bind:value={manualCreditLimit}
+            placeholder="0.00"
+          />
+          <span class="form-hint">
+            Current balance will be derived from imported transactions.
+          </span>
+        </label>
+      {/if}
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-ghost-sm" onclick={() => (showManualModal = false)}>Cancel</button>
+      <button
+        class="btn-primary"
+        onclick={createManualAccount}
+        disabled={creatingManual ||
+          !manualInstitution.trim() ||
+          !manualName.trim() ||
+          (manualType === 'credit' && manualCreditLimit === 0.0)}
+      >
+        {#if creatingManual}
+          <div class="btn-spinner"></div>
+          Creating...
+        {:else}
+          Create Account
+        {/if}
+      </button>
+    </div>
+  </Modal>
 {/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -2665,190 +2663,281 @@
      ═══════════════════════════════════════════════════════════════════════════ -->
 
 {#if showCSVModal}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="modal-backdrop"
-    onclick={() => (showCSVModal = false)}
-    onkeydown={(e) => e.key === 'Escape' && (showCSVModal = false)}
+  <Modal
+    open={showCSVModal}
+    onclose={() => (showCSVModal = false)}
+    maxWidth="580px"
+    style="--modal-bg: var(--surface-card); --modal-border: var(--border-subtle); --modal-overflow: auto"
   >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="modal-panel modal-csv" onclick={(e) => e.stopPropagation()}>
-      <div class="modal-header">
-        <h2 class="modal-title">Import CSV Transactions</h2>
-        <button class="modal-close" onclick={() => (showCSVModal = false)} aria-label="Close">
+    <div class="modal-header">
+      <h2 class="modal-title">Import CSV Transactions</h2>
+      <button class="modal-close" onclick={() => (showCSVModal = false)} aria-label="Close">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+        >
+      </button>
+    </div>
+
+    <!-- Step Indicators -->
+    <div class="csv-steps">
+      <div class="csv-step" class:step-active={csvStep === 1} class:step-done={csvStep > 1}>
+        <div class="step-circle">{csvStep > 1 ? '\u2713' : '1'}</div>
+        <span class="step-label">Upload</span>
+      </div>
+      <div class="step-line" class:line-done={csvStep > 1}></div>
+      <div class="csv-step" class:step-active={csvStep === 2} class:step-done={csvStep > 2}>
+        <div class="step-circle">{csvStep > 2 ? '\u2713' : '2'}</div>
+        <span class="step-label">Map</span>
+      </div>
+      <div class="step-line" class:line-done={csvStep > 2}></div>
+      <div
+        class="csv-step"
+        class:step-active={csvStep === 3}
+        class:step-done={csvImportResult !== null}
+      >
+        <div class="step-circle">{csvImportResult ? '\u2713' : '3'}</div>
+        <span class="step-label">Import</span>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      {#if csvStep === 1}
+        <!-- Step 1: Upload -->
+        <div
+          class="csv-dropzone"
+          class:dropzone-active={csvDragOver}
+          ondragover={(e) => {
+            e.preventDefault();
+            csvDragOver = true;
+          }}
+          ondragleave={() => (csvDragOver = false)}
+          ondrop={onCSVDrop}
+          role="button"
+          tabindex="0"
+          onkeydown={(e) => e.key === 'Enter' && csvFileInput?.click()}
+          onclick={() => csvFileInput?.click()}
+        >
           <svg
-            width="18"
-            height="18"
+            width="40"
+            height="40"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            stroke-width="2.5"
+            stroke-width="1.5"
             stroke-linecap="round"
             stroke-linejoin="round"
-            ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+            class="dropzone-icon"
+            ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
+              points="17 8 12 3 7 8"
+            /><line x1="12" y1="3" x2="12" y2="15" /></svg
           >
-        </button>
-      </div>
-
-      <!-- Step Indicators -->
-      <div class="csv-steps">
-        <div class="csv-step" class:step-active={csvStep === 1} class:step-done={csvStep > 1}>
-          <div class="step-circle">{csvStep > 1 ? '\u2713' : '1'}</div>
-          <span class="step-label">Upload</span>
+          <p class="dropzone-text">Drop a .csv file here or click to browse</p>
+          <input
+            bind:this={csvFileInput}
+            type="file"
+            accept=".csv"
+            class="sr-only"
+            onchange={onCSVFileChange}
+          />
         </div>
-        <div class="step-line" class:line-done={csvStep > 1}></div>
-        <div class="csv-step" class:step-active={csvStep === 2} class:step-done={csvStep > 2}>
-          <div class="step-circle">{csvStep > 2 ? '\u2713' : '2'}</div>
-          <span class="step-label">Map</span>
-        </div>
-        <div class="step-line" class:line-done={csvStep > 2}></div>
-        <div
-          class="csv-step"
-          class:step-active={csvStep === 3}
-          class:step-done={csvImportResult !== null}
-        >
-          <div class="step-circle">{csvImportResult ? '\u2713' : '3'}</div>
-          <span class="step-label">Import</span>
-        </div>
-      </div>
 
-      <div class="modal-body">
-        {#if csvStep === 1}
-          <!-- Step 1: Upload -->
-          <div
-            class="csv-dropzone"
-            class:dropzone-active={csvDragOver}
-            ondragover={(e) => {
-              e.preventDefault();
-              csvDragOver = true;
-            }}
-            ondragleave={() => (csvDragOver = false)}
-            ondrop={onCSVDrop}
-            role="button"
-            tabindex="0"
-            onkeydown={(e) => e.key === 'Enter' && csvFileInput?.click()}
-            onclick={() => csvFileInput?.click()}
-          >
-            <svg
-              width="40"
-              height="40"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="dropzone-icon"
-              ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
-                points="17 8 12 3 7 8"
-              /><line x1="12" y1="3" x2="12" y2="15" /></svg
-            >
-            <p class="dropzone-text">Drop a .csv file here or click to browse</p>
-            <input
-              bind:this={csvFileInput}
-              type="file"
-              accept=".csv"
-              class="sr-only"
-              onchange={onCSVFileChange}
-            />
-          </div>
-
-          {#if csvHeaders.length > 0}
-            <div class="csv-preview-section">
-              <h3 class="csv-preview-title">Preview ({csvRows.length} rows detected)</h3>
-              <div class="csv-table-wrap">
-                <table class="csv-table">
-                  <thead>
-                    <tr>
-                      {#each csvHeaders as h (h)}
-                        <th>{h}</th>
+        {#if csvHeaders.length > 0}
+          <div class="csv-preview-section">
+            <h3 class="csv-preview-title">Preview ({csvRows.length} rows detected)</h3>
+            <div class="csv-table-wrap">
+              <table class="csv-table">
+                <thead>
+                  <tr>
+                    {#each csvHeaders as h (h)}
+                      <th>{h}</th>
+                    {/each}
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each csvRows.slice(0, 5) as row, ri (ri)}
+                    <tr style="animation-delay: {ri * 60}ms">
+                      {#each row as cell, ci (ci)}
+                        <td>{cell}</td>
                       {/each}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {#each csvRows.slice(0, 5) as row, ri (ri)}
-                      <tr style="animation-delay: {ri * 60}ms">
-                        {#each row as cell, ci (ci)}
-                          <td>{cell}</td>
-                        {/each}
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
+                  {/each}
+                </tbody>
+              </table>
             </div>
+          </div>
 
-            <div class="modal-footer">
-              <button class="btn-ghost-sm" onclick={() => (showCSVModal = false)}>Cancel</button>
-              <button class="btn-primary" onclick={goToMapStep}> Continue to Mapping </button>
-            </div>
-          {/if}
-        {:else if csvStep === 2}
-          <!-- Step 2: Map Columns -->
-          <div class="csv-map-section">
-            <div class="csv-split-toggle">
-              <label class="form-label toggle-label">
-                <input type="checkbox" bind:checked={csvSplitMode} class="toggle-check" />
-                <span>Split debit/credit columns</span>
-              </label>
-            </div>
-
-            <label class="form-label">
-              Date Column
-              <select class="form-input" bind:value={csvMapping.date}>
-                <option value="">-- Select --</option>
-                {#each csvHeaders as h (h)}
-                  <option value={h}>{h}</option>
-                {/each}
-              </select>
+          <div class="modal-footer">
+            <button class="btn-ghost-sm" onclick={() => (showCSVModal = false)}>Cancel</button>
+            <button class="btn-primary" onclick={goToMapStep}> Continue to Mapping </button>
+          </div>
+        {/if}
+      {:else if csvStep === 2}
+        <!-- Step 2: Map Columns -->
+        <div class="csv-map-section">
+          <div class="csv-split-toggle">
+            <label class="form-label toggle-label">
+              <input type="checkbox" bind:checked={csvSplitMode} class="toggle-check" />
+              <span>Split debit/credit columns</span>
             </label>
+          </div>
 
-            <label class="form-label">
-              Description Column
-              <select class="form-input" bind:value={csvMapping.description}>
-                <option value="">-- Select --</option>
-                {#each csvHeaders as h (h)}
-                  <option value={h}>{h}</option>
-                {/each}
-              </select>
-            </label>
+          <label class="form-label">
+            Date Column
+            <select class="form-input" bind:value={csvMapping.date}>
+              <option value="">-- Select --</option>
+              {#each csvHeaders as h (h)}
+                <option value={h}>{h}</option>
+              {/each}
+            </select>
+          </label>
 
-            {#if csvSplitMode}
-              <div class="form-row">
-                <label class="form-label form-half">
-                  Credit Column
-                  <select class="form-input" bind:value={csvMapping.credit}>
-                    <option value="">-- Select --</option>
-                    {#each csvHeaders as h (h)}
-                      <option value={h}>{h}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label class="form-label form-half">
-                  Debit Column
-                  <select class="form-input" bind:value={csvMapping.debit}>
-                    <option value="">-- Select --</option>
-                    {#each csvHeaders as h (h)}
-                      <option value={h}>{h}</option>
-                    {/each}
-                  </select>
-                </label>
-              </div>
-            {:else}
-              <label class="form-label">
-                Amount Column
-                <select class="form-input" bind:value={csvMapping.amount}>
+          <label class="form-label">
+            Description Column
+            <select class="form-input" bind:value={csvMapping.description}>
+              <option value="">-- Select --</option>
+              {#each csvHeaders as h (h)}
+                <option value={h}>{h}</option>
+              {/each}
+            </select>
+          </label>
+
+          {#if csvSplitMode}
+            <div class="form-row">
+              <label class="form-label form-half">
+                Credit Column
+                <select class="form-input" bind:value={csvMapping.credit}>
                   <option value="">-- Select --</option>
                   {#each csvHeaders as h (h)}
                     <option value={h}>{h}</option>
                   {/each}
                 </select>
               </label>
-            {/if}
+              <label class="form-label form-half">
+                Debit Column
+                <select class="form-input" bind:value={csvMapping.debit}>
+                  <option value="">-- Select --</option>
+                  {#each csvHeaders as h (h)}
+                    <option value={h}>{h}</option>
+                  {/each}
+                </select>
+              </label>
+            </div>
+          {:else}
+            <label class="form-label">
+              Amount Column
+              <select class="form-input" bind:value={csvMapping.amount}>
+                <option value="">-- Select --</option>
+                {#each csvHeaders as h (h)}
+                  <option value={h}>{h}</option>
+                {/each}
+              </select>
+            </label>
+          {/if}
 
-            {#if csvPreviewMapped.length > 0}
+          {#if csvPreviewMapped.length > 0}
+            <div class="csv-preview-section">
+              <h3 class="csv-preview-title">Mapped Preview</h3>
+              <div class="csv-table-wrap">
+                <table class="csv-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each csvPreviewMapped as row, ri (ri)}
+                      <tr style="animation-delay: {ri * 60}ms">
+                        <td>{row.date}</td>
+                        <td>{row.description}</td>
+                        <td
+                          class:csv-positive={parseFloat(row.amount) >= 0}
+                          class:csv-negative={parseFloat(row.amount) < 0}
+                        >
+                          {formatCurrency(parseFloat(row.amount))}
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-ghost-sm" onclick={() => (csvStep = 1)}>Back</button>
+          <button class="btn-primary" onclick={goToReviewStep} disabled={!csvMappingValid}>
+            Review Import
+          </button>
+        </div>
+      {:else if csvStep === 3}
+        <!-- Step 3: Review & Import -->
+        {#if csvImportResult}
+          <div class="csv-success">
+            <div class="success-icon">
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline
+                  points="22 4 12 14.01 9 11.01"
+                /></svg
+              >
+            </div>
+            <h3 class="success-title">Import Complete</h3>
+            <p class="success-detail">
+              {csvImportResult.inserted} transaction{csvImportResult.inserted !== 1 ? 's' : ''} imported
+              {#if csvImportResult.skipped > 0}
+                <br /><span class="success-skipped"
+                  >{csvImportResult.skipped} duplicate{csvImportResult.skipped !== 1 ? 's' : ''} skipped</span
+                >
+              {/if}
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-primary" onclick={() => (showCSVModal = false)}>Done</button>
+          </div>
+        {:else}
+          <div class="csv-review">
+            <div class="review-stats">
+              <div class="review-stat">
+                <span class="review-stat-value">{csvMappedTransactions.length}</span>
+                <span class="review-stat-label">Valid</span>
+              </div>
+              <div class="review-stat review-stat-new">
+                <span class="review-stat-value">{csvNewCount}</span>
+                <span class="review-stat-label">New</span>
+              </div>
+              <div class="review-stat review-stat-dup">
+                <span class="review-stat-value">{csvDuplicateCount}</span>
+                <span class="review-stat-label">Duplicates</span>
+              </div>
+              <div class="review-stat review-stat-skip">
+                <span class="review-stat-value"
+                  >{csvRows.length - csvMappedTransactions.length}</span
+                >
+                <span class="review-stat-label">Invalid</span>
+              </div>
+            </div>
+
+            {#if csvMappedTransactions.length > 0}
               <div class="csv-preview-section">
-                <h3 class="csv-preview-title">Mapped Preview</h3>
+                <h3 class="csv-preview-title">Sample Transactions</h3>
                 <div class="csv-table-wrap">
                   <table class="csv-table">
                     <thead>
@@ -2859,7 +2948,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {#each csvPreviewMapped as row, ri (ri)}
+                      {#each csvMappedTransactions.slice(0, 5) as row, ri (ri)}
                         <tr style="animation-delay: {ri * 60}ms">
                           <td>{row.date}</td>
                           <td>{row.description}</td>
@@ -2877,123 +2966,28 @@
               </div>
             {/if}
           </div>
-
           <div class="modal-footer">
-            <button class="btn-ghost-sm" onclick={() => (csvStep = 1)}>Back</button>
-            <button class="btn-primary" onclick={goToReviewStep} disabled={!csvMappingValid}>
-              Review Import
+            <button class="btn-ghost-sm" onclick={() => (csvStep = 2)}>Back</button>
+            <button
+              class="btn-primary btn-import"
+              class:importing={csvImporting}
+              onclick={importCSV}
+              disabled={csvImporting || csvMappedTransactions.length === 0}
+            >
+              {#if csvImporting}
+                <div class="btn-spinner"></div>
+                Importing...
+              {:else}
+                Import {csvMappedTransactions.length} Transaction{csvMappedTransactions.length !== 1
+                  ? 's'
+                  : ''}
+              {/if}
             </button>
           </div>
-        {:else if csvStep === 3}
-          <!-- Step 3: Review & Import -->
-          {#if csvImportResult}
-            <div class="csv-success">
-              <div class="success-icon">
-                <svg
-                  width="48"
-                  height="48"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  ><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline
-                    points="22 4 12 14.01 9 11.01"
-                  /></svg
-                >
-              </div>
-              <h3 class="success-title">Import Complete</h3>
-              <p class="success-detail">
-                {csvImportResult.inserted} transaction{csvImportResult.inserted !== 1 ? 's' : ''} imported
-                {#if csvImportResult.skipped > 0}
-                  <br /><span class="success-skipped"
-                    >{csvImportResult.skipped} duplicate{csvImportResult.skipped !== 1 ? 's' : ''} skipped</span
-                  >
-                {/if}
-              </p>
-            </div>
-            <div class="modal-footer">
-              <button class="btn-primary" onclick={() => (showCSVModal = false)}>Done</button>
-            </div>
-          {:else}
-            <div class="csv-review">
-              <div class="review-stats">
-                <div class="review-stat">
-                  <span class="review-stat-value">{csvMappedTransactions.length}</span>
-                  <span class="review-stat-label">Valid</span>
-                </div>
-                <div class="review-stat review-stat-new">
-                  <span class="review-stat-value">{csvNewCount}</span>
-                  <span class="review-stat-label">New</span>
-                </div>
-                <div class="review-stat review-stat-dup">
-                  <span class="review-stat-value">{csvDuplicateCount}</span>
-                  <span class="review-stat-label">Duplicates</span>
-                </div>
-                <div class="review-stat review-stat-skip">
-                  <span class="review-stat-value"
-                    >{csvRows.length - csvMappedTransactions.length}</span
-                  >
-                  <span class="review-stat-label">Invalid</span>
-                </div>
-              </div>
-
-              {#if csvMappedTransactions.length > 0}
-                <div class="csv-preview-section">
-                  <h3 class="csv-preview-title">Sample Transactions</h3>
-                  <div class="csv-table-wrap">
-                    <table class="csv-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Description</th>
-                          <th>Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {#each csvMappedTransactions.slice(0, 5) as row, ri (ri)}
-                          <tr style="animation-delay: {ri * 60}ms">
-                            <td>{row.date}</td>
-                            <td>{row.description}</td>
-                            <td
-                              class:csv-positive={parseFloat(row.amount) >= 0}
-                              class:csv-negative={parseFloat(row.amount) < 0}
-                            >
-                              {formatCurrency(parseFloat(row.amount))}
-                            </td>
-                          </tr>
-                        {/each}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              {/if}
-            </div>
-            <div class="modal-footer">
-              <button class="btn-ghost-sm" onclick={() => (csvStep = 2)}>Back</button>
-              <button
-                class="btn-primary btn-import"
-                class:importing={csvImporting}
-                onclick={importCSV}
-                disabled={csvImporting || csvMappedTransactions.length === 0}
-              >
-                {#if csvImporting}
-                  <div class="btn-spinner"></div>
-                  Importing...
-                {:else}
-                  Import {csvMappedTransactions.length} Transaction{csvMappedTransactions.length !==
-                  1
-                    ? 's'
-                    : ''}
-                {/if}
-              </button>
-            </div>
-          {/if}
         {/if}
-      </div>
+      {/if}
     </div>
-  </div>
+  </Modal>
 {/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -3001,224 +2995,221 @@
      ═══════════════════════════════════════════════════════════════════════════ -->
 
 {#if showEditModal && editingAccount}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="modal-backdrop"
-    onclick={() => (showEditModal = false)}
-    onkeydown={(e) => e.key === 'Escape' && (showEditModal = false)}
+  <Modal
+    open={showEditModal}
+    onclose={() => (showEditModal = false)}
+    maxWidth="480px"
+    style="--modal-bg: var(--surface-card); --modal-border: var(--border-subtle); --modal-overflow: visible"
   >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="modal-panel modal-edit" onclick={(e) => e.stopPropagation()}>
-      <!-- Prismatic shimmer edge -->
-      <div class="edit-modal-shimmer" aria-hidden="true"></div>
+    <!-- Prismatic shimmer edge -->
+    <div class="edit-modal-shimmer" aria-hidden="true"></div>
 
-      <div class="modal-header">
-        <div class="edit-modal-title-wrap">
-          <div class="edit-modal-gem" aria-hidden="true"></div>
-          <h2 class="modal-title">Edit Account</h2>
+    <div class="modal-header">
+      <div class="edit-modal-title-wrap">
+        <div class="edit-modal-gem" aria-hidden="true"></div>
+        <h2 class="modal-title">Edit Account</h2>
+      </div>
+      <button class="modal-close" onclick={() => (showEditModal = false)} aria-label="Close">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+        >
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Institution name (editable for manual accounts) -->
+      <label class="form-label">
+        Institution Name
+        <div
+          class="inst-input-wrap"
+          class:inst-open={editInstDropdownOpen && editInstDropdownFiltered.length > 0}
+        >
+          <input
+            class="form-input"
+            type="text"
+            bind:value={editInstitution}
+            bind:this={editInstInputEl}
+            placeholder="e.g. Chase, Fidelity"
+            autocomplete="off"
+            onfocus={() => (editInstDropdownOpen = true)}
+            onblur={() => setTimeout(() => (editInstDropdownOpen = false), 180)}
+          />
+          {#if editInstDropdownOpen && editInstDropdownFiltered.length > 0}
+            <div
+              class="inst-dropdown"
+              role="listbox"
+              aria-label="Existing institutions"
+              style={editInstDropdownStyle}
+            >
+              {#each editInstDropdownFiltered as name (name)}
+                <button
+                  class="inst-dropdown-item"
+                  role="option"
+                  aria-selected={editInstitution === name}
+                  onmousedown={() => {
+                    editInstitution = name;
+                    editInstDropdownOpen = false;
+                  }}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="inst-dd-icon"
+                    ><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path
+                      d="M9 21v-4h6v4"
+                    /></svg
+                  >
+                  {name}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
-        <button class="modal-close" onclick={() => (showEditModal = false)} aria-label="Close">
+        <span class="form-hint"
+          >Changing this moves the account to a different institution group.</span
+        >
+      </label>
+
+      <!-- Account name -->
+      <label class="form-label">
+        Account Name
+        <input
+          class="form-input"
+          type="text"
+          bind:value={editName}
+          placeholder="e.g. Personal Checking"
+        />
+      </label>
+
+      <!-- Last four -->
+      <label class="form-label">
+        Last 4 Digits
+        <input
+          class="form-input"
+          type="text"
+          bind:value={editLastFour}
+          placeholder="Optional"
+          maxlength="4"
+        />
+      </label>
+
+      <!-- Type + Subtype -->
+      <div class="form-row">
+        <label class="form-label form-half">
+          Type
+          <select class="form-input" bind:value={editType}>
+            <option value="depository">Depository</option>
+            <option value="credit">Credit</option>
+          </select>
+        </label>
+        <label class="form-label form-half">
+          Subtype
+          <select class="form-input" bind:value={editSubtype}>
+            {#each editSubtypes as st (st.value)}
+              <option value={st.value}>{st.label}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+
+      <!-- Balance section -->
+      <div class="edit-balance-section">
+        <div class="edit-balance-header">
           <svg
-            width="18"
-            height="18"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            stroke-width="2.5"
+            stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+            ><line x1="12" y1="1" x2="12" y2="23" /><path
+              d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"
+            /></svg
           >
-        </button>
-      </div>
-
-      <div class="modal-body">
-        <!-- Institution name (editable for manual accounts) -->
-        <label class="form-label">
-          Institution Name
-          <div
-            class="inst-input-wrap"
-            class:inst-open={editInstDropdownOpen && editInstDropdownFiltered.length > 0}
-          >
-            <input
-              class="form-input"
-              type="text"
-              bind:value={editInstitution}
-              bind:this={editInstInputEl}
-              placeholder="e.g. Chase, Fidelity"
-              autocomplete="off"
-              onfocus={() => (editInstDropdownOpen = true)}
-              onblur={() => setTimeout(() => (editInstDropdownOpen = false), 180)}
-            />
-            {#if editInstDropdownOpen && editInstDropdownFiltered.length > 0}
-              <div
-                class="inst-dropdown"
-                role="listbox"
-                aria-label="Existing institutions"
-                style={editInstDropdownStyle}
-              >
-                {#each editInstDropdownFiltered as name (name)}
-                  <button
-                    class="inst-dropdown-item"
-                    role="option"
-                    aria-selected={editInstitution === name}
-                    onmousedown={() => {
-                      editInstitution = name;
-                      editInstDropdownOpen = false;
-                    }}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="inst-dd-icon"
-                      ><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path
-                        d="M9 21v-4h6v4"
-                      /></svg
-                    >
-                    {name}
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-          <span class="form-hint"
-            >Changing this moves the account to a different institution group.</span
-          >
-        </label>
-
-        <!-- Account name -->
-        <label class="form-label">
-          Account Name
-          <input
-            class="form-input"
-            type="text"
-            bind:value={editName}
-            placeholder="e.g. Personal Checking"
-          />
-        </label>
-
-        <!-- Last four -->
-        <label class="form-label">
-          Last 4 Digits
-          <input
-            class="form-input"
-            type="text"
-            bind:value={editLastFour}
-            placeholder="Optional"
-            maxlength="4"
-          />
-        </label>
-
-        <!-- Type + Subtype -->
-        <div class="form-row">
-          <label class="form-label form-half">
-            Type
-            <select class="form-input" bind:value={editType}>
-              <option value="depository">Depository</option>
-              <option value="credit">Credit</option>
-            </select>
-          </label>
-          <label class="form-label form-half">
-            Subtype
-            <select class="form-input" bind:value={editSubtype}>
-              {#each editSubtypes as st (st.value)}
-                <option value={st.value}>{st.label}</option>
-              {/each}
-            </select>
-          </label>
+          <span class="edit-balance-title">Balance Override</span>
         </div>
-
-        <!-- Balance section -->
-        <div class="edit-balance-section">
-          <div class="edit-balance-header">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              ><line x1="12" y1="1" x2="12" y2="23" /><path
-                d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"
-              /></svg
-            >
-            <span class="edit-balance-title">Balance Override</span>
-          </div>
-          <p class="edit-balance-desc">
-            {#if editType === 'credit'}
-              Set the current amount owed and credit limit. Your transaction history is preserved —
-              today's chart point will reflect this balance.
-            {:else}
-              Set the current balance. Transaction history is preserved — today's chart point will
-              jump to this value.
-            {/if}
-          </p>
-
+        <p class="edit-balance-desc">
           {#if editType === 'credit'}
-            <div class="form-row">
-              <label class="form-label form-half">
-                Amount Owed
-                <input
-                  class="form-input"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  bind:value={editBalance}
-                  placeholder="0.00"
-                />
-              </label>
-              <label class="form-label form-half">
-                Credit Limit
-                <input
-                  class="form-input"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  bind:value={editCreditLimit}
-                  placeholder="0.00"
-                />
-              </label>
-            </div>
+            Set the current amount owed and credit limit. Your transaction history is preserved —
+            today's chart point will reflect this balance.
           {:else}
-            <label class="form-label">
-              Current Balance
+            Set the current balance. Transaction history is preserved — today's chart point will
+            jump to this value.
+          {/if}
+        </p>
+
+        {#if editType === 'credit'}
+          <div class="form-row">
+            <label class="form-label form-half">
+              Amount Owed
               <input
                 class="form-input"
                 type="number"
                 step="0.01"
+                min="0"
                 bind:value={editBalance}
                 placeholder="0.00"
               />
             </label>
-          {/if}
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn-ghost-sm" onclick={() => (showEditModal = false)}>Cancel</button>
-        <button
-          class="btn-primary btn-edit-save"
-          onclick={saveAccountEdit}
-          disabled={savingEdit || !editInstitution.trim() || !editName.trim()}
-        >
-          {#if savingEdit}
-            <div class="btn-spinner"></div>
-            Saving...
-          {:else}
-            Save Changes
-          {/if}
-        </button>
+            <label class="form-label form-half">
+              Credit Limit
+              <input
+                class="form-input"
+                type="number"
+                step="0.01"
+                min="0"
+                bind:value={editCreditLimit}
+                placeholder="0.00"
+              />
+            </label>
+          </div>
+        {:else}
+          <label class="form-label">
+            Current Balance
+            <input
+              class="form-input"
+              type="number"
+              step="0.01"
+              bind:value={editBalance}
+              placeholder="0.00"
+            />
+          </label>
+        {/if}
       </div>
     </div>
-  </div>
+
+    <div class="modal-footer">
+      <button class="btn-ghost-sm" onclick={() => (showEditModal = false)}>Cancel</button>
+      <button
+        class="btn-primary btn-edit-save"
+        onclick={saveAccountEdit}
+        disabled={savingEdit || !editInstitution.trim() || !editName.trim()}
+      >
+        {#if savingEdit}
+          <div class="btn-spinner"></div>
+          Saving...
+        {:else}
+          Save Changes
+        {/if}
+      </button>
+    </div>
+  </Modal>
 {/if}
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -4897,61 +4888,6 @@
      MODAL STYLES
      ═══════════════════════════════════════════════════════════════════════════ */
 
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(12px);
-    animation: backdrop-in 0.25s ease-out;
-    padding: 1rem;
-    /* Offset for desktop nav so modal is centered in the visible content area */
-    padding-top: calc(var(--nav-height, 64px) + 1rem);
-  }
-
-  @media (max-width: 767px) {
-    .modal-backdrop {
-      /* On mobile: top island/header + bottom tab bar */
-      padding-top: calc(env(safe-area-inset-top, 47px) + 24px + 1rem);
-      padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 1rem);
-    }
-  }
-
-  @keyframes backdrop-in {
-    from {
-      opacity: 0;
-    }
-  }
-
-  .modal-panel {
-    position: relative;
-    width: 100%;
-    max-width: 460px;
-    max-height: 85vh;
-    overflow-y: auto;
-    background: var(--surface-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 16px;
-    box-shadow:
-      0 24px 48px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(180, 150, 80, 0.08);
-    animation: modal-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .modal-csv {
-    max-width: 580px;
-  }
-
-  @keyframes modal-enter {
-    from {
-      opacity: 0;
-      transform: translateY(24px) scale(0.96);
-    }
-  }
-
   .modal-header {
     display: flex;
     align-items: center;
@@ -5472,11 +5408,6 @@
       justify-content: center;
     }
 
-    .modal-panel {
-      max-height: 90vh;
-      margin: 0.5rem;
-    }
-
     .modal-header {
       padding: 1rem 1rem 0.5rem;
     }
@@ -5715,11 +5646,6 @@
   }
 
   /* ── Edit Modal ─────────────────────────────────────────────────────────── */
-  .modal-edit {
-    max-width: 480px;
-    overflow: visible;
-  }
-
   .edit-modal-shimmer {
     position: absolute;
     top: 0;
