@@ -60,8 +60,11 @@
   // ══════════════════════════════════════════════════════════════════════════
 
   let wrapperEl: HTMLDivElement | undefined = $state(undefined);
+  let legendEl: HTMLDivElement | undefined = $state(undefined);
   let containerW = $state(0);
   let mounted = $state(false);
+  let legendShowTopFade = $state(false);
+  let legendShowBottomFade = $state(false);
   /** True once the initial stagger entrance has fully completed — after this, data-change
    * morphs use zero delay so both dashArray and dashOffset animate together. */
   let entranceDone = $state(false);
@@ -84,6 +87,28 @@
     });
     ro.observe(wrapperEl);
     return () => ro.disconnect();
+  });
+
+  // Track legend scroll position to show/hide bottom fade
+  $effect(() => {
+    const el = legendEl;
+    if (!el) return;
+    function update() {
+      const scrollTop = el!.scrollTop;
+      const clientHeight = el!.clientHeight;
+      const scrollHeight = el!.scrollHeight;
+      const overflows = scrollHeight > clientHeight + 2;
+      legendShowTopFade = overflows && scrollTop > 4;
+      legendShowBottomFade = overflows && scrollTop + clientHeight < scrollHeight - 4;
+    }
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
   });
 
   // Detect touch/coarse-pointer device
@@ -251,6 +276,8 @@
         </div>
       {:else if containerW > 0}
         <div class="pie-container">
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
           <svg
             viewBox="0 0 {SVG_SIZE} {SVG_SIZE}"
             class="pie-svg"
@@ -288,6 +315,8 @@
               />
 
               <!-- Main segment -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
               <circle
                 cx={CENTER}
                 cy={CENTER}
@@ -338,27 +367,35 @@
 
     <!-- Legend -->
     {#if hasData}
-      <div class="chart-legend">
-        {#each segments as seg, i (seg.label)}
-          <button
-            class="legend-item"
-            class:legend-active={hoveredIndex === i}
-            style="--li-delay: {i * STAGGER_MS}ms; --seg-color: {seg.color};"
-            onpointerenter={!isTouchDevice ? () => onHoverEnter(i) : undefined}
-            onpointerleave={!isTouchDevice ? onHoverLeave : undefined}
-            onclick={isTouchDevice ? () => onTap(i) : undefined}
-          >
-            <span
-              class="legend-dot"
-              style="background: {seg.color}; box-shadow: 0 0 6px {seg.color}40;"
-            ></span>
-            {#if seg.icon}
-              <span class="legend-icon">{seg.icon}</span>
-            {/if}
-            <span class="legend-label">{seg.label}</span>
-            <span class="legend-value">{formatValue(seg.value)}</span>
-          </button>
-        {/each}
+      <div class="chart-legend-wrap">
+        <div class="chart-legend" bind:this={legendEl}>
+          {#each segments as seg, i (seg.label)}
+            <button
+              class="legend-item"
+              class:legend-active={hoveredIndex === i}
+              style="--li-delay: {i * STAGGER_MS}ms; --seg-color: {seg.color};"
+              onpointerenter={!isTouchDevice ? () => onHoverEnter(i) : undefined}
+              onpointerleave={!isTouchDevice ? onHoverLeave : undefined}
+              onclick={isTouchDevice ? () => onTap(i) : undefined}
+            >
+              <span
+                class="legend-dot"
+                style="background: {seg.color}; box-shadow: 0 0 6px {seg.color}40;"
+              ></span>
+              {#if seg.icon}
+                <span class="legend-icon">{seg.icon}</span>
+              {/if}
+              <span class="legend-label">{seg.label}</span>
+              <span class="legend-value">{formatValue(seg.value)}</span>
+            </button>
+          {/each}
+        </div>
+        {#if legendShowTopFade}
+          <div class="legend-fade legend-fade-top"></div>
+        {/if}
+        {#if legendShowBottomFade}
+          <div class="legend-fade legend-fade-bottom"></div>
+        {/if}
       </div>
     {/if}
   {/if}
@@ -622,21 +659,41 @@
   /* ────────────────────────────────────────────────────────────────────────
      LEGEND
      ──────────────────────────────────────────────────────────────────────── */
+  .chart-legend-wrap {
+    position: relative;
+    margin-top: 14px;
+  }
+
   .chart-legend {
     position: relative;
     z-index: 1;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 4px 8px;
-    margin-top: 14px;
     max-height: 260px;
     overflow-y: auto;
     overflow-x: hidden;
-    /* Subtle fade-out at the bottom when scrollable */
-    -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
-    mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
     scrollbar-width: thin;
     scrollbar-color: rgba(180, 150, 80, 0.2) transparent;
+  }
+
+  .legend-fade {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 48px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .legend-fade-top {
+    top: 0;
+    background: linear-gradient(to top, transparent, var(--gc-surface, #1a1a14));
+  }
+
+  .legend-fade-bottom {
+    bottom: 0;
+    background: linear-gradient(to bottom, transparent, var(--gc-surface, #1a1a14));
   }
 
   .chart-legend::-webkit-scrollbar {
