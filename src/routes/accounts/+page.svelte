@@ -40,7 +40,7 @@
     type CSVColumnMapping
   } from '$lib/utils/csv';
   import { processTellerSyncData } from '$lib/teller/autoSync';
-  import { addToast } from '$lib/stores/toast';
+  import { addToast } from 'stellar-drive/toast';
   import Modal from '$lib/components/Modal.svelte';
 
   // ==========================================================================
@@ -1035,11 +1035,11 @@
       await accountsStore.refresh();
       addToast(
         !currentlyHidden ? 'Account hidden from totals' : 'Account visible in totals',
-        'sapphire'
+        'info'
       );
     } catch (err) {
       console.error('Toggle hidden error:', err);
-      addToast('Failed to update account visibility', 'ruby');
+      addToast('Failed to update account visibility', 'error');
     } finally {
       togglingHidden = null;
     }
@@ -1054,7 +1054,7 @@
    * Maps success → emerald, error → ruby.
    */
   function showFeedback(type: 'success' | 'error', message: string) {
-    addToast(message, type === 'success' ? 'emerald' : 'ruby');
+    addToast(message, type === 'success' ? 'success' : 'error');
   }
 
   /**

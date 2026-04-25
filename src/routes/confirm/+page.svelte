@@ -21,52 +21,43 @@
   const CHANNEL_NAME = 'radiant-auth-channel';
 
   onMount(async () => {
+    /* ── Demo mode or missing params → redirect home silently ──── */
     if (isDemoMode()) {
       goto(ROUTES.HOME, { replaceState: true });
       return;
     }
+
     const tokenHash = $page.url.searchParams.get('token_hash');
     const type = $page.url.searchParams.get('type');
 
-    if (tokenHash && type) {
-      const result = await handleEmailConfirmation(
-        tokenHash,
-        type as 'signup' | 'email' | 'email_change' | 'magiclink'
-      );
-
-      if (!result.success) {
-        status = 'error';
-        errorMessage = result.error || 'Unknown error';
-        return;
-      }
-
-      status = 'success';
-      /* Hand off immediately — broadcastAuthConfirmed has a 500 ms internal
-         delay before attempting window.close(), so the user briefly sees the
-         "success" state.  Skip the extra 800 ms delay: it creates a race
-         window where the SIGNED_IN auth-state change can interrupt the flow. */
+    if (!tokenHash || !type) {
+      goto(ROUTES.HOME, { replaceState: true });
+      return;
     }
 
-    const tabResult = await broadcastAuthConfirmed(CHANNEL_NAME, type || 'signup');
+    /* ── Verify the token ──── */
+    const result = await handleEmailConfirmation(
+      tokenHash,
+      type as 'signup' | 'email' | 'email_change' | 'magiclink'
+    );
+
+    if (!result.success) {
+      status = 'error';
+      errorMessage = result.error || 'Unknown error';
+      return;
+    }
+
+    status = 'success';
+
+    /* Hand off to the login tab — only reached on successful verification */
+    const tabResult = await broadcastAuthConfirmed(CHANNEL_NAME, type);
     if (tabResult === 'can_close') {
       status = 'can_close';
-    } else if (tabResult === 'no_broadcast') {
-      focusOrRedirect();
+    } else {
+      /* BroadcastChannel unsupported — redirect to home directly */
+      goto(ROUTES.HOME, { replaceState: true });
     }
   });
-
-  async function focusOrRedirect() {
-    status = 'redirecting';
-    const type = $page.url.searchParams.get('type') || 'signup';
-    const result = await broadcastAuthConfirmed(CHANNEL_NAME, type);
-    if (result === 'no_broadcast') {
-      goto(ROUTES.HOME, { replaceState: true });
-    } else {
-      setTimeout(() => {
-        status = 'can_close';
-      }, 200);
-    }
-  }
 </script>
 
 <svelte:head>

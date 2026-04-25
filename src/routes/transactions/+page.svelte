@@ -42,7 +42,7 @@
   import { debug } from 'stellar-drive/utils';
   import { categorizeTransaction } from '$lib/ml/categorizer';
   import { categorizer } from '$lib/ml/classifier';
-  import { addToast } from '$lib/stores/toast';
+  import { addToast } from 'stellar-drive/toast';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -83,7 +83,7 @@
   let selectedIds = $state<Set<string>>(new Set());
 
   function showCatToast(message: string, type: 'success' | 'info' = 'success') {
-    addToast(message, type === 'success' ? 'emerald' : 'sapphire');
+    addToast(message, type === 'success' ? 'success' : 'info');
   }
 
   /* ── Page entrance ── */
@@ -351,9 +351,9 @@
     clearSelection();
     try {
       await transactionsStore.bulkDelete(ids);
-      addToast(`${count} transaction${count !== 1 ? 's' : ''} deleted`, 'ruby');
+      addToast(`${count} transaction${count !== 1 ? 's' : ''} deleted`, 'error');
     } catch {
-      addToast('Failed to delete transactions', 'ruby');
+      addToast('Failed to delete transactions', 'error');
     }
   }
 
@@ -518,9 +518,9 @@
     expandedId = null;
     try {
       await transactionsStore.deleteTransaction(transactionId);
-      addToast('Transaction deleted', 'ruby');
+      addToast('Transaction deleted', 'error');
     } catch {
-      addToast('Failed to delete transaction', 'ruby');
+      addToast('Failed to delete transaction', 'error');
     }
   }
 

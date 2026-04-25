@@ -135,24 +135,7 @@
         currentEmail = demoConfig.mockProfile.email;
       }
       currentDeviceId = 'demo-device';
-      trustedDevices = [
-        {
-          id: 'demo-td-1',
-          userId: 'demo-user',
-          deviceId: 'demo-device',
-          deviceLabel: 'Chrome on macOS',
-          trustedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-          lastUsedAt: new Date().toISOString()
-        },
-        {
-          id: 'demo-td-2',
-          userId: 'demo-user',
-          deviceId: 'demo-device-2',
-          deviceLabel: 'Safari on iPhone',
-          trustedAt: new Date(Date.now() - 14 * 86400000).toISOString(),
-          lastUsedAt: new Date(Date.now() - 2 * 86400000).toISOString()
-        }
-      ] as TrustedDevice[];
+      trustedDevices = (demoConfig?.mockDevices ?? []) as TrustedDevice[];
       diagnostics = {
         timestamp: new Date().toISOString(),
         prefix: 'radiant',

@@ -102,7 +102,6 @@ This document provides a comprehensive deep dive into every layer of Radiant's s
 | `src/lib/types.generated.ts` | Auto-generated TypeScript types from schema |
 | `src/lib/types.ts` | App-specific type narrowings and composites |
 | `src/lib/stores/data.ts` | 5 reactive Svelte stores wrapping IndexedDB |
-| `src/lib/stores/toast.ts` | Toast notification store |
 | `src/lib/ml/classifier.ts` | Naive Bayes classification engine |
 | `src/lib/ml/categorizer.ts` | Categorization orchestrator |
 | `src/lib/ml/categorizationSync.ts` | Auto-categorization sync layer |

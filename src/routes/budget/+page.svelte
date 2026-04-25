@@ -38,7 +38,7 @@
     categoriesStore,
     preloadAllStores
   } from '$lib/stores/data';
-  import { addToast } from '$lib/stores/toast';
+  import { addToast } from 'stellar-drive/toast';
 
   /* ── Utilities ── */
   import {
@@ -411,15 +411,15 @@
 
       if (editingCategoryId) {
         await categoriesStore.update(editingCategoryId, data);
-        addToast(`Category "${data.name}" updated`, 'emerald');
+        addToast(`Category "${data.name}" updated`, 'success');
       } else {
         await categoriesStore.create(data);
-        addToast(`Category "${data.name}" created`, 'emerald');
+        addToast(`Category "${data.name}" created`, 'success');
       }
       await categoriesStore.refresh();
       categoryFormMode = 'list';
     } catch {
-      addToast('Failed to save category', 'ruby');
+      addToast('Failed to save category', 'error');
     } finally {
       saving = false;
     }
@@ -434,9 +434,9 @@
       await categoriesStore.refresh();
       confirmDeleteId = null;
       if (categoryFormMode === 'edit') categoryFormMode = 'list';
-      addToast(`Category "${cat?.name ?? ''}" deleted`, 'ruby');
+      addToast(`Category "${cat?.name ?? ''}" deleted`, 'error');
     } catch {
-      addToast('Failed to delete category', 'ruby');
+      addToast('Failed to delete category', 'error');
     } finally {
       saving = false;
     }
@@ -573,16 +573,16 @@
       if (editingRecurringId) {
         await recurringTransactionsStore.update(editingRecurringId, data);
         await recurringTransactionsStore.refresh();
-        addToast(`"${data.name}" updated`, 'emerald');
+        addToast(`"${data.name}" updated`, 'success');
       } else {
         await recurringTransactionsStore.create(data);
         await recurringTransactionsStore.refresh();
-        addToast(`"${data.name}" added to recurring`, 'emerald');
+        addToast(`"${data.name}" added to recurring`, 'success');
       }
 
       showRecurringModal = false;
     } catch {
-      addToast('Failed to save recurring transaction', 'ruby');
+      addToast('Failed to save recurring transaction', 'error');
     } finally {
       recurringFormSaving = false;
     }
@@ -594,9 +594,9 @@
     try {
       await recurringTransactionsStore.remove(id);
       await recurringTransactionsStore.refresh();
-      addToast(`"${item?.name ?? 'Item'}" removed from recurring`, 'ruby');
+      addToast(`"${item?.name ?? 'Item'}" removed from recurring`, 'error');
     } catch {
-      addToast('Failed to remove recurring transaction', 'ruby');
+      addToast('Failed to remove recurring transaction', 'error');
     }
   }
 
@@ -714,9 +714,9 @@
     try {
       await recurringTransactionsStore.update(id, { status: 'cancelling' });
       await recurringTransactionsStore.refresh();
-      addToast('Marked as cancelling — watch for zombie charges', 'ruby');
+      addToast('Marked as cancelling — watch for zombie charges', 'error');
     } catch {
-      addToast('Failed to update status', 'ruby');
+      addToast('Failed to update status', 'error');
     }
   }
 
@@ -725,9 +725,9 @@
     try {
       await recurringTransactionsStore.update(id, { status: 'ended' });
       await recurringTransactionsStore.refresh();
-      addToast('Subscription cancelled', 'emerald');
+      addToast('Subscription cancelled', 'success');
     } catch {
-      addToast('Failed to update status', 'ruby');
+      addToast('Failed to update status', 'error');
     }
   }
 
@@ -736,9 +736,9 @@
     try {
       await recurringTransactionsStore.update(id, { status: 'active' });
       await recurringTransactionsStore.refresh();
-      addToast('Subscription reactivated', 'emerald');
+      addToast('Subscription reactivated', 'success');
     } catch {
-      addToast('Failed to update status', 'ruby');
+      addToast('Failed to update status', 'error');
     }
   }
 
