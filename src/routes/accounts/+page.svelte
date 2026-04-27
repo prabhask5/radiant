@@ -24,6 +24,7 @@
     preloadAllStores
   } from '$lib/stores/data';
   import { isDemoMode, showDemoBlocked } from 'stellar-drive/demo';
+  import { isOffline } from 'stellar-drive';
   import { remoteChangesStore } from 'stellar-drive/stores';
   import { getConfig } from 'stellar-drive/config';
   import { debug } from 'stellar-drive/utils';
@@ -49,6 +50,7 @@
 
   /** Whether data has been loaded initially. */
   let loaded = $state(false);
+  const offline = $derived(isOffline());
 
   /** Whether Teller Connect SDK is loaded and ready. */
   let _tellerReady = $state(false);
@@ -1649,7 +1651,7 @@
       <button
         class="connect-btn"
         onclick={() => openTellerConnect()}
-        disabled={tellerLoading || syncing}
+        disabled={tellerLoading || syncing || offline}
       >
         {#if tellerLoading || syncing}
           <div class="btn-spinner"></div>
@@ -1789,7 +1791,7 @@
       <button
         class="connect-btn empty-cta"
         onclick={() => openTellerConnect()}
-        disabled={tellerLoading || syncing}
+        disabled={tellerLoading || syncing || offline}
       >
         <svg
           width="18"
@@ -2014,7 +2016,7 @@
                   <button
                     class="btn-danger-sm"
                     onclick={() => disconnectEnrollment(group.enrollmentId)}
-                    disabled={disconnecting}
+                    disabled={disconnecting || offline}
                   >
                     {disconnecting ? 'Removing...' : 'Confirm'}
                   </button>
@@ -2048,6 +2050,7 @@
                 <button
                   class="disconnect-btn"
                   onclick={() => (confirmDisconnectId = group.enrollmentId)}
+                  disabled={offline}
                   aria-label="Disconnect {group.institutionName}"
                 >
                   <svg
@@ -2128,7 +2131,7 @@
                 <button
                   class="reconnect-btn"
                   onclick={() => openTellerConnect(group.enrollmentId)}
-                  disabled={tellerLoading || syncing}
+                  disabled={tellerLoading || syncing || offline}
                   aria-label="Reconnect {group.institutionName}"
                 >
                   <svg

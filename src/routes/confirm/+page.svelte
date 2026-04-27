@@ -29,6 +29,8 @@
 
     const tokenHash = $page.url.searchParams.get('token_hash');
     const type = $page.url.searchParams.get('type');
+    const pendingDeviceId = $page.url.searchParams.get('pending_device_id') ?? undefined;
+    const pendingDeviceLabel = $page.url.searchParams.get('pending_device_label') ?? undefined;
 
     if (!tokenHash || !type) {
       goto(ROUTES.HOME, { replaceState: true });
@@ -38,7 +40,9 @@
     /* ── Verify the token ──── */
     const result = await handleEmailConfirmation(
       tokenHash,
-      type as 'signup' | 'email' | 'email_change' | 'magiclink'
+      type as 'signup' | 'email' | 'email_change' | 'magiclink',
+      pendingDeviceId,
+      pendingDeviceLabel
     );
 
     if (!result.success) {

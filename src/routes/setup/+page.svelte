@@ -29,7 +29,7 @@
 
   import { page } from '$app/stores';
   import { setConfig } from 'stellar-drive/config';
-  import { isOnline } from 'stellar-drive/stores';
+  import { isOffline } from 'stellar-drive';
   import { pollForNewServiceWorker } from 'stellar-drive/kit';
   import Reconfigure from './Reconfigure.svelte';
 
@@ -113,6 +113,7 @@
    * flip to Reconfigure mid-deploy when the config updates.
    */
   const isFirstSetup = ($page.data as { isFirstSetup?: boolean }).isFirstSetup ?? false;
+  const offline = $derived(isOffline());
 
   /**
    * Snapshot of the credentials at validation time — used to detect
@@ -317,13 +318,6 @@
         {/each}
       </div>
 
-      <!-- Offline warning -->
-      {#if !$isOnline}
-        <div class="message message-error">
-          You are currently offline. An internet connection is required to complete setup.
-        </div>
-      {/if}
-
       <!-- Public page warning -->
       {#if isFirstSetup}
         <div class="message message-warning">
@@ -414,7 +408,7 @@
           <button
             class="btn btn-secondary"
             onclick={handleValidate}
-            disabled={validating || !supabaseUrl || !supabasePublishableKey}
+            disabled={validating || !supabaseUrl || !supabasePublishableKey || offline}
           >
             {#if validating}Testing...{:else}Test Connection{/if}
           </button>
@@ -574,7 +568,7 @@
           <button
             class="btn btn-primary"
             onclick={handleDeploy}
-            disabled={deploying || !vercelToken}
+            disabled={deploying || !vercelToken || offline}
           >
             {#if deploying}Deploying...{:else}Deploy{/if}
           </button>

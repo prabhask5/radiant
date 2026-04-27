@@ -8,6 +8,7 @@
 <script lang="ts">
   import { getConfig, setConfig } from 'stellar-drive/config';
   import { isOnline } from 'stellar-drive/stores';
+  import { isOffline } from 'stellar-drive';
   import { pollForNewServiceWorker, monitorSwLifecycle } from 'stellar-drive/kit';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
@@ -76,13 +77,16 @@
 
   const supabaseNeedsValidation = $derived(supabaseChanged && !validateSuccess);
 
+  const offline = $derived(isOffline());
+
   const canDeploy = $derived(
     anyChanged &&
       !supabaseNeedsValidation &&
       !credentialsChanged &&
       !!vercelToken &&
       !deploying &&
-      deployStage === 'idle'
+      deployStage === 'idle' &&
+      !offline
   );
 
   // ===========================================================================
@@ -315,7 +319,7 @@
       <button
         class="btn btn-secondary"
         onclick={handleValidate}
-        disabled={!supabaseUrl || !supabasePublishableKey || validating}
+        disabled={!supabaseUrl || !supabasePublishableKey || validating || offline}
       >
         {#if validating}
           <span class="loading-spinner small"></span>

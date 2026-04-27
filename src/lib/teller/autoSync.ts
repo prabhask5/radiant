@@ -25,6 +25,7 @@ import { generateId, now } from 'stellar-drive/utils';
 import { remoteChangesStore } from 'stellar-drive/stores';
 import { debug } from 'stellar-drive/utils';
 import { isDemoMode } from 'stellar-drive/demo';
+import { isOffline } from 'stellar-drive';
 import type { Account, TellerEnrollment } from '$lib/types';
 import { getTellerTxnUpdateFields } from '$lib/teller/fields';
 
@@ -448,6 +449,10 @@ async function autoSyncEnrollmentsInternal(
   updateStatus: (id: string, status: string, force?: boolean) => Promise<void>
 ): Promise<number> {
   if (isDemoMode()) return 0;
+  if (isOffline()) {
+    debug('log', '[TELLER-SYNC] Offline — skipping auto-sync');
+    return 0;
+  }
 
   // Sync all active enrollments on every page load. This does NOT increase
   // Supabase egress: if Teller returns nothing new, zero sync queue entries

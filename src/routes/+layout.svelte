@@ -36,6 +36,7 @@
   import { scrollGuard } from 'stellar-drive/actions';
   import DemoBanner from 'stellar-drive/components/DemoBanner';
   import DemoBlockedMessage from 'stellar-drive/components/DemoBlockedMessage';
+  import OfflineBanner from 'stellar-drive/components/OfflineBanner';
   import OfflineToast from 'stellar-drive/components/OfflineToast';
   import GlobalToast from 'stellar-drive/components/GlobalToast';
   import SyncStatus from 'stellar-drive/components/SyncStatus';
@@ -680,6 +681,8 @@
 
   <!-- ── Demo Mode Banner ── -->
   <DemoBanner />
+  <!-- ── Offline Banner — shown when app has no network connectivity ── -->
+  <OfflineBanner />
 
   <!-- ── Demo Blocked Message — center-screen overlay for gated demo operations ── -->
   <DemoBlockedMessage />

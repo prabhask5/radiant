@@ -25,6 +25,7 @@
   } from 'stellar-drive/auth';
   import { sendDeviceVerification } from 'stellar-drive/auth';
   import { isDemoMode } from 'stellar-drive/demo';
+  import { isOffline } from 'stellar-drive';
   import { isSafeRedirect } from 'stellar-drive/utils';
   import { ROUTES } from '$lib/routes';
 
@@ -34,6 +35,7 @@
 
   /** Whether this device has a linked single-user account (derived from IndexedDB, not layout data) */
   let deviceLinked = $state(false);
+  const offline = $derived(isOffline());
 
   /** Post-login redirect URL — validated to prevent open-redirect attacks */
   const redirectUrl = $derived.by(() => {
@@ -934,7 +936,7 @@
               <p class="error-msg">{error}</p>
             {/if}
 
-            <button class="btn-primary" onclick={goToCodeStep} disabled={loading}>
+            <button class="btn-primary" onclick={goToCodeStep} disabled={loading || offline}>
               Continue
               <svg
                 class="btn-arrow"
@@ -1026,7 +1028,7 @@
             <button
               class="btn-primary"
               onclick={handleSetup}
-              disabled={loading || code.length !== 6 || confirmCode.length !== 6}
+              disabled={loading || code.length !== 6 || confirmCode.length !== 6 || offline}
             >
               {#if loading}
                 <span class="spinner"></span> Creating...
@@ -1127,7 +1129,7 @@
                   oninput={(e) => handleDigitInput(linkDigits, i, e, linkInputs, autoSubmitLink)}
                   onkeydown={(e) => handleDigitKeydown(linkDigits, i, e, linkInputs)}
                   onpaste={(e) => handleDigitPaste(linkDigits, e, linkInputs, autoSubmitLink)}
-                  disabled={retryCountdown > 0}
+                  disabled={retryCountdown > 0 || offline}
                 />
               {/each}
             </div>
@@ -1201,7 +1203,11 @@
       <p class="modal-text">
         We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
       </p>
-      <button class="btn-secondary" onclick={handleResendEmail} disabled={resendCooldown > 0}>
+      <button
+        class="btn-secondary"
+        onclick={handleResendEmail}
+        disabled={resendCooldown > 0 || offline}
+      >
         {#if resendCooldown > 0}
           Resend in {resendCooldown}s
         {:else}
@@ -1243,7 +1249,11 @@
         <span class="spinner"></span>
         <span>Waiting for verification...</span>
       </div>
-      <button class="btn-secondary" onclick={handleResendEmail} disabled={resendCooldown > 0}>
+      <button
+        class="btn-secondary"
+        onclick={handleResendEmail}
+        disabled={resendCooldown > 0 || offline}
+      >
         {#if resendCooldown > 0}
           Resend in {resendCooldown}s
         {:else}

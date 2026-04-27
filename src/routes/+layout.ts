@@ -34,7 +34,6 @@ import { goto } from '$app/navigation';
 import { ROUTES } from '$lib/routes';
 import { initEngine, supabase, probeNetworkReachability, getConfig } from 'stellar-drive/config';
 import { debug } from 'stellar-drive/utils';
-import { lockSingleUser } from 'stellar-drive/auth';
 import { resolveRootLayout } from 'stellar-drive/kit';
 import { isSafeRedirect } from 'stellar-drive/utils';
 import { schema } from '$lib/schema';
@@ -113,8 +112,9 @@ if (browser) {
       }
     },
     onAuthKicked: async () => {
-      debug('warn', '[layout] Auth kicked — locking single user and redirecting to /login');
-      await lockSingleUser();
+      debug('warn', '[layout] Auth kicked — signing out and redirecting to /login');
+      const { signOut } = await import('stellar-drive/auth');
+      await signOut();
       goto(ROUTES.LOGIN);
     }
   });

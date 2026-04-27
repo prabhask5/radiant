@@ -30,6 +30,7 @@
   import { repairSyncQueue } from 'stellar-drive/engine';
   import { getTrustedDevices, removeTrustedDevice, getCurrentDeviceId } from 'stellar-drive/auth';
   import { isDemoMode, getDemoConfig, showDemoBlocked } from 'stellar-drive/demo';
+  import { isOffline } from 'stellar-drive';
   import type { TrustedDevice } from 'stellar-drive/types';
   import type { DiagnosticsSnapshot } from 'stellar-drive/types';
   import { onMount, onDestroy } from 'svelte';
@@ -37,6 +38,7 @@
 
   /** Whether the app is in demo mode — shows a simplified read-only profile. */
   const inDemoMode = $derived(isDemoMode());
+  const offline = $derived(isOffline());
 
   // =============================================================================
   //                         COMPONENT STATE
@@ -844,7 +846,7 @@
               type="text"
               class="field-input"
               bind:value={firstName}
-              disabled={profileLoading}
+              disabled={profileLoading || offline}
             />
           </div>
           <div class="field-group">
@@ -854,7 +856,7 @@
               type="text"
               class="field-input"
               bind:value={lastName}
-              disabled={profileLoading}
+              disabled={profileLoading || offline}
             />
           </div>
         </div>
@@ -864,7 +866,7 @@
         {#if profileSuccess}
           <p class="msg msg-success">{profileSuccess}</p>
         {/if}
-        <button class="btn-action" type="submit" disabled={profileLoading}>
+        <button class="btn-action" type="submit" disabled={profileLoading || offline}>
           {#if profileLoading}<span class="spinner"></span>{/if}
           Save Changes
         </button>
@@ -904,7 +906,7 @@
             class="field-input"
             placeholder="new@example.com"
             bind:value={newEmail}
-            disabled={emailLoading}
+            disabled={emailLoading || offline}
           />
         </div>
         {#if emailError}
@@ -913,7 +915,11 @@
         {#if emailSuccess}
           <p class="msg msg-success">{emailSuccess}</p>
         {/if}
-        <button class="btn-action" type="submit" disabled={emailLoading || !newEmail.trim()}>
+        <button
+          class="btn-action"
+          type="submit"
+          disabled={emailLoading || !newEmail.trim() || offline}
+        >
           {#if emailLoading}<span class="spinner"></span>{/if}
           Change Email
         </button>
@@ -955,7 +961,7 @@
                 oninput={(e) => handleDigitInput(oldCodeDigits, i, e, oldCodeInputs)}
                 onkeydown={(e) => handleDigitKeydown(oldCodeDigits, i, e, oldCodeInputs)}
                 onpaste={(e) => handleDigitPaste(oldCodeDigits, e, oldCodeInputs)}
-                disabled={codeLoading}
+                disabled={codeLoading || offline}
               />
             {/each}
           </div>
@@ -975,7 +981,7 @@
                 oninput={(e) => handleDigitInput(newCodeDigits, i, e, newCodeInputs)}
                 onkeydown={(e) => handleDigitKeydown(newCodeDigits, i, e, newCodeInputs)}
                 onpaste={(e) => handleDigitPaste(newCodeDigits, e, newCodeInputs)}
-                disabled={codeLoading}
+                disabled={codeLoading || offline}
               />
             {/each}
           </div>
@@ -995,7 +1001,7 @@
                 oninput={(e) => handleDigitInput(confirmCodeDigits, i, e, confirmCodeInputs)}
                 onkeydown={(e) => handleDigitKeydown(confirmCodeDigits, i, e, confirmCodeInputs)}
                 onpaste={(e) => handleDigitPaste(confirmCodeDigits, e, confirmCodeInputs)}
-                disabled={codeLoading}
+                disabled={codeLoading || offline}
               />
             {/each}
           </div>
@@ -1007,7 +1013,7 @@
         {#if codeSuccess}
           <p class="msg msg-success">{codeSuccess}</p>
         {/if}
-        <button class="btn-action" type="submit" disabled={codeLoading}>
+        <button class="btn-action" type="submit" disabled={codeLoading || offline}>
           {#if codeLoading}<span class="spinner"></span>{/if}
           Update Code
         </button>
@@ -1061,7 +1067,7 @@
                 <button
                   class="device-remove"
                   onclick={() => handleRemoveDevice(device.id)}
-                  disabled={removingDeviceId === device.id}
+                  disabled={removingDeviceId === device.id || offline}
                   aria-label="Remove device"
                 >
                   {#if removingDeviceId === device.id}
