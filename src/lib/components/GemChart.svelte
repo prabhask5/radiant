@@ -105,10 +105,9 @@
 
   const margin = $derived({
     top: 12,
-    right: isMobileLayout ? 4 : 20,
+    right: 20,
     bottom: 28,
-    // Mobile: y-labels are HTML overlays, so no left margin needed
-    left: isMobileLayout ? 0 : containerW < 360 ? 44 : 54
+    left: isMobileLayout ? 20 : containerW < 360 ? 44 : 54
   });
 
   const chartH = $derived(Math.max(140, height));

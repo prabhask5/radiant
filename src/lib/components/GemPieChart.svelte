@@ -928,4 +928,57 @@
       animation-duration: 0.01ms !important;
     }
   }
+
+  /* ────────────────────────────────────────────────────────────────────────
+     MOBILE — instant tap highlight, remove hover transitions
+     ──────────────────────────────────────────────────────────────────────── */
+  @media (max-width: 767px) {
+    /* Remove transition delay so highlight is instant on tap */
+    .legend-item,
+    .gem-pie.mounted .legend-item {
+      transition:
+        background 0s,
+        border-color 0s,
+        box-shadow 0s,
+        opacity 0.4s ease,
+        transform 0.4s var(--gc-spring);
+      transition-delay: var(--li-delay), 0s, 0s;
+    }
+
+    .legend-item::before {
+      transition: opacity 0s;
+    }
+
+    .legend-dot {
+      transition:
+        transform 0s,
+        box-shadow 0s;
+    }
+
+    /* Remove the transform-up hover effect on touch */
+    .legend-item:hover,
+    .legend-item.legend-active {
+      transform: none;
+    }
+  }
+
+  /* ────────────────────────────────────────────────────────────────────────
+     MOBILE WIDTH — legend always fully visible (not clipped)
+     ──────────────────────────────────────────────────────────────────────── */
+  @media (max-width: 767px) {
+    /* Legend always fully visible (not clipped) on mobile */
+    .chart-legend {
+      overflow: visible;
+      max-height: none;
+    }
+
+    .chart-legend-wrap {
+      overflow: visible;
+    }
+
+    .legend-fade-top,
+    .legend-fade-bottom {
+      display: none;
+    }
+  }
 </style>

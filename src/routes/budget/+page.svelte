@@ -2029,10 +2029,39 @@
     pointer-events: none;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 767px) {
     .month-label {
       font-size: 0.82rem;
-      min-width: 110px;
+      min-width: 100px;
+    }
+
+    /* Stack title above controls row; controls take full width */
+    .header-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.75rem;
+    }
+
+    .month-nav-group {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+
+    /* Reorder: < Month > first, Today second, gear all the way right */
+    .month-nav {
+      order: 1;
+    }
+
+    .today-btn {
+      order: 2;
+    }
+
+    .config-btn {
+      order: 3;
+      margin-left: auto; /* Push gear to far right */
+      box-sizing: border-box;
+      flex-shrink: 0;
     }
   }
 
@@ -3064,6 +3093,9 @@
   }
 
   .delete-recurring-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 14px 20px;
     font-size: 0.88rem;
     font-weight: 600;
@@ -3077,6 +3109,7 @@
       border-color 0.15s;
     -webkit-tap-highlight-color: transparent;
     white-space: nowrap;
+    text-align: center;
   }
 
   .delete-recurring-btn:hover {
@@ -3634,7 +3667,8 @@
     padding: 0 1.5rem 1.5rem;
     animation: historyReveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both;
     overflow-y: auto;
-    max-height: 40vh;
+    /* Fixed height on all screens: title (~27px) + 3 rows (~84px) + slight overflow hint = 140px */
+    max-height: 140px;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -3751,7 +3785,6 @@
 
     .detail-history {
       padding: 0 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
-      max-height: 35vh;
     }
   }
 

@@ -1455,14 +1455,17 @@
     border-color: rgba(200, 160, 60, 0.25);
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 767px) {
     .month-nav-group {
-      width: 100%;
-      justify-content: space-between;
+      /* Keep items in natural flow: month-nav first, today second */
+      justify-content: flex-start;
+      gap: 0.75rem;
     }
 
+    /* today-btn appears after month-nav due to DOM order */
     .today-btn {
-      order: 1;
+      order: 1; /* After month-nav (default order 0) */
+      /* No margin-left: auto — sits right after the > arrow with 0.75rem gap */
     }
   }
 
@@ -2691,8 +2694,21 @@
     bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 9000;
+    z-index: 9200;
     animation: selectionBarSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @media (max-width: 767px) {
+    .selection-bar {
+      /* Raise above bottom tab bar (4.5rem) + demo banner (~2rem) with breathing room */
+      bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+      /* Higher z-index than DemoBanner (9000) so toast appears above it */
+      z-index: 9200;
+      /* Narrow slightly on mobile to look polished */
+      left: 1rem;
+      right: 1rem;
+      transform: none;
+    }
   }
 
   @keyframes selectionBarSlideUp {
@@ -2703,6 +2719,23 @@
     to {
       opacity: 1;
       transform: translateX(-50%) translateY(0) scale(1);
+    }
+  }
+
+  @keyframes selectionBarSlideUpMobile {
+    from {
+      opacity: 0;
+      transform: translateY(16px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .selection-bar {
+      animation-name: selectionBarSlideUpMobile;
     }
   }
 
@@ -2831,6 +2864,26 @@
 
   .detail-input[type='date'] {
     color-scheme: dark;
+  }
+
+  @media (max-width: 767px) {
+    /* Fix iOS cursor appearing above input — explicit line-height and appearance reset */
+    .detail-input {
+      -webkit-appearance: none;
+      appearance: none;
+      line-height: normal;
+      box-sizing: border-box;
+      /* Padding compensation to vertically center text */
+      padding-top: 0;
+      padding-bottom: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Remove the label padding-top that can misalign the row on iOS */
+    .detail-label {
+      padding-top: 0;
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -3008,6 +3061,28 @@
       box-shadow:
         0 0 16px rgba(232, 185, 74, 0.18),
         inset 0 0 8px rgba(232, 200, 122, 0.04);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     MOBILE — remove hover effects on transaction rows
+     ═══════════════════════════════════════════════════════════════════════════ */
+  @media (max-width: 767px) {
+    /* Remove transaction row hover highlight */
+    .txn-row:hover {
+      background: transparent;
+      border-color: var(--txn-border);
+      box-shadow: none;
+    }
+
+    .txn-row:hover::before {
+      opacity: 0;
+      transform: scaleY(0.3);
+    }
+
+    .txn-row:hover .txn-dot {
+      filter: drop-shadow(0 0 6px color-mix(in srgb, var(--dot-color) 50%, transparent));
+      transform: none;
     }
   }
 </style>

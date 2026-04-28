@@ -155,6 +155,9 @@
   /** File input reference for CSV upload. */
   let csvFileInput: HTMLInputElement | undefined = $state(undefined);
 
+  /** Which manual account's action menu is open on mobile (null = none). */
+  let mobileMenuId = $state<string | null>(null);
+
   /** Whether the drag-drop zone is actively hovered. */
   let csvDragOver = $state(false);
 
@@ -1946,7 +1949,55 @@
             <div class="inst-actions">
               {#if group.enrollmentStatus !== 'manual'}
                 <span class="status-badge {statusClass(group.enrollmentStatus)}">
-                  {group.enrollmentStatus}
+                  <span class="status-text">{group.enrollmentStatus}</span>
+                  <span class="status-icon-mobile" aria-hidden="true">
+                    {#if group.enrollmentStatus === 'connected'}
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                      >
+                    {:else if group.enrollmentStatus === 'error'}
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><line x1="12" y1="8" x2="12" y2="13" /><line
+                          x1="12"
+                          y1="17"
+                          x2="12.01"
+                          y2="17"
+                        /></svg
+                      >
+                    {:else}
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><line x1="18" y1="6" x2="6" y2="18" /><line
+                          x1="6"
+                          y1="6"
+                          x2="18"
+                          y2="18"
+                        /></svg
+                      >
+                    {/if}
+                  </span>
                 </span>
               {/if}
               {#if group.enrollmentStatus === 'manual'}
@@ -2260,13 +2311,13 @@
                         }}
                       >
                         {account.name}
-                        {#if account.last_four}
-                          <span class="acct-last4">{account.last_four}</span>
-                        {/if}
                         {#if account.manual_balance_override}
                           <span class="acct-override-badge" title="Balance manually set">✦</span>
                         {/if}
                       </span>
+                    {/if}
+                    {#if account.last_four}
+                      <span class="acct-last4">{account.last_four}</span>
                     {/if}
                     <span class="acct-type-badge type-{account.type}">
                       {subtypeLabel(account.subtype)}
@@ -2328,152 +2379,182 @@
                   {/if}
                 </div>
 
-                <!-- Manual account actions: edit + import CSV -->
-                {#if account.source === 'manual'}
-                  <button
-                    class="acct-action-btn acct-edit-btn"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      openEditModal(account);
-                    }}
-                    aria-label="Edit {account.name}"
-                    title="Edit account"
-                  >
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
-                        d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-                      /></svg
-                    >
-                  </button>
-                  <button
-                    class="acct-action-btn acct-import-btn"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      openCSVForAccount(account);
-                    }}
-                    aria-label="Import CSV for {account.name}"
-                    title="Import CSV"
-                  >
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
-                        points="17 8 12 3 7 8"
-                      /><line x1="12" y1="3" x2="12" y2="15" /></svg
-                    >
-                  </button>
-                {/if}
-
-                <!-- Per-account delete (with inline confirmation) -->
-                {#if confirmDeleteAccountId === account.id}
-                  <div class="acct-delete-confirm">
-                    <button
-                      class="btn-danger-sm"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        deleteAccount(account.id);
-                      }}
-                      disabled={deletingAccount}
-                    >
-                      {deletingAccount ? '...' : 'Delete'}
-                    </button>
-                    <button
-                      class="btn-ghost-sm"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        confirmDeleteAccountId = null;
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                {:else}
-                  <button
-                    class="acct-action-btn acct-delete-btn"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      confirmDeleteAccountId = account.id;
-                    }}
-                    aria-label="Delete {account.name}"
-                    title="Delete account"
-                  >
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><polyline points="3 6 5 6 21 6" /><path
-                        d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"
-                      /><path d="M10 11v6" /><path d="M14 11v6" /><path
-                        d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"
-                      /></svg
-                    >
-                  </button>
-                {/if}
-
-                <!-- Hide toggle -->
+                <!-- Mobile ⋯ toggle for ALL accounts (hidden on desktop) -->
                 <button
-                  class="hide-toggle"
-                  class:is-hidden={account.is_hidden}
+                  class="acct-mobile-menu-toggle"
                   onclick={(e) => {
                     e.stopPropagation();
-                    toggleAccountHidden(account.id, account.is_hidden);
+                    mobileMenuId = mobileMenuId === account.id ? null : account.id;
                   }}
-                  disabled={togglingHidden === account.id}
-                  aria-label={account.is_hidden ? 'Show account' : 'Hide account'}
+                  aria-label="Account actions for {account.name}"
+                  aria-expanded={mobileMenuId === account.id}
                 >
-                  {#if togglingHidden === account.id}
-                    <div class="toggle-spinner"></div>
-                  {:else if account.is_hidden}
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><path
-                        d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
-                      /><line x1="1" y1="1" x2="23" y2="23" /></svg
-                    >
-                  {:else}
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle
-                        cx="12"
-                        cy="12"
-                        r="3"
-                      /></svg
-                    >
-                  {/if}
+                  <svg
+                    width="16"
+                    height="4"
+                    viewBox="0 0 16 4"
+                    fill="currentColor"
+                    stroke="none"
+                    aria-hidden="true"
+                  >
+                    <circle cx="2" cy="2" r="1.5" /><circle cx="8" cy="2" r="1.5" /><circle
+                      cx="14"
+                      cy="2"
+                      r="1.5"
+                    />
+                  </svg>
                 </button>
+
+                <!-- Desktop: inline buttons; Mobile: revealed on ⋯ toggle -->
+                <div class="acct-actions-set" class:acct-actions-open={mobileMenuId === account.id}>
+                  {#if account.source === 'manual'}
+                    <!-- Manual-only actions: edit, import CSV, delete -->
+                    <button
+                      class="acct-action-btn acct-edit-btn"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        mobileMenuId = null;
+                        openEditModal(account);
+                      }}
+                      aria-label="Edit {account.name}"
+                      title="Edit account"
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
+                          d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                        /></svg
+                      >
+                    </button>
+                    <button
+                      class="acct-action-btn acct-import-btn"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        mobileMenuId = null;
+                        openCSVForAccount(account);
+                      }}
+                      aria-label="Import CSV for {account.name}"
+                      title="Import CSV"
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
+                          points="17 8 12 3 7 8"
+                        /><line x1="12" y1="3" x2="12" y2="15" /></svg
+                      >
+                    </button>
+                    {#if confirmDeleteAccountId === account.id}
+                      <div class="acct-delete-confirm">
+                        <button
+                          class="btn-danger-sm"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            deleteAccount(account.id);
+                          }}
+                          disabled={deletingAccount}
+                        >
+                          {deletingAccount ? '...' : 'Delete'}
+                        </button>
+                        <button
+                          class="btn-ghost-sm"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            confirmDeleteAccountId = null;
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    {:else}
+                      <button
+                        class="acct-action-btn acct-delete-btn"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          confirmDeleteAccountId = account.id;
+                        }}
+                        aria-label="Delete {account.name}"
+                        title="Delete account"
+                      >
+                        <svg
+                          width="15"
+                          height="15"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          ><polyline points="3 6 5 6 21 6" /><path
+                            d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"
+                          /><path d="M10 11v6" /><path d="M14 11v6" /><path
+                            d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"
+                          /></svg
+                        >
+                      </button>
+                    {/if}
+                  {/if}
+
+                  <!-- Hide toggle: for ALL accounts, inside the action set -->
+                  <button
+                    class="hide-toggle"
+                    class:is-hidden={account.is_hidden}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      mobileMenuId = null;
+                      toggleAccountHidden(account.id, account.is_hidden);
+                    }}
+                    disabled={togglingHidden === account.id}
+                    aria-label={account.is_hidden ? 'Show account' : 'Hide account'}
+                  >
+                    {#if togglingHidden === account.id}
+                      <div class="toggle-spinner"></div>
+                    {:else if account.is_hidden}
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><path
+                          d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
+                        /><line x1="1" y1="1" x2="23" y2="23" /></svg
+                      >
+                    {:else}
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle
+                          cx="12"
+                          cy="12"
+                          r="3"
+                        /></svg
+                      >
+                    {/if}
+                  </button>
+                </div>
               </div>
             {/each}
           </div>
@@ -4657,7 +4738,6 @@
     }
 
     .acct-top {
-      flex-wrap: nowrap;
       gap: 0.35rem;
       min-width: 0;
     }
@@ -4665,10 +4745,6 @@
     .acct-name {
       min-width: 0;
       flex-shrink: 1;
-    }
-
-    .acct-last4 {
-      flex-shrink: 0;
     }
 
     .account-card {
@@ -4716,6 +4792,87 @@
 
     .disconnect-confirm {
       flex-direction: column;
+    }
+  }
+
+  /* ── Mobile: remove hover effects + layout/dropdown changes ─────────────── */
+  @media (max-width: 767px) {
+    /* Remove hover lift/glow on account cards */
+    .account-card:hover {
+      background: var(--surface-card);
+      transform: none;
+      box-shadow: none;
+    }
+    .account-card:hover::before {
+      opacity: 0;
+    }
+
+    /* Action buttons always at full opacity (no hover reveal needed) */
+    .acct-action-btn {
+      opacity: 1;
+    }
+    .account-card:hover .acct-action-btn {
+      opacity: 1;
+    }
+
+    /* Hide toggle: always visible */
+    .hide-toggle {
+      opacity: 0.75;
+    }
+    .account-card:hover .hide-toggle {
+      opacity: 0.75;
+    }
+
+    /* Show the ⋯ toggle button */
+    .acct-mobile-menu-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    /* Action set: hidden by default, revealed when open */
+    .acct-actions-set {
+      display: none;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .acct-actions-set.acct-actions-open {
+      display: flex;
+    }
+
+    /* acct-last4: wrap to new line below name and tags */
+    .acct-top {
+      flex-wrap: wrap;
+      row-gap: 0.2rem;
+    }
+    .acct-last4 {
+      width: 100%;
+      order: 10;
+      margin-left: 0;
+      flex-shrink: 0;
+    }
+
+    /* Status badge: hide text, show icon */
+    .status-text {
+      display: none;
+    }
+    .status-icon-mobile {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Institution action buttons: bring closer together */
+    .inst-actions {
+      gap: 0.3rem;
     }
   }
 
@@ -5595,6 +5752,21 @@
     gap: 0.3rem;
     flex-shrink: 0;
     animation: dropdown-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* ── Mobile account menu toggle (hidden on desktop) ─────────────────────── */
+  .acct-mobile-menu-toggle {
+    display: none;
+  }
+
+  /* ── Account actions set wrapper (transparent on desktop) ───────────────── */
+  .acct-actions-set {
+    display: contents;
+  }
+
+  /* ── Status badge icon (hidden on desktop, shown on mobile) ─────────────── */
+  .status-icon-mobile {
+    display: none;
   }
 
   /* ── Account name styles ────────────────────────────────────────────────── */
