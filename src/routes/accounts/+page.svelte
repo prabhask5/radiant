@@ -2404,20 +2404,22 @@
                           {/if}
                         </span>
                       {/if}
+                    </div>
+                    <div class="acct-meta">
                       {#if account.last_four}
                         <span class="acct-last4">{account.last_four}</span>
                       {/if}
+                      <span class="acct-type-badge type-{account.type}">
+                        {subtypeLabel(account.subtype)}
+                      </span>
+                      <span
+                        class="acct-source-badge {account.source === 'manual'
+                          ? 'source-manual'
+                          : 'source-teller'}"
+                      >
+                        {account.source === 'manual' ? 'Manual' : 'Teller'}
+                      </span>
                     </div>
-                    <span class="acct-type-badge type-{account.type}">
-                      {subtypeLabel(account.subtype)}
-                    </span>
-                    <span
-                      class="acct-source-badge {account.source === 'manual'
-                        ? 'source-manual'
-                        : 'source-teller'}"
-                    >
-                      {account.source === 'manual' ? 'Manual' : 'Teller'}
-                    </span>
                   </div>
                   <div class="acct-bottom">
                     <span class="acct-balance" class:muted={account.is_hidden}>
@@ -4576,19 +4578,23 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
     min-width: 0;
   }
 
-  /* Name + last4 grouped together, truncates as a unit */
   .acct-name-group {
     display: flex;
     align-items: center;
     gap: 0.3rem;
     min-width: 0;
-    flex: 1 1 0;
-    max-width: max-content;
+    flex: 0 1 auto;
     overflow: hidden;
+  }
+
+  .acct-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
   /* .acct-name is now a <span> — base styles defined in the new CSS block below */
@@ -4941,14 +4947,16 @@
 
     /* ⋯ toggle + dropdown: handled in the late 767px block after base CSS */
 
-    /* Line 1: name + last4; Line 2: type/source badges */
     .acct-top {
-      flex-wrap: wrap;
-      row-gap: 0.2rem;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.2rem;
     }
     .acct-name-group {
       width: 100%;
-      flex: none;
+    }
+    .acct-meta {
+      width: 100%;
     }
 
     /* Status badge: hide text, show icon + ago */
