@@ -4590,7 +4590,8 @@
   }
 
   .acct-top {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto;
     align-items: center;
     gap: 0.5rem;
     min-width: 0;
@@ -4601,7 +4602,6 @@
     align-items: center;
     gap: 0.3rem;
     min-width: 0;
-    flex: 1 1 auto;
     overflow: hidden;
   }
 
@@ -4963,6 +4963,7 @@
     /* ⋯ toggle + dropdown: handled in the late 767px block after base CSS */
 
     .acct-top {
+      display: flex;
       flex-direction: column;
       align-items: flex-start;
       gap: 0.2rem;
