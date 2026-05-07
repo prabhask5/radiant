@@ -4586,7 +4586,7 @@
     align-items: center;
     gap: 0.3rem;
     min-width: 0;
-    flex: 1 1 0;
+    flex: 0 1 auto;
     overflow: hidden;
   }
 
@@ -5816,8 +5816,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 34px;
+    height: 34px;
     border-radius: 8px;
     cursor: pointer;
     transition:

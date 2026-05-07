@@ -631,11 +631,15 @@
       <h1 class="page-title">Transactions</h1>
     </div>
     <div class="month-nav-group">
-      {#if !isCurrentMonth}
-        <button class="today-btn" onclick={() => (selectedMonth = getCurrentMonth())}>
-          Today
-        </button>
-      {/if}
+      <button
+        class="today-btn"
+        class:today-hidden={isCurrentMonth}
+        onclick={() => (selectedMonth = getCurrentMonth())}
+        aria-hidden={isCurrentMonth}
+        tabindex={isCurrentMonth ? -1 : 0}
+      >
+        Today
+      </button>
       <div class="month-nav">
         <button class="month-arrow" onclick={prevMonth} aria-label="Previous month">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -1299,8 +1303,9 @@
 
   .page-header {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     padding: 0 0 1rem;
     gap: 0.5rem;
   }
@@ -1458,17 +1463,24 @@
     border-color: rgba(200, 160, 60, 0.25);
   }
 
+  .today-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   @media (max-width: 767px) {
+    .page-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
     .month-nav-group {
-      /* Keep items in natural flow: month-nav first, today second */
       justify-content: flex-start;
       gap: 0.75rem;
     }
 
-    /* today-btn appears after month-nav due to DOM order */
     .today-btn {
-      order: 1; /* After month-nav (default order 0) */
-      /* No margin-left: auto — sits right after the > arrow with 0.75rem gap */
+      order: 1;
     }
   }
 
