@@ -4591,10 +4591,9 @@
 
   .acct-top {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.5rem;
-    min-width: 0;
   }
 
   .acct-name-group {
