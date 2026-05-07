@@ -2404,21 +2404,21 @@
                           {/if}
                         </span>
                       {/if}
-                    </div>
-                    <div class="acct-meta">
-                      {#if account.last_four}
-                        <span class="acct-last4">{account.last_four}</span>
-                      {/if}
-                      <span class="acct-type-badge type-{account.type}">
-                        {subtypeLabel(account.subtype)}
-                      </span>
-                      <span
-                        class="acct-source-badge {account.source === 'manual'
-                          ? 'source-manual'
-                          : 'source-teller'}"
-                      >
-                        {account.source === 'manual' ? 'Manual' : 'Teller'}
-                      </span>
+                      <div class="acct-meta">
+                        {#if account.last_four}
+                          <span class="acct-last4">{account.last_four}</span>
+                        {/if}
+                        <span class="acct-type-badge type-{account.type}">
+                          {subtypeLabel(account.subtype)}
+                        </span>
+                        <span
+                          class="acct-source-badge {account.source === 'manual'
+                            ? 'source-manual'
+                            : 'source-teller'}"
+                        >
+                          {account.source === 'manual' ? 'Manual' : 'Teller'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div class="acct-bottom">
@@ -4592,18 +4592,16 @@
   .acct-top {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
     min-width: 0;
   }
 
   .acct-name-group {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.5rem;
     min-width: 0;
     overflow: hidden;
-    flex: 1 1 0;
-    max-width: max-content;
+    flex: 0 1 auto;
   }
 
   .acct-meta {
@@ -4965,13 +4963,13 @@
 
     .acct-top {
       display: flex;
+      align-items: flex-start;
+    }
+    .acct-name-group {
       flex-direction: column;
       align-items: flex-start;
       gap: 0.2rem;
-    }
-    .acct-name-group {
       width: 100%;
-      max-width: 100%;
     }
     .acct-meta {
       width: 100%;
