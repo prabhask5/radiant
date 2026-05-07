@@ -1855,7 +1855,11 @@
     <!-- ── Institution Groups ────────────────────────────────────── -->
     <div class="institutions-list">
       {#each accountsByInstitution as group, gi (group.enrollmentId)}
-        <div class="institution-group" style="--group-delay: {gi * 80}ms">
+        <div
+          class="institution-group"
+          style="--group-delay: {gi * 80}ms"
+          class:inst-menu-open={instMenuId === group.institutionName}
+        >
           <!-- Institution Header -->
           <div class="institution-header">
             <div class="inst-info">
@@ -2293,6 +2297,7 @@
               <div
                 class="account-card"
                 class:hidden-account={account.is_hidden}
+                class:acct-menu-open={mobileMenuId === account.id}
                 style="--acct-delay: {gi * 80 + ai * 50}ms"
                 use:remoteChangeAnimation={{ entityId: account.id, entityType: 'accounts' }}
               >
@@ -3833,6 +3838,7 @@
   }
 
   .institution-group {
+    position: relative;
     animation: group-enter 0.4s ease-out both;
     animation-delay: var(--group-delay);
   }
@@ -4524,7 +4530,9 @@
       0 0 20px rgba(46, 196, 166, 0.06);
   }
 
-  .account-card.hidden-account {
+  /* Fade only the content, not the action buttons (hide-toggle / ⋯ menu) */
+  .account-card.hidden-account .acct-icon,
+  .account-card.hidden-account .acct-info {
     opacity: 0.5;
   }
 
@@ -4927,9 +4935,14 @@
 
     /* ⋯ toggle + dropdown: handled in the late 767px block after base CSS */
 
-    /* acct-top: single row, name-group truncates to give badges room */
+    /* Line 1: name + last4; Line 2: type/source badges */
     .acct-top {
-      flex-wrap: nowrap;
+      flex-wrap: wrap;
+      row-gap: 0.2rem;
+    }
+    .acct-name-group {
+      width: 100%;
+      flex: none;
     }
 
     /* Status badge: hide text, show icon + ago */
@@ -6210,6 +6223,31 @@
     /* inst-actions: proper spacing between status badge and ⋯ */
     .inst-actions {
       gap: 0.5rem;
+    }
+
+    /* Elevate the open card/group above all siblings so the dropdown
+       isn't clipped by elements that follow in the DOM. */
+    .account-card.acct-menu-open {
+      z-index: 9100;
+    }
+    .institution-group.inst-menu-open {
+      z-index: 9100;
+    }
+
+    /* Status badge — override base desktop display:none rules that follow
+       the early 767px block (cascade: same specificity, later = wins). */
+    .status-icon-mobile {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .status-ago-mobile {
+      display: inline;
+      font-size: 0.65rem;
+      font-weight: 500;
+      opacity: 0.85;
+      text-transform: none;
+      letter-spacing: 0.01em;
     }
   }
 </style>
