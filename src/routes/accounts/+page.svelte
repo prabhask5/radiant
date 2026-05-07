@@ -4284,14 +4284,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
     background: transparent;
     border: 1px solid transparent;
     border-radius: 8px;
     color: var(--text-muted);
     cursor: pointer;
     transition: all 0.2s;
+  }
+
+  .sync-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   .sync-btn:hover {
@@ -4310,14 +4315,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 40px;
+    height: 40px;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 7px;
+    border-radius: 8px;
     color: var(--text-muted);
     cursor: pointer;
     transition: all 0.18s;
+  }
+
+  .inst-rename-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   .inst-rename-btn:hover {
@@ -4394,14 +4404,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
     background: transparent;
     border: 1px solid transparent;
     border-radius: 8px;
     color: var(--text-muted);
     cursor: pointer;
     transition: all 0.2s;
+  }
+
+  .disconnect-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   .disconnect-btn:hover {
