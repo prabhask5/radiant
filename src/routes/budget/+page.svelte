@@ -3854,4 +3854,19 @@
       }
     }
   }
+
+  @media (max-width: 767px) {
+    /* Chevron always visible — no hover on mobile */
+    .recurring-row-chevron {
+      opacity: 1;
+    }
+    .recurring-row:hover .recurring-row-chevron {
+      opacity: 1;
+      transform: none;
+    }
+    /* No lift on recurring rows */
+    .recurring-row:hover {
+      transform: none;
+    }
+  }
 </style>

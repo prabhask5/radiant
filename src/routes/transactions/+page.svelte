@@ -2705,11 +2705,6 @@
     .selection-bar {
       /* Sit at the same level as the demo banner — higher z-index keeps it on top */
       bottom: calc(var(--demo-banner-bottom, 4.5rem) + env(safe-area-inset-bottom, 0px) + 0.5rem);
-      width: calc(100% - 2rem);
-    }
-
-    .selection-bar-inner {
-      width: 100%;
     }
   }
 
