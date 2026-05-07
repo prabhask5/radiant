@@ -4586,7 +4586,8 @@
     align-items: center;
     gap: 0.3rem;
     min-width: 0;
-    flex: 0 1 auto;
+    flex: 1 1 0;
+    max-width: max-content;
     overflow: hidden;
   }
 
@@ -4752,8 +4753,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
     background: transparent;
     border: 1px solid transparent;
     border-radius: 8px;
@@ -4762,6 +4763,11 @@
     transition: all 0.2s;
     flex-shrink: 0;
     opacity: 0.4;
+  }
+
+  .hide-toggle svg {
+    width: 18px;
+    height: 18px;
   }
 
   .account-card:hover .hide-toggle {
@@ -5816,8 +5822,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
     border-radius: 8px;
     cursor: pointer;
     transition:
@@ -5826,6 +5832,11 @@
     flex-shrink: 0;
     opacity: 0;
     color: var(--text-muted);
+  }
+
+  .acct-action-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   .account-card:hover .acct-action-btn {
