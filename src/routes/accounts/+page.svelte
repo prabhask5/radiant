@@ -4590,10 +4590,10 @@
   }
 
   .acct-top {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: flex;
     align-items: center;
     gap: 0.5rem;
+    min-width: 0;
   }
 
   .acct-name-group {
@@ -4602,6 +4602,8 @@
     gap: 0.3rem;
     min-width: 0;
     overflow: hidden;
+    flex: 1 1 0;
+    max-width: max-content;
   }
 
   .acct-meta {
@@ -4969,6 +4971,7 @@
     }
     .acct-name-group {
       width: 100%;
+      max-width: 100%;
     }
     .acct-meta {
       width: 100%;
