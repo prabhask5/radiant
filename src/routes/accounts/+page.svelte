@@ -2617,8 +2617,8 @@
                         <div class="toggle-spinner"></div>
                       {:else if account.is_hidden}
                         <svg
-                          width="18"
-                          height="18"
+                          width="15"
+                          height="15"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -2631,8 +2631,8 @@
                         >
                       {:else}
                         <svg
-                          width="18"
-                          height="18"
+                          width="15"
+                          height="15"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -6088,12 +6088,12 @@
       color: var(--gold, #d4a039);
     }
 
-    /* Dropdown panel — absolute, floats over cards below */
+    /* Dropdown panel — absolute, on top of everything */
     .acct-actions-set {
       position: absolute;
       right: 0;
       top: calc(100% + 6px);
-      z-index: 500;
+      z-index: 99999;
       display: none;
       flex-direction: row;
       align-items: center;
@@ -6138,14 +6138,15 @@
       border-color: rgba(248, 113, 113, 0.2);
     }
 
-    /* Separator between action groups (after manual buttons, before hide-toggle) */
+    /* Hide-toggle matches all other action buttons — no separator */
     .acct-actions-set .hide-toggle {
-      margin-left: 0.1rem;
-      padding-left: 0.35rem;
-      border-left: 1px solid rgba(232, 185, 74, 0.12);
-      border-radius: 0;
       width: 34px;
       height: 34px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      opacity: 1;
+      padding: 0;
+      margin: 0;
     }
   }
 
@@ -6228,10 +6229,10 @@
     /* Elevate the open card/group above all siblings so the dropdown
        isn't clipped by elements that follow in the DOM. */
     .account-card.acct-menu-open {
-      z-index: 9100;
+      z-index: 99999;
     }
     .institution-group.inst-menu-open {
-      z-index: 9100;
+      z-index: 99999;
     }
 
     /* Status badge — override base desktop display:none rules that follow
