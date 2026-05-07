@@ -4586,7 +4586,7 @@
     align-items: center;
     gap: 0.3rem;
     min-width: 0;
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     overflow: hidden;
   }
 
