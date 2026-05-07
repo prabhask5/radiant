@@ -9,6 +9,8 @@
   spring-curve animations, mobile-first touch targets.
 -->
 <script lang="ts">
+  import { truncateTooltip } from 'stellar-drive/actions';
+
   // ══════════════════════════════════════════════════════════════════════════
   //                              TYPES
   // ══════════════════════════════════════════════════════════════════════════
@@ -385,7 +387,7 @@
               {#if seg.icon}
                 <span class="legend-icon">{seg.icon}</span>
               {/if}
-              <span class="legend-label">{seg.label}</span>
+              <span class="legend-label" use:truncateTooltip>{seg.label}</span>
               <span class="legend-value">{formatValue(seg.value)}</span>
             </button>
           {/each}
@@ -979,6 +981,15 @@
     .legend-fade-top,
     .legend-fade-bottom {
       display: none;
+    }
+
+    /* Label may truncate (action handles ellipsis) — value must never clip */
+    .legend-label {
+      min-width: 0;
+    }
+
+    .legend-value {
+      flex-shrink: 0;
     }
   }
 </style>

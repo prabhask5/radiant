@@ -332,9 +332,13 @@
     selectedIds = next;
   }
 
-  /** Select all visible transactions. */
-  function selectAllVisible() {
-    selectedIds = new Set(visibleTransactions.map((t) => t.id));
+  /** Toggle between selecting all filtered transactions and deselecting all. */
+  function toggleSelectAll() {
+    if (selectedIds.size === filteredTransactions.length) {
+      selectedIds = new Set();
+    } else {
+      selectedIds = new Set(filteredTransactions.map((t) => t.id));
+    }
   }
 
   /** Clear selection and exit selection mode. */
@@ -1188,8 +1192,8 @@
   <div class="selection-bar">
     <div class="selection-bar-inner">
       <span class="selection-count">{selectedIds.size}</span>
-      <button class="selection-select-all" onclick={selectAllVisible}>
-        {selectedIds.size === visibleTransactions.length ? 'Deselect all' : 'Select all'}
+      <button class="selection-select-all" onclick={toggleSelectAll}>
+        {selectedIds.size === filteredTransactions.length ? 'Deselect all' : 'Select all'}
       </button>
       <div class="selection-spacer"></div>
       <button class="selection-delete" onclick={bulkDeleteSelected}>
@@ -1295,10 +1299,9 @@
 
   .page-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: flex-start;
     padding: 0 0 1rem;
-    flex-wrap: wrap;
     gap: 0.5rem;
   }
 
@@ -2691,7 +2694,7 @@
 
   .selection-bar {
     position: fixed;
-    bottom: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     z-index: 9200;
@@ -2700,14 +2703,13 @@
 
   @media (max-width: 767px) {
     .selection-bar {
-      /* Raise above bottom tab bar (4.5rem) + demo banner (~2rem) with breathing room */
-      bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
-      /* Higher z-index than DemoBanner (9000) so toast appears above it */
-      z-index: 9200;
-      /* Narrow slightly on mobile to look polished */
-      left: 1rem;
-      right: 1rem;
-      transform: none;
+      /* Sit at the same level as the demo banner — higher z-index keeps it on top */
+      bottom: calc(var(--demo-banner-bottom, 4.5rem) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+      width: calc(100% - 2rem);
+    }
+
+    .selection-bar-inner {
+      width: 100%;
     }
   }
 
@@ -2719,23 +2721,6 @@
     to {
       opacity: 1;
       transform: translateX(-50%) translateY(0) scale(1);
-    }
-  }
-
-  @keyframes selectionBarSlideUpMobile {
-    from {
-      opacity: 0;
-      transform: translateY(16px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
-  @media (max-width: 767px) {
-    .selection-bar {
-      animation-name: selectionBarSlideUpMobile;
     }
   }
 
