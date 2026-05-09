@@ -720,7 +720,7 @@
 
   .gem-chart.mounted {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 
   @media (min-width: 640px) {
