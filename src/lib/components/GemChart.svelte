@@ -67,6 +67,9 @@
   let svgEl: SVGSVGElement | undefined = $state(undefined);
   let containerW = $state(0);
   let hoverX: number | null = $state(null);
+  /** Screen-space SVG origin, updated on every pointer move for fixed tooltip positioning. */
+  let svgScreenLeft = $state(0);
+  let svgScreenTop = $state(0);
   let mounted = $state(false);
 
   // Unique ID prefix for SVG defs (multiple charts on same page)
@@ -385,17 +388,20 @@
     if (tipX + tipW / 2 > containerW - 12) tipX = containerW - tipW / 2 - 12;
     if (tipX - tipW / 2 < 12) tipX = tipW / 2 + 12;
 
-    // Position tooltip above the topmost dot
+    // Fixed-position tooltip: convert to screen coords so overflow:hidden can't clip it.
     const validYs = items.filter((i) => i.y !== null).map((i) => i.y as number);
     const minDotY = validYs.length > 0 ? Math.min(...validYs) : 0;
-    const tipY = minDotY - 10;
+    const fixedLeft = svgScreenLeft + tipX;
+    const fixedTop = svgScreenTop + minDotY - 10;
 
-    return { crossX: snappedX, tipX, tipY, dateStr, items };
+    return { crossX: snappedX, fixedLeft, fixedTop, dateStr, items };
   });
 
   function onPointerMove(e: PointerEvent) {
     if (!svgEl) return;
     const rect = svgEl.getBoundingClientRect();
+    svgScreenLeft = rect.left;
+    svgScreenTop = rect.top;
     const x = e.clientX - rect.left;
     if (x >= margin.left && x <= margin.left + plotW) {
       hoverX = x;
@@ -656,7 +662,7 @@
 
         <!-- Tooltip (HTML, outside SVG for backdrop-filter) -->
         {#if hover}
-          <div class="chart-tip" style="left: {hover.tipX}px; top: {hover.tipY}px;">
+          <div class="chart-tip" style="left: {hover.fixedLeft}px; top: {hover.fixedTop}px;">
             <div class="tip-date">{hover.dateStr}</div>
             {#each hover.items as item (item.label)}
               <div class="tip-row">
@@ -1087,7 +1093,7 @@
   }
 
   .chart-tip {
-    position: absolute;
+    position: fixed;
     transform: translateX(-50%) translateY(-100%);
     background: rgba(12, 10, 6, 0.88);
     backdrop-filter: blur(20px) saturate(1.3);
@@ -1099,7 +1105,7 @@
     box-shadow:
       0 12px 40px rgba(0, 0, 0, 0.5),
       0 0 0 0.5px rgba(180, 150, 80, 0.08) inset;
-    z-index: 9999;
+    z-index: 99999;
     white-space: nowrap;
     animation: tipReveal 0.18s ease-out;
     min-width: 120px;
