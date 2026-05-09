@@ -10,7 +10,7 @@
     - Date-grouped transaction list with expand-to-edit detail panels
     - Loading skeleton with prismatic shimmer
     - Empty state with gem-themed messaging
-    - Load-more pagination
+    - Virtualized rendering via WindowVirtualizer (all transactions loaded, none paginated)
 -->
 <script lang="ts">
   /**
@@ -43,6 +43,7 @@
   import { categorizeTransaction } from '$lib/ml/categorizer';
   import { categorizer } from '$lib/ml/classifier';
   import { addToast } from 'stellar-drive/toast';
+  import { WindowVirtualizer } from 'virtua/svelte';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -60,15 +61,6 @@
   let accountFilter = $state('all');
   let categoryFilter = $state('all');
   let statusFilter = $state<'all' | 'posted' | 'pending'>('all');
-
-  /* ── Pagination ── */
-  const PAGE_SIZE = 50;
-  let visibleCount = $state(PAGE_SIZE);
-  /**
-   * Threshold below which items skip stagger animation (already rendered).
-   * Only increases — "load more" raises it so previously-visible items stay stable.
-   */
-  let animateFromIndex = $state(0);
 
   /* ── Expanded transaction detail ── */
   let expandedId = $state<string | null>(null);
@@ -191,43 +183,24 @@
       });
   });
 
-  /** Transactions limited to the current visible page. */
-  const visibleTransactions = $derived(filteredTransactions.slice(0, visibleCount));
+  /** Flat item list for WindowVirtualizer: interleaved date headers and transaction rows. */
+  const flatItems = $derived.by(() => {
+    type Item =
+      | { type: 'header'; date: string; label: string }
+      | { type: 'txn'; txn: (typeof filteredTransactions)[number] };
 
-  /** Whether there are more transactions to show. */
-  const hasMore = $derived(visibleCount < filteredTransactions.length);
-
-  /**
-   * Group visible transactions by date for rendering with date headers.
-   */
-  const groupedTransactions = $derived.by(() => {
-    const groups: Array<{
-      date: string;
-      label: string;
-      transactions: typeof visibleTransactions;
-      /** Flat index of the first transaction in this group (for animation gating). */
-      offset: number;
-    }> = [];
+    const items: Item[] = [];
     let currentDate = '';
-    let currentGroup: (typeof groups)[number] | null = null;
-    let flatIdx = 0;
 
-    for (const t of visibleTransactions) {
+    for (const t of filteredTransactions) {
       if (t.date !== currentDate) {
         currentDate = t.date;
-        currentGroup = {
-          date: currentDate,
-          label: formatDateGroup(currentDate),
-          transactions: [],
-          offset: flatIdx
-        };
-        groups.push(currentGroup);
+        items.push({ type: 'header', date: currentDate, label: formatDateGroup(currentDate) });
       }
-      currentGroup!.transactions.push(t);
-      flatIdx++;
+      items.push({ type: 'txn', txn: t });
     }
 
-    return groups;
+    return items;
   });
 
   /** Summary statistics for the filtered transactions. */
@@ -288,7 +261,6 @@
     const [y, m] = selectedMonth.split('-').map(Number);
     const d = new Date(y, m - 2, 1);
     selectedMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    visibleCount = PAGE_SIZE;
     expandedId = null;
   }
 
@@ -297,7 +269,6 @@
     const [y, m] = selectedMonth.split('-').map(Number);
     const d = new Date(y, m, 1);
     selectedMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    visibleCount = PAGE_SIZE;
     expandedId = null;
   }
 
@@ -361,19 +332,12 @@
     }
   }
 
-  /** Load more transactions. */
-  function loadMore() {
-    animateFromIndex = visibleCount;
-    visibleCount += PAGE_SIZE;
-  }
-
   /** Clear all filters and search. */
   function clearFilters() {
     searchQuery = '';
     accountFilter = 'all';
     categoryFilter = 'all';
     statusFilter = 'all';
-    visibleCount = PAGE_SIZE;
   }
 
   /** Whether any filter is active beyond the default month view. */
@@ -457,8 +421,10 @@
 
   /** Save a category change for a transaction. */
   async function saveCategory(transactionId: string) {
-    savingField = `cat-${transactionId}`;
     const newCat = editingCategory[transactionId] || null;
+    const t = allTransactions.find((tx) => tx.id === transactionId);
+    if (newCat === (t?.category_id ?? null)) return;
+    savingField = `cat-${transactionId}`;
     debug('log', '[TRANSACTIONS] saveCategory —', transactionId, '→', newCat);
     try {
       const propagatedCount = await transactionsStore.updateCategory(transactionId, newCat);
@@ -476,10 +442,13 @@
 
   /** Save notes for a transaction. */
   async function saveNotes(transactionId: string) {
+    const newNotes = editingNotes[transactionId] ?? '';
+    const t = allTransactions.find((tx) => tx.id === transactionId);
+    if (newNotes === (t?.notes ?? '')) return;
     savingField = `notes-${transactionId}`;
     debug('log', '[TRANSACTIONS] saveNotes —', transactionId);
     try {
-      await transactionsStore.updateNotes(transactionId, editingNotes[transactionId] ?? '');
+      await transactionsStore.updateNotes(transactionId, newNotes);
       await transactionsStore.refresh();
     } finally {
       savingField = null;
@@ -904,289 +873,282 @@
     <!-- ─── Transaction List ─── -->
   {:else}
     <div class="txn-list">
-      {#each groupedTransactions as group, gi (group.date)}
-        <!-- Date Group Header -->
-        <div
-          class="date-header"
-          class:loaded={group.offset < animateFromIndex}
-          style="animation-delay: {group.offset - animateFromIndex >= 0 ? gi * 0.04 : 0}s"
-        >
-          <span class="date-header-text">{group.label}</span>
-          <span class="date-header-line"></span>
-        </div>
+      <WindowVirtualizer
+        data={flatItems}
+        getKey={(item) => (item.type === 'header' ? `h-${item.date}` : `t-${item.txn.id}`)}
+      >
+        {#snippet children(item)}
+          {#if item.type === 'header'}
+            <!-- Date Group Header -->
+            <div class="date-header">
+              <span class="date-header-text">{item.label}</span>
+              <span class="date-header-line"></span>
+            </div>
+          {:else}
+            {@const txn = item.txn}
+            {@const cat = getCategoryForTransaction(txn.category_id)}
+            {@const amt = parseFloat(txn.amount) || 0}
+            {@const acctType = accountsById[txn.account_id]?.type ?? 'credit'}
+            {@const cls = amountClass(amt, acctType)}
+            {@const isPending = txn.status === 'pending'}
+            {@const isExpanded = expandedId === txn.id}
 
-        <!-- Transaction Rows -->
-        {#each group.transactions as txn, ti (txn.id)}
-          {@const cat = getCategoryForTransaction(txn.category_id)}
-          {@const amt = parseFloat(txn.amount) || 0}
-          {@const acctType = accountsById[txn.account_id]?.type ?? 'credit'}
-          {@const cls = amountClass(amt, acctType)}
-          {@const isPending = txn.status === 'pending'}
-          {@const isExpanded = expandedId === txn.id}
-
-          <button
-            class="txn-row"
-            class:expanded={isExpanded}
-            class:pending={isPending}
-            class:excluded={txn.is_excluded}
-            class:loaded={group.offset + ti < animateFromIndex}
-            style="animation-delay: {group.offset + ti >= animateFromIndex
-              ? (group.offset + ti - animateFromIndex) * 0.03
-              : 0}s"
-            onclick={() => (selectionMode ? toggleSelect(txn.id) : toggleExpand(txn.id))}
-            aria-expanded={isExpanded}
-            use:remoteChangeAnimation={{ entityId: txn.id, entityType: 'transactions' }}
-          >
-            {#if selectionMode}
-              <span
-                class="select-check"
-                class:checked={selectedIds.has(txn.id)}
-                role="checkbox"
-                aria-checked={selectedIds.has(txn.id)}
+            <!-- Transaction Row + optional expanded detail (wrapped so virtualizer measures both) -->
+            <div class="txn-item-wrapper">
+              <button
+                class="txn-row"
+                class:expanded={isExpanded}
+                class:pending={isPending}
+                class:excluded={txn.is_excluded}
+                onclick={() => (selectionMode ? toggleSelect(txn.id) : toggleExpand(txn.id))}
+                aria-expanded={isExpanded}
+                use:remoteChangeAnimation={{ entityId: txn.id, entityType: 'transactions' }}
               >
-                {#if selectedIds.has(txn.id)}
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path
-                      d="M2.5 6L5 8.5L9.5 3.5"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                {/if}
-              </span>
-            {/if}
-
-            <!-- Category Dot -->
-            <div class="txn-dot" style="--dot-color: {cat?.color ?? '#555'}">
-              {#if cat?.icon}
-                <span class="txn-dot-icon">{cat.icon}</span>
-              {:else}
-                <span class="txn-dot-fallback"></span>
-              {/if}
-            </div>
-
-            <!-- Description & Counterparty -->
-            <div class="txn-info">
-              <span class="txn-desc" use:truncateTooltip>
-                {txn.description}
-                {#if txn.is_recurring}
-                  <span class="recurring-badge" title="Recurring">🔄</span>
-                {/if}
-              </span>
-              {#if txn.counterparty_name}
-                <span class="txn-counterparty">{txn.counterparty_name}</span>
-              {/if}
-            </div>
-
-            <!-- Account Badge -->
-            <span class="txn-account-badge">{getAccountBadge(txn.account_id)}</span>
-
-            <!-- Status -->
-            {#if isPending}
-              <span class="txn-pending-dot" title="Pending"></span>
-            {/if}
-
-            <!-- Amount -->
-            <span class="txn-amount {cls}">
-              {#if txn.is_excluded}
-                <span class="excluded-strike">{formatCurrency(Math.abs(amt))}</span>
-              {:else}
-                {formatCurrency(Math.abs(amt))}
-              {/if}
-            </span>
-          </button>
-
-          <!-- ─── Expanded Detail Panel ─── -->
-          {#if isExpanded}
-            <div class="txn-detail">
-              <div class="detail-grid">
-                <!-- Full Description -->
-                <div class="detail-row detail-row-interactive">
-                  <span class="detail-label">Description</span>
-                  <div class="detail-control">
-                    <input
-                      type="text"
-                      class="detail-input"
-                      value={txn.description}
-                      onblur={(e) => saveDescription(txn.id, (e.target as HTMLInputElement).value)}
-                      onclick={(e) => e.stopPropagation()}
-                    />
-                    {#if savingField === `desc-${txn.id}`}
-                      <span class="saving-indicator"></span>
-                    {/if}
-                  </div>
-                </div>
-
-                <!-- Date -->
-                <div class="detail-row detail-row-interactive">
-                  <span class="detail-label">Date</span>
-                  <div class="detail-control">
-                    <input
-                      type="date"
-                      class="detail-input"
-                      value={txn.date}
-                      onchange={(e) => saveDate(txn.id, (e.target as HTMLInputElement).value)}
-                      onclick={(e) => e.stopPropagation()}
-                    />
-                    {#if savingField === `date-${txn.id}`}
-                      <span class="saving-indicator"></span>
-                    {/if}
-                  </div>
-                </div>
-
-                <!-- Account -->
-                <div class="detail-row">
-                  <span class="detail-label">Account</span>
-                  <span class="detail-value">{getAccountName(txn.account_id)}</span>
-                </div>
-
-                <!-- Status -->
-                <div class="detail-row">
-                  <span class="detail-label">Status</span>
-                  <span class="detail-value status-value" class:pending={isPending}>
-                    {txn.status}
-                  </span>
-                </div>
-
-                <!-- Running Balance -->
-                {#if txn.running_balance}
-                  <div class="detail-row">
-                    <span class="detail-label">Balance</span>
-                    <span class="detail-value">{formatCurrency(txn.running_balance)}</span>
-                  </div>
-                {/if}
-
-                <!-- Category Selector -->
-                <div class="detail-row detail-row-interactive">
-                  <span class="detail-label">Category</span>
-                  <div class="detail-control detail-control-cat">
-                    <select
-                      class="detail-select"
-                      value={editingCategory[txn.id] ?? txn.category_id ?? ''}
-                      onchange={(e) => {
-                        editingCategory[txn.id] = (e.target as HTMLSelectElement).value;
-                        saveCategory(txn.id);
-                      }}
-                      disabled={savingField === `cat-${txn.id}`}
-                    >
-                      <option value="">Uncategorized</option>
-                      {#each sortedCategories as c (c.id)}
-                        <option value={c.id}>{c.icon} {c.name}</option>
-                      {/each}
-                    </select>
-                    <button
-                      class="recat-btn"
-                      class:spinning={savingField === `recat-${txn.id}`}
-                      title="Auto-categorize"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        recategorize(txn.id);
-                      }}
-                      disabled={savingField === `recat-${txn.id}`}
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
+                {#if selectionMode}
+                  <span
+                    class="select-check"
+                    class:checked={selectedIds.has(txn.id)}
+                    role="checkbox"
+                    aria-checked={selectedIds.has(txn.id)}
+                  >
+                    {#if selectedIds.has(txn.id)}
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                         <path
-                          d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.2M22 12.5a10 10 0 0 1-18.8 4.2"
+                          d="M2.5 6L5 8.5L9.5 3.5"
+                          stroke="currentColor"
+                          stroke-width="1.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                         />
                       </svg>
-                    </button>
-                    {#if savingField === `cat-${txn.id}`}
-                      <span class="saving-indicator"></span>
                     {/if}
-                  </div>
+                  </span>
+                {/if}
+
+                <!-- Category Dot -->
+                <div class="txn-dot" style="--dot-color: {cat?.color ?? '#555'}">
+                  {#if cat?.icon}
+                    <span class="txn-dot-icon">{cat.icon}</span>
+                  {:else}
+                    <span class="txn-dot-fallback"></span>
+                  {/if}
                 </div>
 
-                <!-- Notes -->
-                <div class="detail-row detail-row-notes">
-                  <span class="detail-label">Notes</span>
-                  <div class="detail-control">
-                    <textarea
-                      class="detail-textarea"
-                      placeholder="Add a note..."
-                      value={editingNotes[txn.id] ?? txn.notes ?? ''}
-                      oninput={(e) => {
-                        editingNotes[txn.id] = (e.target as HTMLTextAreaElement).value;
-                      }}
-                      onblur={() => saveNotes(txn.id)}
-                      rows="2"
-                    ></textarea>
-                    {#if savingField === `notes-${txn.id}`}
-                      <span class="saving-indicator"></span>
+                <!-- Description & Counterparty -->
+                <div class="txn-info">
+                  <span class="txn-desc" use:truncateTooltip>
+                    {txn.description}
+                    {#if txn.is_recurring}
+                      <span class="recurring-badge" title="Recurring">🔄</span>
                     {/if}
-                  </div>
+                  </span>
+                  {#if txn.counterparty_name}
+                    <span class="txn-counterparty">{txn.counterparty_name}</span>
+                  {/if}
                 </div>
 
-                <!-- Exclude Toggle -->
-                <div class="detail-row detail-row-interactive">
-                  <span class="detail-label">Exclude</span>
-                  <div class="detail-control">
-                    <button
-                      class="exclude-toggle"
-                      class:active={txn.is_excluded}
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        toggleExcluded(txn.id, txn.is_excluded);
-                      }}
-                      disabled={savingField === `excl-${txn.id}`}
-                      aria-label={txn.is_excluded ? 'Include transaction' : 'Exclude transaction'}
-                    >
-                      <span class="exclude-track">
-                        <span class="exclude-knob"></span>
+                <!-- Account Badge -->
+                <span class="txn-account-badge">{getAccountBadge(txn.account_id)}</span>
+
+                <!-- Status -->
+                {#if isPending}
+                  <span class="txn-pending-dot" title="Pending"></span>
+                {/if}
+
+                <!-- Amount -->
+                <span class="txn-amount {cls}">
+                  {#if txn.is_excluded}
+                    <span class="excluded-strike">{formatCurrency(Math.abs(amt))}</span>
+                  {:else}
+                    {formatCurrency(Math.abs(amt))}
+                  {/if}
+                </span>
+              </button>
+
+              <!-- ─── Expanded Detail Panel ─── -->
+              {#if isExpanded}
+                <div class="txn-detail">
+                  <div class="detail-grid">
+                    <!-- Full Description -->
+                    <div class="detail-row detail-row-interactive">
+                      <span class="detail-label">Description</span>
+                      <div class="detail-control">
+                        <input
+                          type="text"
+                          class="detail-input"
+                          value={txn.description}
+                          onblur={(e) =>
+                            saveDescription(txn.id, (e.target as HTMLInputElement).value)}
+                          onclick={(e) => e.stopPropagation()}
+                        />
+                        {#if savingField === `desc-${txn.id}`}
+                          <span class="saving-indicator"></span>
+                        {/if}
+                      </div>
+                    </div>
+
+                    <!-- Date -->
+                    <div class="detail-row detail-row-interactive">
+                      <span class="detail-label">Date</span>
+                      <div class="detail-control">
+                        <input
+                          type="date"
+                          class="detail-input"
+                          value={txn.date}
+                          onchange={(e) => saveDate(txn.id, (e.target as HTMLInputElement).value)}
+                          onclick={(e) => e.stopPropagation()}
+                        />
+                        {#if savingField === `date-${txn.id}`}
+                          <span class="saving-indicator"></span>
+                        {/if}
+                      </div>
+                    </div>
+
+                    <!-- Account -->
+                    <div class="detail-row">
+                      <span class="detail-label">Account</span>
+                      <span class="detail-value">{getAccountName(txn.account_id)}</span>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="detail-row">
+                      <span class="detail-label">Status</span>
+                      <span class="detail-value status-value" class:pending={isPending}>
+                        {txn.status}
                       </span>
-                      <span class="exclude-label">{txn.is_excluded ? 'Excluded' : 'Included'}</span>
-                    </button>
+                    </div>
+
+                    <!-- Running Balance -->
+                    {#if txn.running_balance}
+                      <div class="detail-row">
+                        <span class="detail-label">Balance</span>
+                        <span class="detail-value">{formatCurrency(txn.running_balance)}</span>
+                      </div>
+                    {/if}
+
+                    <!-- Category Selector -->
+                    <div class="detail-row detail-row-interactive">
+                      <span class="detail-label">Category</span>
+                      <div class="detail-control detail-control-cat">
+                        <select
+                          class="detail-select"
+                          value={editingCategory[txn.id] ?? txn.category_id ?? ''}
+                          onchange={(e) => {
+                            editingCategory[txn.id] = (e.target as HTMLSelectElement).value;
+                            saveCategory(txn.id);
+                          }}
+                          disabled={savingField === `cat-${txn.id}`}
+                        >
+                          <option value="">Uncategorized</option>
+                          {#each sortedCategories as c (c.id)}
+                            <option value={c.id}>{c.icon} {c.name}</option>
+                          {/each}
+                        </select>
+                        <button
+                          class="recat-btn"
+                          class:spinning={savingField === `recat-${txn.id}`}
+                          title="Auto-categorize"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            recategorize(txn.id);
+                          }}
+                          disabled={savingField === `recat-${txn.id}`}
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path
+                              d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.2M22 12.5a10 10 0 0 1-18.8 4.2"
+                            />
+                          </svg>
+                        </button>
+                        {#if savingField === `cat-${txn.id}`}
+                          <span class="saving-indicator"></span>
+                        {/if}
+                      </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="detail-row detail-row-notes">
+                      <span class="detail-label">Notes</span>
+                      <div class="detail-control">
+                        <textarea
+                          class="detail-textarea"
+                          placeholder="Add a note..."
+                          value={editingNotes[txn.id] ?? txn.notes ?? ''}
+                          oninput={(e) => {
+                            editingNotes[txn.id] = (e.target as HTMLTextAreaElement).value;
+                          }}
+                          onblur={() => saveNotes(txn.id)}
+                          rows="2"
+                        ></textarea>
+                        {#if savingField === `notes-${txn.id}`}
+                          <span class="saving-indicator"></span>
+                        {/if}
+                      </div>
+                    </div>
+
+                    <!-- Exclude Toggle -->
+                    <div class="detail-row detail-row-interactive">
+                      <span class="detail-label">Exclude</span>
+                      <div class="detail-control">
+                        <button
+                          class="exclude-toggle"
+                          class:active={txn.is_excluded}
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            toggleExcluded(txn.id, txn.is_excluded);
+                          }}
+                          disabled={savingField === `excl-${txn.id}`}
+                          aria-label={txn.is_excluded
+                            ? 'Include transaction'
+                            : 'Exclude transaction'}
+                        >
+                          <span class="exclude-track">
+                            <span class="exclude-knob"></span>
+                          </span>
+                          <span class="exclude-label"
+                            >{txn.is_excluded ? 'Excluded' : 'Included'}</span
+                          >
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Delete Transaction -->
+                    <div class="detail-row detail-row-delete">
+                      <button
+                        class="delete-txn-btn"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          deleteSingle(txn.id);
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path
+                            d="M2.5 3.5H11.5M5 3.5V2.5C5 2.224 5.224 2 5.5 2H8.5C8.776 2 9 2.224 9 2.5V3.5M5.5 6V10.5M8.5 6V10.5M3.5 3.5L4 11.5C4 11.776 4.224 12 4.5 12H9.5C9.776 12 10 11.776 10 11.5L10.5 3.5"
+                            stroke="currentColor"
+                            stroke-width="1.1"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                        Delete transaction
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <!-- Delete Transaction -->
-                <div class="detail-row detail-row-delete">
-                  <button
-                    class="delete-txn-btn"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      deleteSingle(txn.id);
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path
-                        d="M2.5 3.5H11.5M5 3.5V2.5C5 2.224 5.224 2 5.5 2H8.5C8.776 2 9 2.224 9 2.5V3.5M5.5 6V10.5M8.5 6V10.5M3.5 3.5L4 11.5C4 11.776 4.224 12 4.5 12H9.5C9.776 12 10 11.776 10 11.5L10.5 3.5"
-                        stroke="currentColor"
-                        stroke-width="1.1"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                    Delete transaction
-                  </button>
-                </div>
-              </div>
+              {/if}
             </div>
           {/if}
-        {/each}
-      {/each}
-
-      <!-- ─── Load More ─── -->
-      {#if hasMore}
-        <div class="load-more-zone">
-          <button class="load-more-btn" onclick={loadMore}>
-            Load more
-            <span class="load-more-count">
-              ({filteredTransactions.length - visibleCount} remaining)
-            </span>
-          </button>
-        </div>
-      {/if}
+        {/snippet}
+      </WindowVirtualizer>
     </div>
   {/if}
 </div>
@@ -1888,13 +1850,6 @@
     animation: rowSlideIn 0.35s ease forwards;
   }
 
-  /* Items loaded via "load more" appear instantly — no stagger. */
-  .date-header.loaded,
-  .txn-row.loaded {
-    opacity: 1;
-    animation: none;
-  }
-
   .date-header::before {
     content: '';
     position: absolute;
@@ -1921,6 +1876,13 @@
     flex: 1;
     height: 1px;
     background: linear-gradient(90deg, var(--txn-border), transparent);
+  }
+
+  /* ── Virtual list item wrapper (button + optional expanded detail) ── */
+
+  .txn-item-wrapper {
+    display: flex;
+    flex-direction: column;
   }
 
   /* ── Transaction Row ── */
@@ -2401,45 +2363,6 @@
 
   .exclude-toggle.active .exclude-label {
     color: var(--txn-ruby);
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     LOAD MORE
-     ═══════════════════════════════════════════════════════════════════════════ */
-
-  .load-more-zone {
-    display: flex;
-    justify-content: center;
-    padding: 1.5rem 0;
-  }
-
-  .load-more-btn {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--txn-citrine);
-    background: rgba(200, 160, 60, 0.08);
-    border: 1px solid rgba(200, 160, 60, 0.15);
-    border-radius: var(--txn-radius);
-    padding: 0.55rem 1.5rem;
-    cursor: pointer;
-    transition:
-      background 0.2s,
-      border-color 0.2s,
-      box-shadow 0.3s;
-    -webkit-tap-highlight-color: transparent;
-    font-family: inherit;
-  }
-
-  .load-more-btn:hover {
-    background: rgba(200, 160, 60, 0.15);
-    border-color: rgba(200, 160, 60, 0.3);
-    box-shadow: 0 0 16px rgba(200, 160, 60, 0.08);
-  }
-
-  .load-more-count {
-    font-weight: 400;
-    color: var(--txn-text-dim);
-    margin-left: 0.25rem;
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════

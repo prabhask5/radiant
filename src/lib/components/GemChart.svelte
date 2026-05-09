@@ -385,7 +385,12 @@
     if (tipX + tipW / 2 > containerW - 12) tipX = containerW - tipW / 2 - 12;
     if (tipX - tipW / 2 < 12) tipX = tipW / 2 + 12;
 
-    return { crossX: snappedX, tipX, dateStr, items };
+    // Position tooltip above the topmost dot
+    const validYs = items.filter((i) => i.y !== null).map((i) => i.y as number);
+    const minDotY = validYs.length > 0 ? Math.min(...validYs) : 0;
+    const tipY = minDotY - 10;
+
+    return { crossX: snappedX, tipX, tipY, dateStr, items };
   });
 
   function onPointerMove(e: PointerEvent) {
@@ -651,7 +656,7 @@
 
         <!-- Tooltip (HTML, outside SVG for backdrop-filter) -->
         {#if hover}
-          <div class="chart-tip" style="left: {hover.tipX}px;">
+          <div class="chart-tip" style="left: {hover.tipX}px; top: {hover.tipY}px;">
             <div class="tip-date">{hover.dateStr}</div>
             {#each hover.items as item (item.label)}
               <div class="tip-row">
@@ -1083,8 +1088,7 @@
 
   .chart-tip {
     position: absolute;
-    top: 0;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(-100%);
     background: rgba(12, 10, 6, 0.88);
     backdrop-filter: blur(20px) saturate(1.3);
     -webkit-backdrop-filter: blur(20px) saturate(1.3);
@@ -1104,11 +1108,11 @@
   @keyframes tipReveal {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(4px) scale(0.97);
+      transform: translateX(-50%) translateY(calc(-100% + 4px)) scale(0.97);
     }
     to {
       opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
+      transform: translateX(-50%) translateY(-100%) scale(1);
     }
   }
 

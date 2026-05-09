@@ -85,11 +85,6 @@
   let manualCreditLimit = $state(0.0);
   let creatingManual = $state(false);
 
-  /** Account name editing state. */
-  let editingAccountId = $state<string | null>(null);
-  let editingAccountName = $state('');
-  let savingAccountName = $state(false);
-
   /** Whether the CSV import modal is open. */
   let showCSVModal = $state(false);
 
@@ -1404,32 +1399,6 @@
     }
   }
 
-  /** Start editing an account name. Only for manual accounts. */
-  function startEditingName(account: Account) {
-    if (account.source !== 'manual') return;
-    editingAccountId = account.id;
-    editingAccountName = account.name;
-  }
-
-  /** Save account name edit. */
-  async function saveAccountName(accountId: string) {
-    if (!editingAccountName.trim() || savingAccountName) return;
-    savingAccountName = true;
-    debug('log', '[ACCOUNTS] saveAccountName —', accountId, '→', editingAccountName.trim());
-    try {
-      const { engineUpdate } = await import('stellar-drive');
-      remoteChangesStore.recordLocalChange(accountId, 'accounts', 'rename');
-      await engineUpdate('accounts', accountId, { name: editingAccountName.trim() });
-      await accountsStore.refresh();
-      editingAccountId = null;
-    } catch (err) {
-      console.error('Save account name error:', err);
-      showFeedback('error', 'Failed to update account name.');
-    } finally {
-      savingAccountName = false;
-    }
-  }
-
   /** Open CSV import for a specific account. */
   function openCSVForAccount(account: Account) {
     csvImportAccountId = account.id;
@@ -2363,47 +2332,12 @@
                 <div class="acct-info">
                   <div class="acct-top">
                     <div class="acct-name-group">
-                      {#if editingAccountId === account.id && account.source === 'manual'}
-                        <input
-                          class="acct-name-input"
-                          type="text"
-                          bind:value={editingAccountName}
-                          onblur={() => saveAccountName(account.id)}
-                          onkeydown={(e) => {
-                            if (e.key === 'Enter') saveAccountName(account.id);
-                            if (e.key === 'Escape') editingAccountId = null;
-                          }}
-                          onclick={(e) => e.stopPropagation()}
-                        />
-                      {:else}
-                        <!-- svelte-ignore a11y_no_static_element_interactions -->
-                        <span
-                          class="acct-name"
-                          class:muted={account.is_hidden}
-                          class:acct-name-editable={account.source === 'manual'}
-                          use:truncateTooltip
-                          onclick={(e) => {
-                            if (account.source === 'manual') {
-                              e.stopPropagation();
-                              startEditingName(account);
-                            }
-                          }}
-                          onkeydown={(e) => {
-                            if (
-                              account.source === 'manual' &&
-                              (e.key === 'Enter' || e.key === ' ')
-                            ) {
-                              e.stopPropagation();
-                              startEditingName(account);
-                            }
-                          }}
-                        >
-                          {account.name}
-                          {#if account.manual_balance_override}
-                            <span class="acct-override-badge" title="Balance manually set">✦</span>
-                          {/if}
-                        </span>
-                      {/if}
+                      <span class="acct-name" class:muted={account.is_hidden} use:truncateTooltip>
+                        {account.name}
+                        {#if account.manual_balance_override}
+                          <span class="acct-override-badge" title="Balance manually set">✦</span>
+                        {/if}
+                      </span>
                       <div class="acct-meta">
                         {#if account.last_four}
                           <span class="acct-last4">{account.last_four}</span>
@@ -4616,32 +4550,6 @@
     color: var(--text-muted);
   }
 
-  .acct-name-input {
-    all: unset;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    background: var(--surface-raised);
-    border: 1px solid var(--amethyst);
-    border-radius: 6px;
-    padding: 2px 8px;
-    box-shadow: 0 0 0 2px rgba(232, 185, 74, 0.15);
-    animation: nameEditGlow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    min-width: 0;
-    width: 100%;
-  }
-
-  @keyframes nameEditGlow {
-    from {
-      box-shadow: 0 0 0 0 rgba(232, 185, 74, 0);
-      transform: scale(0.98);
-    }
-    to {
-      box-shadow: 0 0 0 2px rgba(232, 185, 74, 0.15);
-      transform: scale(1);
-    }
-  }
-
   .acct-last4 {
     font-weight: 400;
     color: var(--text-muted);
@@ -5944,17 +5852,6 @@
     color: var(--text-muted);
   }
 
-  .acct-name-editable {
-    cursor: text;
-    transition:
-      background 0.2s ease,
-      box-shadow 0.2s ease;
-  }
-
-  .acct-name-editable:hover {
-    background: rgba(180, 150, 80, 0.06);
-  }
-
   /* ── Manual balance override indicator ──────────────────────────────────── */
   .acct-override-badge {
     display: inline-block;
@@ -6235,7 +6132,7 @@
       position: absolute;
       right: 0;
       top: calc(100% + 6px);
-      z-index: 500;
+      z-index: 99999;
       display: none;
       flex-direction: row;
       align-items: center;
@@ -6267,6 +6164,11 @@
       z-index: 99999;
     }
     .institution-group.inst-menu-open {
+      z-index: 99999;
+    }
+    /* Also elevate the institution-group when any child account has its menu open,
+       so the dropdown escapes sibling groups that come later in the DOM. */
+    .institution-group:has(.acct-menu-open) {
       z-index: 99999;
     }
 

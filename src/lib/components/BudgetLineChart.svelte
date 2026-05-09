@@ -362,9 +362,15 @@
     if (tipX + tipW / 2 > containerW - 12) tipX = containerW - tipW / 2 - 12;
     if (tipX - tipW / 2 < 12) tipX = tipW / 2 + 12;
 
+    // Position tooltip above the topmost dot
+    const dotYs: number[] = [sy(paceVal)];
+    if (spendVal !== null) dotYs.push(sy(spendVal));
+    const tipY = Math.min(...dotYs) - 10;
+
     return {
       crossX: snappedX,
       tipX,
+      tipY,
       day: Math.round(clampedDay),
       spendVal,
       paceVal,
@@ -681,7 +687,7 @@
 
         <!-- Tooltip (HTML, outside SVG for backdrop-filter) -->
         {#if hover}
-          <div class="blc-tip" style="left: {hover.tipX}px;">
+          <div class="blc-tip" style="left: {hover.tipX}px; top: {hover.tipY}px;">
             <div class="tip-date">Day {hover.day}</div>
             <div class="tip-row">
               <span class="tip-swatch" style="background: {CITRINE};"></span>
@@ -1074,8 +1080,7 @@
      ──────────────────────────────────────────────────────────────────────── */
   .blc-tip {
     position: absolute;
-    top: 0;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(-100%);
     background: rgba(12, 10, 6, 0.88);
     backdrop-filter: blur(20px) saturate(1.3);
     -webkit-backdrop-filter: blur(20px) saturate(1.3);
@@ -1095,11 +1100,11 @@
   @keyframes blcTipReveal {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(4px) scale(0.97);
+      transform: translateX(-50%) translateY(calc(-100% + 4px)) scale(0.97);
     }
     to {
       opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
+      transform: translateX(-50%) translateY(-100%) scale(1);
     }
   }
 
