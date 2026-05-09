@@ -356,6 +356,13 @@
     const spendVal = interpolateSpendingAt(clampedDay);
     const paceVal = paceValueAt(clampedDay);
 
+    // Only show spending dot when hovering within the actual data range
+    const lastDataDay =
+      spendingData.length > 0
+        ? new Date(spendingData[spendingData.length - 1].date + 'T00:00:00').getDate()
+        : 0;
+    const spendY = spendVal !== null && clampedDay <= lastDataDay ? sy(spendVal) : null;
+
     // Tooltip positioning — keep in bounds
     let tipX = snappedX;
     const tipW = 180;
@@ -364,7 +371,7 @@
 
     // Position tooltip above the topmost dot
     const dotYs: number[] = [sy(paceVal)];
-    if (spendVal !== null) dotYs.push(sy(spendVal));
+    if (spendY !== null) dotYs.push(spendY);
     const tipY = Math.min(...dotYs) - 10;
 
     return {
@@ -374,7 +381,7 @@
       day: Math.round(clampedDay),
       spendVal,
       paceVal,
-      spendY: spendVal !== null ? sy(spendVal) : null,
+      spendY,
       paceY: sy(paceVal)
     };
   });
@@ -751,7 +758,6 @@
     border: 1px solid var(--gc-border);
     border-radius: 16px;
     padding: 20px 16px 16px;
-    overflow: hidden;
     /* Entrance */
     opacity: 0;
     transform: translateY(16px);
@@ -1091,10 +1097,14 @@
     box-shadow:
       0 12px 40px rgba(0, 0, 0, 0.5),
       0 0 0 0.5px rgba(180, 150, 80, 0.08) inset;
-    z-index: 10;
+    z-index: 9999;
     white-space: nowrap;
     animation: blcTipReveal 0.18s ease-out;
     min-width: 130px;
+  }
+
+  .blc:has(.blc-tip) {
+    z-index: 10;
   }
 
   @keyframes blcTipReveal {
