@@ -259,20 +259,24 @@
   function computeListHeight() {
     if (!txnListEl) return;
     const rect = txnListEl.getBoundingClientRect();
+    // Fill from the list's top to the visual viewport bottom.
+    // The fixed bottom nav overlays the last portion; VList padding-bottom handles clearance.
     const viewportH = window.visualViewport?.height ?? window.innerHeight;
-    // Subtract .main's padding-bottom which accounts for the fixed bottom nav + safe area.
-    const mainEl = txnListEl.closest('main');
-    const paddingBottom = mainEl ? parseFloat(getComputedStyle(mainEl).paddingBottom) : 80;
-    const h = viewportH - rect.top - paddingBottom;
+    const h = viewportH - rect.top;
     if (h > 50) txnListHeight = h;
   }
 
   // Recompute list height whenever the element mounts or the viewport resizes.
+  // Also listen to visualViewport resize (iOS address bar hide/show).
   $effect(() => {
     if (!txnListEl) return;
-    computeListHeight();
+    tick().then(computeListHeight);
     window.addEventListener('resize', computeListHeight);
-    return () => window.removeEventListener('resize', computeListHeight);
+    window.visualViewport?.addEventListener('resize', computeListHeight);
+    return () => {
+      window.removeEventListener('resize', computeListHeight);
+      window.visualViewport?.removeEventListener('resize', computeListHeight);
+    };
   });
 
   // Recompute when content above the list changes (summary strip toggles).
@@ -905,6 +909,8 @@
       <VList
         data={flatItems}
         getKey={(item) => (item.type === 'header' ? `h-${item.date}` : `t-${item.txn.id}`)}
+        class="txn-vlist"
+        style="padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box;"
       >
         {#snippet children(item)}
           {#if item.type === 'header'}
@@ -1863,6 +1869,14 @@
 
   .txn-list {
     width: 100%;
+  }
+
+  :global(.txn-vlist) {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  :global(.txn-vlist::-webkit-scrollbar) {
+    display: none;
   }
 
   /* ── Date Group Header ── */
