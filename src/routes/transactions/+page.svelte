@@ -10,7 +10,7 @@
     - Date-grouped transaction list with expand-to-edit detail panels
     - Loading skeleton with prismatic shimmer
     - Empty state with gem-themed messaging
-    - Virtualized rendering via WindowVirtualizer (all transactions loaded, none paginated)
+    - Virtualized rendering via Virtualizer with body scrollRef (all transactions loaded, none paginated)
 -->
 <script lang="ts">
   /**
@@ -22,7 +22,7 @@
   //                                IMPORTS
   // ===========================================================================
 
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import {
     transactionsStore,
     accountsStore,
@@ -43,7 +43,7 @@
   import { categorizeTransaction } from '$lib/ml/categorizer';
   import { categorizer } from '$lib/ml/classifier';
   import { addToast } from 'stellar-drive/toast';
-  import { WindowVirtualizer } from 'virtua/svelte';
+  import { Virtualizer } from 'virtua/svelte';
 
   // ===========================================================================
   //                           COMPONENT STATE
@@ -80,6 +80,11 @@
 
   /* ── Page entrance ── */
   let mounted = $state(false);
+
+  /* ── Virtual list scroll ── */
+  let txnListEl = $state<HTMLElement | null>(null);
+  let listScrollRef = $state<HTMLElement | undefined>(undefined);
+  let listStartMargin = $state(0);
 
   // ===========================================================================
   //                          DERIVED DATA
@@ -247,8 +252,21 @@
       hasLoaded = true;
     }
 
+    listScrollRef = document.body;
+
     requestAnimationFrame(() => {
       mounted = true;
+    });
+  });
+
+  // Recompute start margin after DOM updates so Virtualizer knows how far
+  // the list is from the body top (changes when summary strip toggles).
+  $effect(() => {
+    void filteredTransactions;
+    tick().then(() => {
+      if (txnListEl) {
+        listStartMargin = txnListEl.getBoundingClientRect().top + document.body.scrollTop;
+      }
     });
   });
 
@@ -872,10 +890,12 @@
 
     <!-- ─── Transaction List ─── -->
   {:else}
-    <div class="txn-list">
-      <WindowVirtualizer
+    <div class="txn-list" bind:this={txnListEl}>
+      <Virtualizer
         data={flatItems}
         getKey={(item) => (item.type === 'header' ? `h-${item.date}` : `t-${item.txn.id}`)}
+        scrollRef={listScrollRef}
+        startMargin={listStartMargin}
       >
         {#snippet children(item)}
           {#if item.type === 'header'}
@@ -1148,7 +1168,7 @@
             </div>
           {/if}
         {/snippet}
-      </WindowVirtualizer>
+      </Virtualizer>
     </div>
   {/if}
 </div>
