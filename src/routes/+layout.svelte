@@ -159,7 +159,7 @@
     if (nav.from?.url.pathname !== nav.to?.url.pathname) {
       document.body.scrollTop = 0;
     }
-    if (data.authMode !== 'none') {
+    if (data.authMode !== 'none' && data.authMode !== 'demo') {
       const last = parseInt(localStorage.getItem(NAV_SYNC_KEY) ?? '0', 10);
       if (Date.now() - last >= NAV_SYNC_INTERVAL_MS) {
         localStorage.setItem(NAV_SYNC_KEY, String(Date.now()));
