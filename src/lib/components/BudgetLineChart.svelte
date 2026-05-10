@@ -356,12 +356,13 @@
     const spendVal = interpolateSpendingAt(clampedDay);
     const paceVal = paceValueAt(clampedDay);
 
-    // Only show spending dot when hovering within the actual data range
+    // Only show dots when hovering within the actual data range
     const lastDataDay =
       spendingData.length > 0
         ? new Date(spendingData[spendingData.length - 1].date + 'T00:00:00').getDate()
         : 0;
     const spendY = spendVal !== null && clampedDay <= lastDataDay ? sy(spendVal) : null;
+    const paceY = clampedDay <= currentDay ? sy(paceVal) : null;
 
     // Tooltip positioning — keep in bounds
     let tipX = snappedX;
@@ -369,10 +370,11 @@
     if (tipX + tipW / 2 > containerW - 12) tipX = containerW - tipW / 2 - 12;
     if (tipX - tipW / 2 < 12) tipX = tipW / 2 + 12;
 
-    // Position tooltip above the topmost dot
-    const dotYs: number[] = [sy(paceVal)];
+    // Position tooltip above the topmost visible dot
+    const dotYs: number[] = [];
     if (spendY !== null) dotYs.push(spendY);
-    const tipY = Math.min(...dotYs) - 10;
+    if (paceY !== null) dotYs.push(paceY);
+    const tipY = dotYs.length > 0 ? Math.min(...dotYs) - 10 : margin.top;
 
     return {
       crossX: snappedX,
@@ -382,7 +384,7 @@
       spendVal,
       paceVal,
       spendY,
-      paceY: sy(paceVal)
+      paceY
     };
   });
 
@@ -668,16 +670,18 @@
             {/if}
 
             <!-- Hover dot on pace line -->
-            <circle
-              cx={hover.crossX}
-              cy={hover.paceY}
-              r="3"
-              fill="none"
-              stroke={CITRINE}
-              stroke-opacity="0.5"
-              stroke-width="1.5"
-              class="hover-dot"
-            />
+            {#if hover.paceY !== null}
+              <circle
+                cx={hover.crossX}
+                cy={hover.paceY}
+                r="3"
+                fill="none"
+                stroke={CITRINE}
+                stroke-opacity="0.5"
+                stroke-width="1.5"
+                class="hover-dot"
+              />
+            {/if}
           {/if}
         </svg>
 
