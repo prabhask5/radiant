@@ -50,13 +50,17 @@ Radiant connects to 5,000+ US financial institutions via Teller.io, syncs transa
 
 ## Features
 
-### Bank Integration
+### Accounts & Net Worth
 - Real-time transaction sync via Teller.io connecting to 5,000+ US financial institutions
 - Supports checking, savings, and credit card accounts
 - Webhook-driven updates -- new transactions arrive automatically without polling
 - mTLS authentication ensures bank credentials never touch your server
 - Manual account creation for banks not on Teller
 - CSV import with automatic column detection and idempotent deduplication (upload the same file twice safely)
+- **Cash Wallet**: built-in physical cash tracker that always appears on the Accounts page. Set the current amount and each change (up or down) records a dated transaction, so cash contributes to the net worth chart and monthly percentage-change calculations just like any bank account
+- Per-account stats: credit card utilization bar + monthly % change vs last month for depository accounts
+- Hide/show individual accounts from net worth totals without deleting them
+- Net worth summary: total assets, total liabilities, and net position updated in real time
 
 ### Budget Management
 - Custom budget categories with emoji icons, colors, and monthly spending limits

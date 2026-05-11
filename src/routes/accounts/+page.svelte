@@ -159,6 +159,22 @@
   let csvDragOver = $state(false);
 
   // ==========================================================================
+  //                        CASH WALLET STATE
+  // ==========================================================================
+
+  /** Whether the cash wallet balance is being edited. */
+  let cashWalletEditing = $state(false);
+
+  /** Current value in the cash wallet edit input. */
+  let cashWalletInput = $state('');
+
+  /** Whether a cash wallet save is in progress. */
+  let savingCashWallet = $state(false);
+
+  /** Reference to the cash wallet balance input element (for autofocus). */
+  let cashWalletInputEl = $state<HTMLInputElement | undefined>(undefined);
+
+  // ==========================================================================
   //                         DERIVED STATE
   // ==========================================================================
 
@@ -203,6 +219,9 @@
     }
 
     for (const account of accounts) {
+      // Cash wallet has its own dedicated UI section — exclude from institution groups
+      if (account.subtype === 'cash_wallet') continue;
+
       if (account.source === 'manual') {
         // If a Teller enrollment group already exists for this institution, join it
         const tellerGroup = [...groups.values()].find(
@@ -307,11 +326,21 @@
     csvMappedTransactions.filter((t) => csvExistingHashes.has(t.csv_import_hash)).length
   );
 
+  /** The always-present cash wallet account (null until stores load). */
+  const cashWalletAccount = $derived(accounts.find((a) => a.subtype === 'cash_wallet') ?? null);
+
+  /** The current display balance of the cash wallet. */
+  const cashWalletBalance = $derived(
+    cashWalletAccount ? parseFloat(cashWalletAccount.balance_available ?? '0') || 0 : 0
+  );
+
   /** Count of Teller-connected accounts. */
   const connectedCount = $derived(accounts.filter((a) => a.source !== 'manual').length);
 
-  /** Count of manual accounts. */
-  const manualCount = $derived(accounts.filter((a) => a.source === 'manual').length);
+  /** Count of manual accounts (excluding the cash wallet). */
+  const manualCount = $derived(
+    accounts.filter((a) => a.source === 'manual' && a.subtype !== 'cash_wallet').length
+  );
 
   /**
    * Total assets: sum of balances from depository accounts (checking, savings, etc).
@@ -410,6 +439,11 @@
     }
     return map;
   });
+
+  /** Pct change for the cash wallet from last month (requires acctStats). */
+  const cashWalletPctChange = $derived(
+    cashWalletAccount ? (acctStats.get(cashWalletAccount.id)?.pctChange ?? null) : null
+  );
 
   /** Whether the Teller app ID is configured. */
   const hasTellerConfig = $derived(!!tellerAppId);
@@ -1070,7 +1104,8 @@
       certificate_of_deposit: 'CD',
       treasury: 'Treasury',
       sweep: 'Sweep',
-      credit_card: 'Credit Card'
+      credit_card: 'Credit Card',
+      cash_wallet: 'Cash'
     };
     return labels[subtype] ?? subtype;
   }
@@ -1149,6 +1184,92 @@
     if (subtype === 'savings' || subtype === 'money_market' || subtype === 'certificate_of_deposit')
       return 'savings';
     return 'checking';
+  }
+
+  // ==========================================================================
+  //                      CASH WALLET FUNCTIONS
+  // ==========================================================================
+
+  /**
+   * Ensure the cash wallet account exists. Called on mount after stores load.
+   * Creates the account if it doesn't exist yet (first-time setup).
+   */
+  async function ensureCashWallet() {
+    const allAccts = $accountsStore ?? [];
+    if (allAccts.find((a) => a.subtype === 'cash_wallet')) return;
+
+    debug('log', '[ACCOUNTS] ensureCashWallet — creating default cash wallet');
+    await accountsStore.createManualAccount({
+      institution_name: 'Cash',
+      name: 'Cash',
+      type: 'depository',
+      subtype: 'cash_wallet',
+      currency: 'USD',
+      last_four: null,
+      status: 'open',
+      balance_available: '0.00',
+      balance_ledger: '0.00',
+      balance_updated_at: new Date().toISOString(),
+      is_hidden: false
+    });
+    debug('log', '[ACCOUNTS] ensureCashWallet — cash wallet created');
+  }
+
+  /** Begin editing the cash wallet balance. */
+  function startEditCashWallet() {
+    cashWalletInput = cashWalletBalance.toFixed(2);
+    cashWalletEditing = true;
+    setTimeout(() => cashWalletInputEl?.focus(), 0);
+  }
+
+  /** Cancel the cash wallet edit. */
+  function cancelEditCashWallet() {
+    cashWalletEditing = false;
+    cashWalletInput = '';
+  }
+
+  /**
+   * Save the new cash wallet balance.
+   * Creates a delta transaction for any change, then updates the stored balance.
+   */
+  async function saveCashWallet() {
+    if (savingCashWallet || !cashWalletAccount) return;
+    const newValue = parseFloat(cashWalletInput);
+    if (isNaN(newValue) || newValue < 0) {
+      addToast('Enter a valid non-negative amount', 'error');
+      return;
+    }
+
+    const delta = newValue - cashWalletBalance;
+    savingCashWallet = true;
+    debug('log', '[ACCOUNTS] saveCashWallet —', { prev: cashWalletBalance, next: newValue, delta });
+
+    try {
+      if (Math.abs(delta) >= 0.01) {
+        const today = new Date().toISOString().slice(0, 10);
+        await transactionsStore.createTransaction({
+          account_id: cashWalletAccount.id,
+          amount: delta.toFixed(2),
+          date: today,
+          description: delta > 0 ? 'Cash deposit' : 'Cash withdrawal'
+        });
+      }
+
+      await accountsStore.updateAccount(cashWalletAccount.id, {
+        balance_available: newValue.toFixed(2),
+        balance_ledger: newValue.toFixed(2),
+        balance_updated_at: new Date().toISOString()
+      });
+
+      cashWalletEditing = false;
+      cashWalletInput = '';
+      addToast('Cash balance updated', 'success');
+    } catch (err) {
+      debug('error', '[ACCOUNTS] saveCashWallet failed:', err);
+      addToast('Failed to update cash balance', 'error');
+    } finally {
+      savingCashWallet = false;
+    }
   }
 
   // ==========================================================================
@@ -1585,6 +1706,9 @@
     await preloadAllStores();
     loaded = true;
 
+    // Ensure cash wallet exists (creates it silently if first-time setup)
+    await ensureCashWallet();
+
     // Pre-load Teller Connect SDK in the background if configured
     if (browser && tellerAppId) {
       loadTellerConnect().catch(() => {
@@ -1675,319 +1799,418 @@
       </div>
       <p class="loading-text">Retrieving your accounts...</p>
     </div>
-  {:else if accountsByInstitution.length === 0}
-    <!-- ── Empty State ───────────────────────────────────────────── -->
-    <div class="empty-state">
-      <div class="empty-crystal">
-        <svg width="96" height="96" viewBox="0 0 96 96" fill="none">
-          <!-- Crystal cluster -->
-          <path
-            d="M48 12L62 36L48 60L34 36L48 12Z"
-            stroke="url(#crystGrad1)"
-            stroke-width="1.5"
-            fill="url(#crystGrad1)"
-            fill-opacity="0.08"
-          />
-          <path
-            d="M30 28L42 48L30 68L18 48L30 28Z"
-            stroke="url(#crystGrad2)"
-            stroke-width="1.5"
-            fill="url(#crystGrad2)"
-            fill-opacity="0.06"
-          />
-          <path
-            d="M66 28L78 48L66 68L54 48L66 28Z"
-            stroke="url(#crystGrad2)"
-            stroke-width="1.5"
-            fill="url(#crystGrad2)"
-            fill-opacity="0.06"
-          />
-          <!-- Facet lines -->
-          <line
-            x1="48"
-            y1="12"
-            x2="48"
-            y2="60"
-            stroke="url(#crystGrad1)"
-            stroke-width="0.8"
-            opacity="0.3"
-          />
-          <line
-            x1="34"
-            y1="36"
-            x2="62"
-            y2="36"
-            stroke="url(#crystGrad1)"
-            stroke-width="0.8"
-            opacity="0.3"
-          />
-          <!-- Connection dots -->
-          <circle cx="48" cy="72" r="2" fill="url(#crystGrad1)" opacity="0.5" />
-          <circle cx="38" cy="76" r="1.5" fill="url(#crystGrad2)" opacity="0.4" />
-          <circle cx="58" cy="76" r="1.5" fill="url(#crystGrad2)" opacity="0.4" />
-          <line
-            x1="38"
-            y1="76"
-            x2="48"
-            y2="72"
-            stroke="url(#crystGrad2)"
-            stroke-width="0.8"
-            opacity="0.2"
-          />
-          <line
-            x1="58"
-            y1="76"
-            x2="48"
-            y2="72"
-            stroke="url(#crystGrad2)"
-            stroke-width="0.8"
-            opacity="0.2"
-          />
-          <defs>
-            <linearGradient id="crystGrad1" x1="34" y1="12" x2="62" y2="60">
-              <stop offset="0%" stop-color="#67e8f9" />
-              <stop offset="100%" stop-color="#2ec4a6" />
-            </linearGradient>
-            <linearGradient id="crystGrad2" x1="18" y1="28" x2="78" y2="68">
-              <stop offset="0%" stop-color="#e8b94a" />
-              <stop offset="100%" stop-color="#b8862e" />
-            </linearGradient>
-          </defs>
-        </svg>
-      </div>
-      <h2 class="empty-title">Connect your first account</h2>
-      <p class="empty-desc">
-        Link your bank accounts and credit cards to see all your finances in one crystal-clear view.
-      </p>
-      {#if !hasTellerConfig}
-        <p class="empty-config-hint">First, add your Teller App ID in Settings.</p>
-      {/if}
-      <button
-        class="connect-btn empty-cta"
-        onclick={() => openTellerConnect()}
-        disabled={tellerLoading || syncing || offline}
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path
-            d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
-          /></svg
-        >
-        Connect with Teller
-      </button>
-    </div>
   {:else}
-    <!-- ── Account Totals Summary ────────────────────────────────── -->
-    <div class="totals-bar">
-      <div class="total-item">
-        <span class="total-label">Total Assets</span>
-        <span class="total-value assets">{formatCurrency(totalAssets)}</span>
-      </div>
-      <div class="total-divider"></div>
-      <div class="total-item">
-        <span class="total-label">Total Liabilities</span>
-        <span class="total-value liabilities">{formatCurrency(totalLiabilities)}</span>
-      </div>
-      <div class="total-divider"></div>
-      <div class="total-item">
-        <span class="total-label">Net Position</span>
-        <span
-          class="total-value"
-          class:positive={netPosition >= 0}
-          class:negative={netPosition < 0}
+    {#if accountsByInstitution.length === 0}
+      <!-- ── Empty State ───────────────────────────────────────────── -->
+      <div class="empty-state">
+        <div class="empty-crystal">
+          <svg width="96" height="96" viewBox="0 0 96 96" fill="none">
+            <!-- Crystal cluster -->
+            <path
+              d="M48 12L62 36L48 60L34 36L48 12Z"
+              stroke="url(#crystGrad1)"
+              stroke-width="1.5"
+              fill="url(#crystGrad1)"
+              fill-opacity="0.08"
+            />
+            <path
+              d="M30 28L42 48L30 68L18 48L30 28Z"
+              stroke="url(#crystGrad2)"
+              stroke-width="1.5"
+              fill="url(#crystGrad2)"
+              fill-opacity="0.06"
+            />
+            <path
+              d="M66 28L78 48L66 68L54 48L66 28Z"
+              stroke="url(#crystGrad2)"
+              stroke-width="1.5"
+              fill="url(#crystGrad2)"
+              fill-opacity="0.06"
+            />
+            <!-- Facet lines -->
+            <line
+              x1="48"
+              y1="12"
+              x2="48"
+              y2="60"
+              stroke="url(#crystGrad1)"
+              stroke-width="0.8"
+              opacity="0.3"
+            />
+            <line
+              x1="34"
+              y1="36"
+              x2="62"
+              y2="36"
+              stroke="url(#crystGrad1)"
+              stroke-width="0.8"
+              opacity="0.3"
+            />
+            <!-- Connection dots -->
+            <circle cx="48" cy="72" r="2" fill="url(#crystGrad1)" opacity="0.5" />
+            <circle cx="38" cy="76" r="1.5" fill="url(#crystGrad2)" opacity="0.4" />
+            <circle cx="58" cy="76" r="1.5" fill="url(#crystGrad2)" opacity="0.4" />
+            <line
+              x1="38"
+              y1="76"
+              x2="48"
+              y2="72"
+              stroke="url(#crystGrad2)"
+              stroke-width="0.8"
+              opacity="0.2"
+            />
+            <line
+              x1="58"
+              y1="76"
+              x2="48"
+              y2="72"
+              stroke="url(#crystGrad2)"
+              stroke-width="0.8"
+              opacity="0.2"
+            />
+            <defs>
+              <linearGradient id="crystGrad1" x1="34" y1="12" x2="62" y2="60">
+                <stop offset="0%" stop-color="#67e8f9" />
+                <stop offset="100%" stop-color="#2ec4a6" />
+              </linearGradient>
+              <linearGradient id="crystGrad2" x1="18" y1="28" x2="78" y2="68">
+                <stop offset="0%" stop-color="#e8b94a" />
+                <stop offset="100%" stop-color="#b8862e" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h2 class="empty-title">Connect your first account</h2>
+        <p class="empty-desc">
+          Link your bank accounts and credit cards to see all your finances in one crystal-clear
+          view.
+        </p>
+        {#if !hasTellerConfig}
+          <p class="empty-config-hint">First, add your Teller App ID in Settings.</p>
+        {/if}
+        <button
+          class="connect-btn empty-cta"
+          onclick={() => openTellerConnect()}
+          disabled={tellerLoading || syncing || offline}
         >
-          {formatCurrency(netPosition)}
-        </span>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path
+              d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
+            /></svg
+          >
+          Connect with Teller
+        </button>
       </div>
-    </div>
+    {:else}
+      <!-- ── Account Totals Summary ────────────────────────────────── -->
+      <div class="totals-bar">
+        <div class="total-item">
+          <span class="total-label">Total Assets</span>
+          <span class="total-value assets">{formatCurrency(totalAssets)}</span>
+        </div>
+        <div class="total-divider"></div>
+        <div class="total-item">
+          <span class="total-label">Total Liabilities</span>
+          <span class="total-value liabilities">{formatCurrency(totalLiabilities)}</span>
+        </div>
+        <div class="total-divider"></div>
+        <div class="total-item">
+          <span class="total-label">Net Position</span>
+          <span
+            class="total-value"
+            class:positive={netPosition >= 0}
+            class:negative={netPosition < 0}
+          >
+            {formatCurrency(netPosition)}
+          </span>
+        </div>
+      </div>
 
-    <!-- ── Balance History Chart ──────────────────────────────────── -->
-    <div class="chart-section">
-      <GemChart
-        title="Balance History"
-        lines={chartLines}
-        timeRanges={chartTimeRanges}
-        selectedRange={chartRange}
-        onRangeChange={(r) => (chartRange = r)}
-        height={200}
-        formatValue={formatCurrencyCompact}
-      />
-    </div>
+      <!-- ── Balance History Chart ──────────────────────────────────── -->
+      <div class="chart-section">
+        <GemChart
+          title="Balance History"
+          lines={chartLines}
+          timeRanges={chartTimeRanges}
+          selectedRange={chartRange}
+          onRangeChange={(r) => (chartRange = r)}
+          height={200}
+          formatValue={formatCurrencyCompact}
+        />
+      </div>
 
-    <!-- ── Institution Groups ────────────────────────────────────── -->
-    <div class="institutions-list">
-      {#each accountsByInstitution as group, gi (group.enrollmentId)}
-        <div
-          class="institution-group"
-          style="--group-delay: {gi * 80}ms"
-          class:inst-menu-open={instMenuId === group.institutionName}
-        >
-          <!-- Institution Header -->
-          <div class="institution-header">
-            <div class="inst-info">
-              <div class="inst-icon">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  ><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path
-                    d="M9 21v-4h6v4"
-                  /><path d="M9 9h.01" /><path d="M15 9h.01" /><path d="M9 13h.01" /><path
-                    d="M15 13h.01"
-                  /></svg
-                >
-              </div>
-              <div class="inst-text">
-                {#if renamingManualInst === group.institutionName}
-                  <div class="inst-rename-wrap">
-                    <input
-                      class="inst-rename-input"
-                      type="text"
-                      bind:value={renameManualInstValue}
-                      onkeydown={(e) => {
-                        if (e.key === 'Enter')
-                          renameManualInstitution(group.institutionName, renameManualInstValue);
-                        if (e.key === 'Escape') renamingManualInst = null;
-                      }}
-                      aria-label="Rename institution"
-                    />
-                    <button
-                      class="inst-rename-confirm"
-                      onclick={() =>
-                        renameManualInstitution(group.institutionName, renameManualInstValue)}
-                      disabled={savingRename}
-                      aria-label="Save rename"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+      <!-- ── Institution Groups ────────────────────────────────────── -->
+      <div class="institutions-list">
+        {#each accountsByInstitution as group, gi (group.enrollmentId)}
+          <div
+            class="institution-group"
+            style="--group-delay: {gi * 80}ms"
+            class:inst-menu-open={instMenuId === group.institutionName}
+          >
+            <!-- Institution Header -->
+            <div class="institution-header">
+              <div class="inst-info">
+                <div class="inst-icon">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path
+                      d="M9 21v-4h6v4"
+                    /><path d="M9 9h.01" /><path d="M15 9h.01" /><path d="M9 13h.01" /><path
+                      d="M15 13h.01"
+                    /></svg
+                  >
+                </div>
+                <div class="inst-text">
+                  {#if renamingManualInst === group.institutionName}
+                    <div class="inst-rename-wrap">
+                      <input
+                        class="inst-rename-input"
+                        type="text"
+                        bind:value={renameManualInstValue}
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter')
+                            renameManualInstitution(group.institutionName, renameManualInstValue);
+                          if (e.key === 'Escape') renamingManualInst = null;
+                        }}
+                        aria-label="Rename institution"
+                      />
+                      <button
+                        class="inst-rename-confirm"
+                        onclick={() =>
+                          renameManualInstitution(group.institutionName, renameManualInstValue)}
+                        disabled={savingRename}
+                        aria-label="Save rename"
                       >
-                    </button>
-                    <button
-                      class="inst-rename-cancel"
-                      onclick={() => (renamingManualInst = null)}
-                      aria-label="Cancel rename"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        ><line x1="18" y1="6" x2="6" y2="18" /><line
-                          x1="6"
-                          y1="6"
-                          x2="18"
-                          y2="18"
-                        /></svg
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                        >
+                      </button>
+                      <button
+                        class="inst-rename-cancel"
+                        onclick={() => (renamingManualInst = null)}
+                        aria-label="Cancel rename"
                       >
-                    </button>
-                  </div>
-                {:else}
-                  <div class="inst-name-row">
-                    <h2 class="inst-name" use:truncateTooltip>{group.institutionName}</h2>
-                    <span
-                      class="inst-source-badge {group.enrollmentStatus === 'manual'
-                        ? 'source-manual'
-                        : 'source-teller'}"
-                    >
-                      {group.enrollmentStatus === 'manual' ? 'Manual' : 'Teller'}
-                    </span>
-                  </div>
-                  {#if group.enrollmentStatus !== 'manual'}
-                    <span class="inst-sync">{formatLastSync(group.lastSynced)}</span>
-                  {/if}
-                {/if}
-              </div>
-            </div>
-            <div class="inst-actions">
-              {#if group.enrollmentStatus !== 'manual'}
-                <span class="status-badge {statusClass(group.enrollmentStatus)}">
-                  <span class="status-text">{group.enrollmentStatus}</span>
-                  <span class="status-icon-mobile" aria-hidden="true">
-                    {#if group.enrollmentStatus === 'connected'}
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          ><line x1="18" y1="6" x2="6" y2="18" /><line
+                            x1="6"
+                            y1="6"
+                            x2="18"
+                            y2="18"
+                          /></svg
+                        >
+                      </button>
+                    </div>
+                  {:else}
+                    <div class="inst-name-row">
+                      <h2 class="inst-name" use:truncateTooltip>{group.institutionName}</h2>
+                      <span
+                        class="inst-source-badge {group.enrollmentStatus === 'manual'
+                          ? 'source-manual'
+                          : 'source-teller'}"
                       >
-                    {:else if group.enrollmentStatus === 'error'}
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        ><line x1="12" y1="8" x2="12" y2="13" /><line
-                          x1="12"
-                          y1="17"
-                          x2="12.01"
-                          y2="17"
-                        /></svg
-                      >
-                    {:else}
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        ><line x1="18" y1="6" x2="6" y2="18" /><line
-                          x1="6"
-                          y1="6"
-                          x2="18"
-                          y2="18"
-                        /></svg
-                      >
+                        {group.enrollmentStatus === 'manual' ? 'Manual' : 'Teller'}
+                      </span>
+                    </div>
+                    {#if group.enrollmentStatus !== 'manual'}
+                      <span class="inst-sync">{formatLastSync(group.lastSynced)}</span>
                     {/if}
+                  {/if}
+                </div>
+              </div>
+              <div class="inst-actions">
+                {#if group.enrollmentStatus !== 'manual'}
+                  <span class="status-badge {statusClass(group.enrollmentStatus)}">
+                    <span class="status-text">{group.enrollmentStatus}</span>
+                    <span class="status-icon-mobile" aria-hidden="true">
+                      {#if group.enrollmentStatus === 'connected'}
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                        >
+                      {:else if group.enrollmentStatus === 'error'}
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          ><line x1="12" y1="8" x2="12" y2="13" /><line
+                            x1="12"
+                            y1="17"
+                            x2="12.01"
+                            y2="17"
+                          /></svg
+                        >
+                      {:else}
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          ><line x1="18" y1="6" x2="6" y2="18" /><line
+                            x1="6"
+                            y1="6"
+                            x2="18"
+                            y2="18"
+                          /></svg
+                        >
+                      {/if}
+                    </span>
+                    <span class="status-ago-mobile">{formatLastSync(group.lastSynced)}</span>
                   </span>
-                  <span class="status-ago-mobile">{formatLastSync(group.lastSynced)}</span>
-                </span>
-              {/if}
+                {/if}
 
-              {#if group.enrollmentStatus === 'manual'}
-                {#if confirmDeleteManualInst === group.institutionName}
+                {#if group.enrollmentStatus === 'manual'}
+                  {#if confirmDeleteManualInst === group.institutionName}
+                    <div class="disconnect-confirm">
+                      <button
+                        class="btn-danger-sm"
+                        onclick={() => deleteManualInstitution(group.institutionName)}
+                        disabled={deletingManual}
+                      >
+                        {deletingManual ? 'Removing...' : 'Confirm'}
+                      </button>
+                      <button class="btn-ghost-sm" onclick={() => (confirmDeleteManualInst = null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  {:else}
+                    <!-- Desktop: inline; Mobile: ⋯ dropdown -->
+                    <div class="inst-menu-wrap">
+                      <button
+                        class="inst-mobile-menu-toggle"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          instMenuId =
+                            instMenuId === group.institutionName ? null : group.institutionName;
+                        }}
+                        aria-label="Actions for {group.institutionName}"
+                        aria-expanded={instMenuId === group.institutionName}
+                      >
+                        <svg
+                          width="16"
+                          height="4"
+                          viewBox="0 0 16 4"
+                          fill="currentColor"
+                          stroke="none"
+                          aria-hidden="true"
+                        >
+                          <circle cx="2" cy="2" r="1.5" /><circle cx="8" cy="2" r="1.5" /><circle
+                            cx="14"
+                            cy="2"
+                            r="1.5"
+                          />
+                        </svg>
+                      </button>
+                      <div
+                        class="inst-actions-set"
+                        class:inst-actions-open={instMenuId === group.institutionName}
+                      >
+                        <button
+                          class="inst-rename-btn"
+                          onclick={() => {
+                            instMenuId = null;
+                            renamingManualInst = group.institutionName;
+                            renameManualInstValue = group.institutionName;
+                            confirmDeleteManualInst = null;
+                          }}
+                          aria-label="Rename {group.institutionName}"
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
+                              d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                            /></svg
+                          >
+                        </button>
+                        <button
+                          class="disconnect-btn"
+                          onclick={() => {
+                            instMenuId = null;
+                            confirmDeleteManualInst = group.institutionName;
+                          }}
+                          aria-label="Delete {group.institutionName}"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            ><line x1="18" y1="6" x2="6" y2="18" /><line
+                              x1="6"
+                              y1="6"
+                              x2="18"
+                              y2="18"
+                            /></svg
+                          >
+                        </button>
+                      </div>
+                    </div>
+                  {/if}
+                {:else if confirmDisconnectId === group.enrollmentId}
                   <div class="disconnect-confirm">
                     <button
                       class="btn-danger-sm"
-                      onclick={() => deleteManualInstitution(group.institutionName)}
-                      disabled={deletingManual}
+                      onclick={() => disconnectEnrollment(group.enrollmentId)}
+                      disabled={disconnecting || offline}
                     >
-                      {deletingManual ? 'Removing...' : 'Confirm'}
+                      {disconnecting ? 'Removing...' : 'Confirm'}
                     </button>
-                    <button class="btn-ghost-sm" onclick={() => (confirmDeleteManualInst = null)}>
+                    <button class="btn-ghost-sm" onclick={() => (confirmDisconnectId = null)}>
                       Cancel
                     </button>
                   </div>
@@ -2023,37 +2246,39 @@
                       class="inst-actions-set"
                       class:inst-actions-open={instMenuId === group.institutionName}
                     >
-                      <button
-                        class="inst-rename-btn"
-                        onclick={() => {
-                          instMenuId = null;
-                          renamingManualInst = group.institutionName;
-                          renameManualInstValue = group.institutionName;
-                          confirmDeleteManualInst = null;
-                        }}
-                        aria-label="Rename {group.institutionName}"
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
-                            d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-                          /></svg
+                      {#if group.enrollmentStatus === 'connected'}
+                        <button
+                          class="sync-btn"
+                          onclick={() => {
+                            instMenuId = null;
+                            retrySyncEnrollment(group.enrollmentId);
+                          }}
+                          disabled={syncing}
+                          aria-label="Re-sync {group.institutionName}"
                         >
-                      </button>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            ><polyline points="23 4 23 10 17 10" /><path
+                              d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
+                            /></svg
+                          >
+                        </button>
+                      {/if}
                       <button
                         class="disconnect-btn"
                         onclick={() => {
                           instMenuId = null;
-                          confirmDeleteManualInst = group.institutionName;
+                          confirmDisconnectId = group.enrollmentId;
                         }}
-                        aria-label="Delete {group.institutionName}"
+                        disabled={offline}
+                        aria-label="Disconnect {group.institutionName}"
                       >
                         <svg
                           width="16"
@@ -2075,448 +2300,283 @@
                     </div>
                   </div>
                 {/if}
-              {:else if confirmDisconnectId === group.enrollmentId}
-                <div class="disconnect-confirm">
-                  <button
-                    class="btn-danger-sm"
-                    onclick={() => disconnectEnrollment(group.enrollmentId)}
-                    disabled={disconnecting || offline}
-                  >
-                    {disconnecting ? 'Removing...' : 'Confirm'}
-                  </button>
-                  <button class="btn-ghost-sm" onclick={() => (confirmDisconnectId = null)}>
-                    Cancel
-                  </button>
-                </div>
-              {:else}
-                <!-- Desktop: inline; Mobile: ⋯ dropdown -->
-                <div class="inst-menu-wrap">
-                  <button
-                    class="inst-mobile-menu-toggle"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      instMenuId =
-                        instMenuId === group.institutionName ? null : group.institutionName;
-                    }}
-                    aria-label="Actions for {group.institutionName}"
-                    aria-expanded={instMenuId === group.institutionName}
-                  >
-                    <svg
-                      width="16"
-                      height="4"
-                      viewBox="0 0 16 4"
-                      fill="currentColor"
-                      stroke="none"
-                      aria-hidden="true"
-                    >
-                      <circle cx="2" cy="2" r="1.5" /><circle cx="8" cy="2" r="1.5" /><circle
-                        cx="14"
-                        cy="2"
-                        r="1.5"
-                      />
-                    </svg>
-                  </button>
-                  <div
-                    class="inst-actions-set"
-                    class:inst-actions-open={instMenuId === group.institutionName}
-                  >
-                    {#if group.enrollmentStatus === 'connected'}
-                      <button
-                        class="sync-btn"
-                        onclick={() => {
-                          instMenuId = null;
-                          retrySyncEnrollment(group.enrollmentId);
-                        }}
-                        disabled={syncing}
-                        aria-label="Re-sync {group.institutionName}"
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          ><polyline points="23 4 23 10 17 10" /><path
-                            d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
-                          /></svg
-                        >
-                      </button>
-                    {/if}
-                    <button
-                      class="disconnect-btn"
-                      onclick={() => {
-                        instMenuId = null;
-                        confirmDisconnectId = group.enrollmentId;
-                      }}
-                      disabled={offline}
-                      aria-label="Disconnect {group.institutionName}"
-                    >
+              </div>
+            </div>
+
+            {#if group.enrollmentStatus === 'disconnected' || group.enrollmentStatus === 'error'}
+              {@const isAuth = group.enrollmentStatus === 'disconnected'}
+              <div
+                class="reconnect-banner"
+                class:reconnect-banner-auth={isAuth}
+                class:reconnect-banner-error={!isAuth}
+                role="alert"
+              >
+                <div class="reconnect-aura" aria-hidden="true"></div>
+                <div class="reconnect-content">
+                  <div class="reconnect-icon" aria-hidden="true">
+                    {#if isAuth}
                       <svg
-                        width="16"
-                        height="16"
+                        width="20"
+                        height="20"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        stroke-width="2"
+                        stroke-width="1.8"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        ><line x1="18" y1="6" x2="6" y2="18" /><line
-                          x1="6"
-                          y1="6"
-                          x2="18"
-                          y2="18"
-                        /></svg
                       >
-                    </button>
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                      </svg>
+                    {:else}
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                        />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                    {/if}
                   </div>
-                </div>
-              {/if}
-            </div>
-          </div>
-
-          {#if group.enrollmentStatus === 'disconnected' || group.enrollmentStatus === 'error'}
-            {@const isAuth = group.enrollmentStatus === 'disconnected'}
-            <div
-              class="reconnect-banner"
-              class:reconnect-banner-auth={isAuth}
-              class:reconnect-banner-error={!isAuth}
-              role="alert"
-            >
-              <div class="reconnect-aura" aria-hidden="true"></div>
-              <div class="reconnect-content">
-                <div class="reconnect-icon" aria-hidden="true">
-                  {#if isAuth}
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                    </svg>
-                  {:else}
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-                      />
-                      <line x1="12" y1="9" x2="12" y2="13" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                  {/if}
-                </div>
-                <div class="reconnect-text">
-                  <div class="reconnect-title">
-                    {isAuth ? 'Connection needs re-authorization' : 'Sync temporarily unavailable'}
-                  </div>
-                  <div class="reconnect-desc">
-                    {isAuth
-                      ? 'Your bank expired this link — new transactions won\u2019t appear until you sign in again.'
-                      : 'We can\u2019t reach your bank right now because of an error. Your data is safe; wait a bit and reconnect to resume syncing.'}
-                  </div>
-                </div>
-                <button
-                  class="reconnect-btn"
-                  onclick={() => openTellerConnect(group.enrollmentId)}
-                  disabled={tellerLoading || syncing || offline}
-                  aria-label="Reconnect {group.institutionName}"
-                >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M21 2v6h-6" />
-                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-                    <path d="M3 22v-6h6" />
-                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-                  </svg>
-                  <span>Reconnect</span>
-                </button>
-              </div>
-            </div>
-          {/if}
-
-          <!-- Account Cards -->
-          <div class="accounts-list">
-            {#each group.accounts as account, ai (account.id)}
-              {@const iconType = accountTypeIcon(account.type, account.subtype)}
-              {@const acctStat = acctStats.get(account.id)}
-              <div
-                class="account-card"
-                class:hidden-account={account.is_hidden}
-                class:acct-menu-open={mobileMenuId === account.id}
-                style="--acct-delay: {gi * 80 + ai * 50}ms"
-                use:remoteChangeAnimation={{ entityId: account.id, entityType: 'accounts' }}
-              >
-                <!-- Account type icon -->
-                <div class="acct-icon acct-icon-{iconType}">
-                  {#if iconType === 'credit'}
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line
-                        x1="1"
-                        y1="10"
-                        x2="23"
-                        y2="10"
-                      /></svg
-                    >
-                  {:else if iconType === 'savings'}
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><path
-                        d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-3.5c1.3-.8 2-2.2 2-3.5 0-.3-.1-2.7 0-3 .1-.3.3-1 .5-1.5.2-.7.5-1.5.5-2.5s-1-2-2-2z"
-                      /><path d="M2 9.5a1 1 0 011-1 5 5 0 014 2c1 .5 2 .5 3 0" /></svg
-                    >
-                  {:else}
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><rect x="2" y="5" width="20" height="14" rx="2" /><line
-                        x1="2"
-                        y1="10"
-                        x2="22"
-                        y2="10"
-                      /><line x1="7" y1="15" x2="7" y2="15.01" /><line
-                        x1="11"
-                        y1="15"
-                        x2="13"
-                        y2="15"
-                      /></svg
-                    >
-                  {/if}
-                </div>
-
-                <!-- Account info -->
-                <div class="acct-info">
-                  <div class="acct-top">
-                    <div class="acct-name-group">
-                      <span class="acct-name" class:muted={account.is_hidden} use:truncateTooltip>
-                        {account.name}
-                        {#if account.manual_balance_override}
-                          <span class="acct-override-badge" title="Balance manually set">✦</span>
-                        {/if}
-                      </span>
-                      <div class="acct-meta">
-                        {#if account.last_four}
-                          <span class="acct-last4">{account.last_four}</span>
-                        {/if}
-                        <span class="acct-type-badge type-{account.type}">
-                          {subtypeLabel(account.subtype)}
-                        </span>
-                        <span
-                          class="acct-source-badge {account.source === 'manual'
-                            ? 'source-manual'
-                            : 'source-teller'}"
-                        >
-                          {account.source === 'manual' ? 'Manual' : 'Teller'}
-                        </span>
-                      </div>
+                  <div class="reconnect-text">
+                    <div class="reconnect-title">
+                      {isAuth
+                        ? 'Connection needs re-authorization'
+                        : 'Sync temporarily unavailable'}
+                    </div>
+                    <div class="reconnect-desc">
+                      {isAuth
+                        ? 'Your bank expired this link — new transactions won\u2019t appear until you sign in again.'
+                        : 'We can\u2019t reach your bank right now because of an error. Your data is safe; wait a bit and reconnect to resume syncing.'}
                     </div>
                   </div>
-                  <div class="acct-bottom">
-                    <span class="acct-balance" class:muted={account.is_hidden}>
-                      {displayBalance(account)}
-                      {#if creditLimit(account)}
-                        <span class="acct-limit">/ {creditLimit(account)}</span>
-                      {/if}
-                    </span>
-                    {#if account.balance_updated_at}
-                      <span class="acct-updated">{formatLastSync(account.balance_updated_at)}</span>
-                    {/if}
-                  </div>
-                  {#if acctStat}
-                    {#if acctStat.utilization !== null}
-                      <div class="acct-stat-row">
-                        <div
-                          class="acct-util-bar"
-                          class:util-low={acctStat.utilization < 30}
-                          class:util-mid={acctStat.utilization >= 30 && acctStat.utilization < 70}
-                          class:util-high={acctStat.utilization >= 70}
-                        >
-                          <div
-                            class="util-fill"
-                            style="width: {Math.max(acctStat.utilization, 0.0).toFixed(1)}%"
-                          ></div>
-                        </div>
-                        <span
-                          class="acct-stat-label"
-                          class:stat-low={acctStat.utilization < 30}
-                          class:stat-mid={acctStat.utilization >= 30 && acctStat.utilization < 70}
-                          class:stat-high={acctStat.utilization >= 70}
-                          >{acctStat.utilization.toFixed(0)}% utilized</span
-                        >
-                      </div>
-                    {:else if acctStat.pctChange !== null}
-                      <div class="acct-stat-row">
-                        <span
-                          class="acct-stat-label"
-                          class:stat-pos={acctStat.pctChange > 0}
-                          class:stat-neg={acctStat.pctChange < 0}
-                          class:stat-neutral={acctStat.pctChange === 0}
-                        >
-                          {acctStat.pctChange > 0 ? '+' : ''}{acctStat.pctChange.toFixed(0)}% vs
-                          last month
-                        </span>
-                      </div>
-                    {/if}
-                  {/if}
-                </div>
-
-                <!-- Mobile ⋯ toggle + dropdown; desktop: transparent wrapper -->
-                <div class="acct-menu-wrap">
                   <button
-                    class="acct-mobile-menu-toggle"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      mobileMenuId = mobileMenuId === account.id ? null : account.id;
-                    }}
-                    aria-label="Account actions for {account.name}"
-                    aria-expanded={mobileMenuId === account.id}
+                    class="reconnect-btn"
+                    onclick={() => openTellerConnect(group.enrollmentId)}
+                    disabled={tellerLoading || syncing || offline}
+                    aria-label="Reconnect {group.institutionName}"
                   >
                     <svg
-                      width="16"
-                      height="4"
-                      viewBox="0 0 16 4"
-                      fill="currentColor"
-                      stroke="none"
-                      aria-hidden="true"
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
                     >
-                      <circle cx="2" cy="2" r="1.5" /><circle cx="8" cy="2" r="1.5" /><circle
-                        cx="14"
-                        cy="2"
-                        r="1.5"
-                      />
+                      <path d="M21 2v6h-6" />
+                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                      <path d="M3 22v-6h6" />
+                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
                     </svg>
+                    <span>Reconnect</span>
                   </button>
+                </div>
+              </div>
+            {/if}
 
-                  <!-- Desktop: inline buttons; Mobile: revealed on ⋯ toggle -->
-                  <div
-                    class="acct-actions-set"
-                    class:acct-actions-open={mobileMenuId === account.id}
-                  >
-                    {#if account.source === 'manual'}
-                      <!-- Manual-only actions: edit, import CSV, delete -->
-                      <button
-                        class="acct-action-btn acct-edit-btn"
-                        onclick={(e) => {
-                          e.stopPropagation();
-                          mobileMenuId = null;
-                          openEditModal(account);
-                        }}
-                        aria-label="Edit {account.name}"
-                        title="Edit account"
+            <!-- Account Cards -->
+            <div class="accounts-list">
+              {#each group.accounts as account, ai (account.id)}
+                {@const iconType = accountTypeIcon(account.type, account.subtype)}
+                {@const acctStat = acctStats.get(account.id)}
+                <div
+                  class="account-card"
+                  class:hidden-account={account.is_hidden}
+                  class:acct-menu-open={mobileMenuId === account.id}
+                  style="--acct-delay: {gi * 80 + ai * 50}ms"
+                  use:remoteChangeAnimation={{ entityId: account.id, entityType: 'accounts' }}
+                >
+                  <!-- Account type icon -->
+                  <div class="acct-icon acct-icon-{iconType}">
+                    {#if iconType === 'credit'}
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line
+                          x1="1"
+                          y1="10"
+                          x2="23"
+                          y2="10"
+                        /></svg
                       >
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
-                            d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-                          /></svg
-                        >
-                      </button>
-                      <button
-                        class="acct-action-btn acct-import-btn"
-                        onclick={(e) => {
-                          e.stopPropagation();
-                          mobileMenuId = null;
-                          openCSVForAccount(account);
-                        }}
-                        aria-label="Import CSV for {account.name}"
-                        title="Import CSV"
+                    {:else if iconType === 'savings'}
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><path
+                          d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-3.5c1.3-.8 2-2.2 2-3.5 0-.3-.1-2.7 0-3 .1-.3.3-1 .5-1.5.2-.7.5-1.5.5-2.5s-1-2-2-2z"
+                        /><path d="M2 9.5a1 1 0 011-1 5 5 0 014 2c1 .5 2 .5 3 0" /></svg
                       >
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
-                            points="17 8 12 3 7 8"
-                          /><line x1="12" y1="3" x2="12" y2="15" /></svg
-                        >
-                      </button>
-                      {#if confirmDeleteAccountId === account.id}
-                        <div class="acct-delete-confirm">
-                          <button
-                            class="btn-danger-sm"
-                            onclick={(e) => {
-                              e.stopPropagation();
-                              deleteAccount(account.id);
-                            }}
-                            disabled={deletingAccount}
+                    {:else}
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><rect x="2" y="5" width="20" height="14" rx="2" /><line
+                          x1="2"
+                          y1="10"
+                          x2="22"
+                          y2="10"
+                        /><line x1="7" y1="15" x2="7" y2="15.01" /><line
+                          x1="11"
+                          y1="15"
+                          x2="13"
+                          y2="15"
+                        /></svg
+                      >
+                    {/if}
+                  </div>
+
+                  <!-- Account info -->
+                  <div class="acct-info">
+                    <div class="acct-top">
+                      <div class="acct-name-group">
+                        <span class="acct-name" class:muted={account.is_hidden} use:truncateTooltip>
+                          {account.name}
+                          {#if account.manual_balance_override}
+                            <span class="acct-override-badge" title="Balance manually set">✦</span>
+                          {/if}
+                        </span>
+                        <div class="acct-meta">
+                          {#if account.last_four}
+                            <span class="acct-last4">{account.last_four}</span>
+                          {/if}
+                          <span class="acct-type-badge type-{account.type}">
+                            {subtypeLabel(account.subtype)}
+                          </span>
+                          <span
+                            class="acct-source-badge {account.source === 'manual'
+                              ? 'source-manual'
+                              : 'source-teller'}"
                           >
-                            {deletingAccount ? '...' : 'Delete'}
-                          </button>
-                          <button
-                            class="btn-ghost-sm"
-                            onclick={(e) => {
-                              e.stopPropagation();
-                              confirmDeleteAccountId = null;
-                            }}
-                          >
-                            Cancel
-                          </button>
+                            {account.source === 'manual' ? 'Manual' : 'Teller'}
+                          </span>
                         </div>
-                      {:else}
+                      </div>
+                    </div>
+                    <div class="acct-bottom">
+                      <span class="acct-balance" class:muted={account.is_hidden}>
+                        {displayBalance(account)}
+                        {#if creditLimit(account)}
+                          <span class="acct-limit">/ {creditLimit(account)}</span>
+                        {/if}
+                      </span>
+                      {#if account.balance_updated_at}
+                        <span class="acct-updated"
+                          >{formatLastSync(account.balance_updated_at)}</span
+                        >
+                      {/if}
+                    </div>
+                    {#if acctStat}
+                      {#if acctStat.utilization !== null}
+                        <div class="acct-stat-row">
+                          <div
+                            class="acct-util-bar"
+                            class:util-low={acctStat.utilization < 30}
+                            class:util-mid={acctStat.utilization >= 30 && acctStat.utilization < 70}
+                            class:util-high={acctStat.utilization >= 70}
+                          >
+                            <div
+                              class="util-fill"
+                              style="width: {Math.max(acctStat.utilization, 0.0).toFixed(1)}%"
+                            ></div>
+                          </div>
+                          <span
+                            class="acct-stat-label"
+                            class:stat-low={acctStat.utilization < 30}
+                            class:stat-mid={acctStat.utilization >= 30 && acctStat.utilization < 70}
+                            class:stat-high={acctStat.utilization >= 70}
+                            >{acctStat.utilization.toFixed(0)}% utilized</span
+                          >
+                        </div>
+                      {:else if acctStat.pctChange !== null}
+                        <div class="acct-stat-row">
+                          <span
+                            class="acct-stat-label"
+                            class:stat-pos={acctStat.pctChange > 0}
+                            class:stat-neg={acctStat.pctChange < 0}
+                            class:stat-neutral={acctStat.pctChange === 0}
+                          >
+                            {acctStat.pctChange > 0 ? '+' : ''}{acctStat.pctChange.toFixed(0)}% vs
+                            last month
+                          </span>
+                        </div>
+                      {/if}
+                    {/if}
+                  </div>
+
+                  <!-- Mobile ⋯ toggle + dropdown; desktop: transparent wrapper -->
+                  <div class="acct-menu-wrap">
+                    <button
+                      class="acct-mobile-menu-toggle"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        mobileMenuId = mobileMenuId === account.id ? null : account.id;
+                      }}
+                      aria-label="Account actions for {account.name}"
+                      aria-expanded={mobileMenuId === account.id}
+                    >
+                      <svg
+                        width="16"
+                        height="4"
+                        viewBox="0 0 16 4"
+                        fill="currentColor"
+                        stroke="none"
+                        aria-hidden="true"
+                      >
+                        <circle cx="2" cy="2" r="1.5" /><circle cx="8" cy="2" r="1.5" /><circle
+                          cx="14"
+                          cy="2"
+                          r="1.5"
+                        />
+                      </svg>
+                    </button>
+
+                    <!-- Desktop: inline buttons; Mobile: revealed on ⋯ toggle -->
+                    <div
+                      class="acct-actions-set"
+                      class:acct-actions-open={mobileMenuId === account.id}
+                    >
+                      {#if account.source === 'manual'}
+                        <!-- Manual-only actions: edit, import CSV, delete -->
                         <button
-                          class="acct-action-btn acct-delete-btn"
+                          class="acct-action-btn acct-edit-btn"
                           onclick={(e) => {
                             e.stopPropagation();
-                            confirmDeleteAccountId = account.id;
+                            mobileMenuId = null;
+                            openEditModal(account);
                           }}
-                          aria-label="Delete {account.name}"
-                          title="Delete account"
+                          aria-label="Edit {account.name}"
+                          title="Edit account"
                         >
                           <svg
                             width="15"
@@ -2527,69 +2587,359 @@
                             stroke-width="2"
                             stroke-linecap="round"
                             stroke-linejoin="round"
-                            ><polyline points="3 6 5 6 21 6" /><path
-                              d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"
-                            /><path d="M10 11v6" /><path d="M14 11v6" /><path
-                              d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"
+                            ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
+                              d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
                             /></svg
                           >
                         </button>
+                        <button
+                          class="acct-action-btn acct-import-btn"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            mobileMenuId = null;
+                            openCSVForAccount(account);
+                          }}
+                          aria-label="Import CSV for {account.name}"
+                          title="Import CSV"
+                        >
+                          <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            ><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline
+                              points="17 8 12 3 7 8"
+                            /><line x1="12" y1="3" x2="12" y2="15" /></svg
+                          >
+                        </button>
+                        {#if confirmDeleteAccountId === account.id}
+                          <div class="acct-delete-confirm">
+                            <button
+                              class="btn-danger-sm"
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                deleteAccount(account.id);
+                              }}
+                              disabled={deletingAccount}
+                            >
+                              {deletingAccount ? '...' : 'Delete'}
+                            </button>
+                            <button
+                              class="btn-ghost-sm"
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                confirmDeleteAccountId = null;
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        {:else}
+                          <button
+                            class="acct-action-btn acct-delete-btn"
+                            onclick={(e) => {
+                              e.stopPropagation();
+                              confirmDeleteAccountId = account.id;
+                            }}
+                            aria-label="Delete {account.name}"
+                            title="Delete account"
+                          >
+                            <svg
+                              width="15"
+                              height="15"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              ><polyline points="3 6 5 6 21 6" /><path
+                                d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"
+                              /><path d="M10 11v6" /><path d="M14 11v6" /><path
+                                d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"
+                              /></svg
+                            >
+                          </button>
+                        {/if}
                       {/if}
-                    {/if}
 
-                    <!-- Hide toggle: for ALL accounts, inside the action set -->
-                    <button
-                      class="hide-toggle"
-                      class:is-hidden={account.is_hidden}
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        mobileMenuId = null;
-                        toggleAccountHidden(account.id, account.is_hidden);
-                      }}
-                      disabled={togglingHidden === account.id}
-                      aria-label={account.is_hidden ? 'Show account' : 'Hide account'}
-                    >
-                      {#if togglingHidden === account.id}
-                        <div class="toggle-spinner"></div>
-                      {:else if account.is_hidden}
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          ><path
-                            d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
-                          /><line x1="1" y1="1" x2="23" y2="23" /></svg
-                        >
-                      {:else}
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          ><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle
-                            cx="12"
-                            cy="12"
-                            r="3"
-                          /></svg
-                        >
-                      {/if}
-                    </button>
+                      <!-- Hide toggle: for ALL accounts, inside the action set -->
+                      <button
+                        class="hide-toggle"
+                        class:is-hidden={account.is_hidden}
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          mobileMenuId = null;
+                          toggleAccountHidden(account.id, account.is_hidden);
+                        }}
+                        disabled={togglingHidden === account.id}
+                        aria-label={account.is_hidden ? 'Show account' : 'Hide account'}
+                      >
+                        {#if togglingHidden === account.id}
+                          <div class="toggle-spinner"></div>
+                        {:else if account.is_hidden}
+                          <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            ><path
+                              d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
+                            /><line x1="1" y1="1" x2="23" y2="23" /></svg
+                          >
+                        {:else}
+                          <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            ><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle
+                              cx="12"
+                              cy="12"
+                              r="3"
+                            /></svg
+                          >
+                        {/if}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            {/each}
+              {/each}
+            </div>
           </div>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- ── Cash Wallet Card ─────────────────────────────────────── -->
+    <div class="cash-wallet-section">
+      <div
+        class="account-card cash-wallet-account-card"
+        class:hidden-account={cashWalletAccount?.is_hidden}
+        class:acct-menu-open={mobileMenuId === 'cash-wallet'}
+      >
+        <!-- Cash / banknote icon -->
+        <div class="acct-icon cw-acct-icon">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="2" y="6" width="20" height="12" rx="2" />
+            <circle cx="12" cy="12" r="2" />
+            <path d="M6 12h.01M18 12h.01" />
+          </svg>
         </div>
-      {/each}
+
+        <!-- Account info -->
+        <div class="acct-info">
+          <div class="acct-top">
+            <div class="acct-name-group">
+              <span class="acct-name" class:muted={cashWalletAccount?.is_hidden}>Cash</span>
+              <div class="acct-meta">
+                <span class="acct-type-badge type-depository">Cash</span>
+              </div>
+            </div>
+          </div>
+          <div class="acct-bottom" class:cw-editing-bottom={cashWalletEditing}>
+            {#if cashWalletEditing}
+              <div class="cw-edit-row">
+                <span class="cw-currency-sign">$</span>
+                <input
+                  bind:this={cashWalletInputEl}
+                  class="cw-input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  bind:value={cashWalletInput}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter') saveCashWallet();
+                    if (e.key === 'Escape') cancelEditCashWallet();
+                  }}
+                  aria-label="Cash balance"
+                />
+              </div>
+            {:else}
+              <span class="acct-balance" class:muted={cashWalletAccount?.is_hidden}
+                >{formatCurrency(cashWalletBalance)}</span
+              >
+              {#if cashWalletAccount?.balance_updated_at}
+                <span class="acct-updated"
+                  >{formatLastSync(cashWalletAccount.balance_updated_at)}</span
+                >
+              {/if}
+            {/if}
+          </div>
+          {#if cashWalletPctChange !== null && !cashWalletEditing}
+            <div class="acct-stat-row">
+              <span
+                class="acct-stat-label"
+                class:stat-pos={cashWalletPctChange > 0}
+                class:stat-neg={cashWalletPctChange < 0}
+                class:stat-neutral={cashWalletPctChange === 0}
+              >
+                {cashWalletPctChange > 0 ? '+' : ''}{cashWalletPctChange.toFixed(0)}% vs last month
+              </span>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Action area -->
+        <div class="acct-menu-wrap">
+          {#if cashWalletEditing}
+            <div class="cw-edit-actions">
+              <button
+                class="cw-save-btn"
+                onclick={saveCashWallet}
+                disabled={savingCashWallet}
+                aria-label="Save cash balance"
+              >
+                {#if savingCashWallet}
+                  <div class="btn-spinner cw-spinner"></div>
+                {:else}
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                  >
+                {/if}
+              </button>
+              <button class="cw-cancel-btn" onclick={cancelEditCashWallet} aria-label="Cancel">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+                >
+              </button>
+            </div>
+          {:else}
+            <button
+              class="acct-mobile-menu-toggle"
+              onclick={(e) => {
+                e.stopPropagation();
+                mobileMenuId = mobileMenuId === 'cash-wallet' ? null : 'cash-wallet';
+              }}
+              aria-label="Cash account actions"
+              aria-expanded={mobileMenuId === 'cash-wallet'}
+            >
+              <svg
+                width="16"
+                height="4"
+                viewBox="0 0 16 4"
+                fill="currentColor"
+                stroke="none"
+                aria-hidden="true"
+              >
+                <circle cx="2" cy="2" r="1.5" /><circle cx="8" cy="2" r="1.5" /><circle
+                  cx="14"
+                  cy="2"
+                  r="1.5"
+                />
+              </svg>
+            </button>
+            <div class="acct-actions-set" class:acct-actions-open={mobileMenuId === 'cash-wallet'}>
+              <button
+                class="acct-action-btn acct-edit-btn"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  mobileMenuId = null;
+                  startEditCashWallet();
+                }}
+                aria-label="Update cash balance"
+                title="Update balance"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path
+                    d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                  /></svg
+                >
+              </button>
+              <button
+                class="hide-toggle"
+                class:is-hidden={cashWalletAccount?.is_hidden}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  mobileMenuId = null;
+                  if (cashWalletAccount)
+                    toggleAccountHidden(cashWalletAccount.id, cashWalletAccount.is_hidden);
+                }}
+                disabled={togglingHidden === cashWalletAccount?.id}
+                aria-label={cashWalletAccount?.is_hidden ? 'Show cash' : 'Hide cash'}
+              >
+                {#if togglingHidden === cashWalletAccount?.id}
+                  <div class="toggle-spinner"></div>
+                {:else if cashWalletAccount?.is_hidden}
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path
+                      d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
+                    /><line x1="1" y1="1" x2="23" y2="23" /></svg
+                  >
+                {:else}
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle
+                      cx="12"
+                      cy="12"
+                      r="3"
+                    /></svg
+                  >
+                {/if}
+              </button>
+            </div>
+          {/if}
+        </div>
+      </div>
     </div>
   {/if}
 </div>
@@ -3474,6 +3824,144 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  /* ── Cash Wallet ────────────────────────────────────────────────────────── */
+
+  /* Standalone section — no institution wrapper, sits below all groups */
+  .cash-wallet-section {
+    margin-top: 1.5rem;
+    animation: group-enter 0.4s ease-out both;
+  }
+
+  /* Fully rounded standalone card (override account-card's no-top-border / last-child rules) */
+  .cash-wallet-account-card {
+    border-radius: 14px !important;
+    border-top: 1px solid var(--border-subtle) !important;
+  }
+
+  /* Gold → emerald left accent bar */
+  .cash-wallet-account-card::before {
+    background: linear-gradient(180deg, var(--gold, #d4a039), var(--emerald, #34d399));
+  }
+
+  /* Gold + emerald dual-tint icon background, emerald stroke */
+  .cw-acct-icon {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(52, 211, 153, 0.1) 100%);
+    color: var(--emerald, #34d399);
+    border-color: rgba(52, 211, 153, 0.2);
+  }
+
+  /* Align items to center when editing (input is taller than baseline text) */
+  .cw-editing-bottom {
+    align-items: center;
+  }
+
+  /* Row of save + cancel buttons shown when editing */
+  .cw-edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  /* Input prefix/body row */
+  .cw-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .cw-currency-sign {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--gold);
+    opacity: 0.8;
+    flex-shrink: 0;
+  }
+
+  .cw-input {
+    width: 130px;
+    padding: 0.35rem 0.55rem;
+    background: rgba(251, 191, 36, 0.07);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 500;
+    font-family: var(--font-display, -apple-system, sans-serif);
+    font-variant-numeric: tabular-nums;
+    outline: none;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  .cw-input::-webkit-outer-spin-button,
+  .cw-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+  }
+
+  .cw-input:focus {
+    border-color: rgba(251, 191, 36, 0.6);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
+  }
+
+  .cw-save-btn,
+  .cw-cancel-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+
+  .cw-save-btn {
+    background: rgba(52, 211, 153, 0.1);
+    border-color: rgba(52, 211, 153, 0.3);
+    color: var(--emerald);
+  }
+
+  .cw-save-btn:hover:not(:disabled) {
+    background: rgba(52, 211, 153, 0.18);
+    border-color: rgba(52, 211, 153, 0.5);
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.2);
+  }
+
+  .cw-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .cw-cancel-btn {
+    background: rgba(248, 113, 113, 0.08);
+    border-color: rgba(248, 113, 113, 0.25);
+    color: var(--ruby);
+  }
+
+  .cw-cancel-btn:hover {
+    background: rgba(248, 113, 113, 0.14);
+    border-color: rgba(248, 113, 113, 0.4);
+  }
+
+  .cw-spinner {
+    width: 14px;
+    height: 14px;
+    border-width: 2px;
+  }
+
+  @media (max-width: 480px) {
+    .cw-input {
+      width: 110px;
+    }
   }
 
   /* ── Connect Button ─────────────────────────────────────────────────────── */

@@ -427,6 +427,68 @@ function createTransactionsStore() {
       debug('log', '[DATA] transactions — bulkDelete complete', { count: ids.length });
     },
 
+    /* ── Manual Transaction Create (cash wallet updates) ── */
+
+    async createTransaction(data: {
+      account_id: string;
+      amount: string;
+      date: string;
+      description: string;
+    }) {
+      const id = generateId();
+      debug('log', '[DATA] transactions — createTransaction', { id });
+      remoteChangesStore.recordLocalChange(id, 'transactions', 'create');
+      const timestamp = now();
+      const record = {
+        id,
+        account_id: data.account_id,
+        teller_transaction_id: null,
+        amount: data.amount,
+        date: data.date,
+        description: data.description,
+        counterparty_name: null,
+        counterparty_type: null,
+        teller_category: null,
+        category_id: null,
+        status: 'posted',
+        type: null,
+        running_balance: null,
+        is_excluded: false,
+        is_recurring: false,
+        category_source: null,
+        notes: null,
+        csv_import_hash: null,
+        user_deleted: false,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted: false
+      } as unknown as Transaction;
+      await engineCreate('transactions', {
+        id,
+        account_id: data.account_id,
+        teller_transaction_id: null,
+        amount: data.amount,
+        date: data.date,
+        description: data.description,
+        counterparty_name: null,
+        counterparty_type: null,
+        teller_category: null,
+        category_id: null,
+        status: 'posted',
+        type: null,
+        running_balance: null,
+        is_excluded: false,
+        is_recurring: false,
+        category_source: null,
+        notes: null,
+        csv_import_hash: null,
+        user_deleted: false
+      });
+      store.mutate((items) => [...items, record]);
+      debug('log', '[DATA] transactions — createTransaction complete', { id });
+      return id;
+    },
+
     /* ── CSV Import ── */
 
     async bulkCreateFromCSV(

@@ -1156,6 +1156,48 @@ Returns `{ inserted, skipped }` counts for user feedback.
 
 ---
 
+## 10.5 Cash Wallet
+
+The Cash Wallet is a permanent default account auto-created on first launch for tracking physical cash.
+
+### Key Properties
+
+- `source: 'manual'`, `type: 'depository'`, `subtype: 'cash_wallet'`
+- The reserved `subtype: 'cash_wallet'` value identifies this singleton; no new schema column needed
+- Excluded from the institution groups list on the Accounts page (filtered by subtype)
+- No `manual_balance_override` — balance tracked via transactions (not override)
+
+### Balance Update Flow
+
+When the user sets a new cash amount:
+
+1. Compute `delta = newValue - balance_available`
+2. If `|delta| >= 0.01`: create a transaction on today's date:
+   - `amount: delta.toFixed(2)`
+   - `description: 'Cash deposit'` or `'Cash withdrawal'`
+   - `status: 'posted'`, no teller_transaction_id
+3. Update `balance_available = newValue` and `balance_ledger = newValue`
+
+### Net Worth Integration
+
+Because cash updates create real transactions, the balance history reconstruction algorithm treats the cash wallet identically to any depository account:
+
+- Current balance anchors at `balance_available` (`txnComputedBal`)
+- Historical balances are reconstructed by walking backwards from the anchor minus all transaction deltas
+- Each balance update appears as a visible step on the net worth / balance history chart
+
+### Percentage Change
+
+`acctStats` computes `pctChange` for all depository accounts, including the cash wallet:
+
+```
+pctChange = monthTxnNet / |priorBalance| * 100
+```
+
+where `monthTxnNet` = net of cash transactions in the last 30 days.
+
+---
+
 ## 11. PWA Architecture
 
 ### Service Worker Lifecycle
@@ -1497,9 +1539,9 @@ Demo mode:
 Deterministic IDs (all prefixed with `demo-`) enable idempotent re-seeding:
 
 - **2 enrollments**: Chase, Bank of America
-- **5 accounts**: Chase Checking, Chase Savings, Chase Sapphire Preferred, BofA Checking, BofA Cash Rewards
+- **6 accounts**: Chase Checking, Chase Savings, Chase Sapphire Preferred, BofA Checking, BofA Cash Rewards, plus a default Cash wallet account (see Cash Wallet below)
 - **14 categories**: Groceries ($600), Dining ($300), Coffee ($80), Rent ($2200), Utilities ($250), etc.
-- **~80 transactions**: Spanning 90 days with 50+ in the current month to exercise load-more pagination; realistic amounts, mix of posted/pending
+- **~85 transactions**: Spanning 90 days including 5 cash balance-update transactions for the cash wallet history
 - **8 recurring entries**: Netflix, Spotify, Rent, Equinox, OpenAI, PG&E, AT&T
 
 **Budget-only category rule**: Only spending/expense categories appear in demo seed data. Income, transfer, and payment transactions (salary, freelance income, bank transfers, credit card payments) are seeded with `category_id = null`. This prevents income entries from appearing in the budget page with a $0.00 limit. The rule applies to production data too: categories are for tracking spending budgets, not income flows.

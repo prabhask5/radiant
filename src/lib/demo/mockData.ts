@@ -90,6 +90,7 @@ const ACCT_MANUAL_SAVINGS = 'demo-acct-manual-savings'; // manual (no Teller lin
 const ACCT_MANUAL_BROKERAGE = 'demo-acct-manual-brokerage'; // second manual institution
 const ACCT_MANUAL_CREDIT = 'demo-acct-manual-credit'; // manual credit card
 const ACCT_BOFA_JOINT = 'demo-acct-bofa-joint'; // hidden account
+const ACCT_CASH_WALLET = 'demo-acct-cash-wallet'; // default cash wallet
 
 // Categories — deterministic demo IDs
 const CAT_GROCERIES = 'demo-cat-groceries';
@@ -357,6 +358,26 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       balance_updated_at: now(),
       manual_balance_override: '340.00',
       manual_credit_limit: '5000.00',
+      is_hidden: false
+    },
+    {
+      // Cash wallet — always-present default account for physical cash tracking
+      ...base(ACCT_CASH_WALLET),
+      enrollment_id: null,
+      teller_account_id: null,
+      institution_name: 'Cash',
+      name: 'Cash',
+      type: 'depository',
+      subtype: 'cash_wallet',
+      currency: 'USD',
+      last_four: null,
+      status: 'open',
+      source: 'manual',
+      balance_available: '350.00',
+      balance_ledger: '350.00',
+      balance_updated_at: now(),
+      manual_balance_override: null,
+      manual_credit_limit: null,
       is_hidden: false
     },
     {
@@ -1682,7 +1703,114 @@ export async function seedDemoData(db: Dexie): Promise<void> {
       'organization',
       CAT_DINING,
       'posted'
-    )
+    ),
+
+    // ── Cash wallet — manual cash balance update history ──────────────────
+    {
+      ...base('demo-txn-cash-1'),
+      account_id: ACCT_CASH_WALLET,
+      teller_transaction_id: null,
+      amount: '500.00',
+      date: daysAgo(90),
+      description: 'Cash deposit',
+      counterparty_name: null,
+      counterparty_type: null,
+      teller_category: null,
+      category_id: null,
+      status: 'posted',
+      type: 'debit',
+      running_balance: null,
+      is_excluded: false,
+      is_recurring: false,
+      category_source: null,
+      notes: null,
+      csv_import_hash: null,
+      user_deleted: false
+    },
+    {
+      ...base('demo-txn-cash-2'),
+      account_id: ACCT_CASH_WALLET,
+      teller_transaction_id: null,
+      amount: '-120.00',
+      date: daysAgo(70),
+      description: 'Cash withdrawal',
+      counterparty_name: null,
+      counterparty_type: null,
+      teller_category: null,
+      category_id: null,
+      status: 'posted',
+      type: 'credit',
+      running_balance: null,
+      is_excluded: false,
+      is_recurring: false,
+      category_source: null,
+      notes: null,
+      csv_import_hash: null,
+      user_deleted: false
+    },
+    {
+      ...base('demo-txn-cash-3'),
+      account_id: ACCT_CASH_WALLET,
+      teller_transaction_id: null,
+      amount: '-80.00',
+      date: daysAgo(45),
+      description: 'Cash withdrawal',
+      counterparty_name: null,
+      counterparty_type: null,
+      teller_category: null,
+      category_id: null,
+      status: 'posted',
+      type: 'credit',
+      running_balance: null,
+      is_excluded: false,
+      is_recurring: false,
+      category_source: null,
+      notes: null,
+      csv_import_hash: null,
+      user_deleted: false
+    },
+    {
+      ...base('demo-txn-cash-4'),
+      account_id: ACCT_CASH_WALLET,
+      teller_transaction_id: null,
+      amount: '100.00',
+      date: daysAgo(25),
+      description: 'Cash deposit',
+      counterparty_name: null,
+      counterparty_type: null,
+      teller_category: null,
+      category_id: null,
+      status: 'posted',
+      type: 'debit',
+      running_balance: null,
+      is_excluded: false,
+      is_recurring: false,
+      category_source: null,
+      notes: null,
+      csv_import_hash: null,
+      user_deleted: false
+    },
+    {
+      ...base('demo-txn-cash-5'),
+      account_id: ACCT_CASH_WALLET,
+      teller_transaction_id: null,
+      amount: '-50.00',
+      date: daysAgo(8),
+      description: 'Cash withdrawal',
+      counterparty_name: null,
+      counterparty_type: null,
+      teller_category: null,
+      category_id: null,
+      status: 'posted',
+      type: 'credit',
+      running_balance: null,
+      is_excluded: false,
+      is_recurring: false,
+      category_source: null,
+      notes: null,
+      csv_import_hash: null,
+      user_deleted: false
+    }
   ]);
 
   // ---------------------------------------------------------------------------
